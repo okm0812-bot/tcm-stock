@@ -1234,9 +1234,8 @@ async function handleImage(e) {
         console.log(`[图片辨识] 共 ${lines.length} 行原始数据:`);
         lines.forEach((line, i) => console.log(`  行${i+1}: "${line}"`));
         
-        // 预处理：将数量配对到对应的产品
+        // 预处理：将数量配对到对应的产品（按顺序一对一配对）
         const processedLines = [];
-        let currentProduct = null;
         
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
@@ -1245,22 +1244,21 @@ async function handleImage(e) {
             // 如果当前行是纯数字（1-99）
             if (/^\d{1,2}$/.test(cleaned)) {
                 const num = parseInt(cleaned);
-                if (num >= 1 && num <= 99 && currentProduct) {
-                    // 把数字追加到当前产品
-                    processedLines.push(currentProduct + cleaned);
-                    console.log(`[图片辨识] 配对: "${currentProduct}" + ${num} = "${currentProduct}${num}"`);
-                    currentProduct = null;
+                if (num >= 1 && num <= 99 && processedLines.length > 0) {
+                    // 把数字追加到最后一个产品
+                    const lastIndex = processedLines.length - 1;
+                    processedLines[lastIndex] = processedLines[lastIndex] + cleaned;
+                    console.log(`[图片辨识] 配对: "${processedLines[lastIndex]}"`);
+                    continue;
+                } else {
+                    // 没有产品可配对，跳过
+                    console.log(`[图片辨识] 跳过无效数字: "${cleaned}"`);
                     continue;
                 }
             }
             
-            // 非数字行：可能是产品名，先暂存
-            currentProduct = cleaned;
-        }
-        
-        // 如果最后还有未配对的产品名，直接加入
-        if (currentProduct) {
-            processedLines.push(currentProduct);
+            // 非数字行：添加到产品列表
+            processedLines.push(cleaned);
         }
         
         console.log(`[图片辨识] 处理后共 ${processedLines.length} 行:`);
