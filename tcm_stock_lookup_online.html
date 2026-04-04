@@ -1234,31 +1234,39 @@ async function handleImage(e) {
         console.log(`[图片辨识] 共 ${lines.length} 行原始数据:`);
         lines.forEach((line, i) => console.log(`  行${i+1}: "${line}"`));
         
-        // 预处理：将数量配对到对应的产品（按顺序一对一配对）
-        const processedLines = [];
+        // 预处理：分离产品名和数量，然后一对一配对
+        const productLines = [];
+        const numberLines = [];
         
+        // 第一步：分离产品名行和数量行
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
             const cleaned = line.replace(/[^\u4e00-\u9fa50-9]/g, '');
             
-            // 如果当前行是纯数字（1-99）
+            // 如果是纯数字（1-99），记录到数量列表
             if (/^\d{1,2}$/.test(cleaned)) {
                 const num = parseInt(cleaned);
-                if (num >= 1 && num <= 99 && processedLines.length > 0) {
-                    // 把数字追加到最后一个产品
-                    const lastIndex = processedLines.length - 1;
-                    processedLines[lastIndex] = processedLines[lastIndex] + cleaned;
-                    console.log(`[图片辨识] 配对: "${processedLines[lastIndex]}"`);
-                    continue;
-                } else {
-                    // 没有产品可配对，跳过
-                    console.log(`[图片辨识] 跳过无效数字: "${cleaned}"`);
-                    continue;
+                if (num >= 1 && num <= 99) {
+                    numberLines.push(num);
+                    console.log(`[图片辨识] 数量: ${num}`);
                 }
+            } else {
+                // 非数字行视为产品名
+                productLines.push(cleaned);
+                console.log(`[图片辨识] 产品: "${cleaned}"`);
             }
-            
-            // 非数字行：添加到产品列表
-            processedLines.push(cleaned);
+        }
+        
+        // 第二步：一对一配对（产品 + 对应位置的数量）
+        const processedLines = [];
+        const minLen = Math.min(productLines.length, numberLines.length);
+        for (let i = 0; i < productLines.length; i++) {
+            if (i < minLen) {
+                processedLines.push(productLines[i] + numberLines[i]);
+                console.log(`[图片辨识] 配对: "${productLines[i]}" + ${numberLines[i]} = "${processedLines[processedLines.length - 1]}"`);
+            } else {
+                processedLines.push(productLines[i]);
+            }
         }
         
         console.log(`[图片辨识] 处理后共 ${processedLines.length} 行:`);
