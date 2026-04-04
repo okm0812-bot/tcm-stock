@@ -1234,19 +1234,20 @@ async function handleImage(e) {
         console.log(`[图片辨识] 共 ${lines.length} 行原始数据:`);
         lines.forEach((line, i) => console.log(`  行${i+1}: "${line}"`));
         
-        // 预处理：合并数字行到前一个产品名
+        // 预处理：将数量合并到对应的产品行
         const processedLines = [];
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
             const cleaned = line.replace(/[^\u4e00-\u9fa50-9]/g, '');
             
-            // 如果当前行是纯数字（1-99），尝试合并到前一个产品
+            // 如果当前行是纯数字（1-99），合并到前一个产品
             if (/^\d{1,2}$/.test(cleaned) && processedLines.length > 0) {
                 const num = parseInt(cleaned);
                 if (num >= 1 && num <= 99) {
-                    // 合并到前一行
-                    processedLines[processedLines.length - 1] += cleaned;
-                    console.log(`[图片辨识] 合并数量: ${num} 到前一行`);
+                    // 合并到前一行（覆盖之前的数量）
+                    const lastIndex = processedLines.length - 1;
+                    processedLines[lastIndex] = processedLines[lastIndex].replace(/\d+$/, '') + cleaned;
+                    console.log(`[图片辨识] 合并数量: ${num} 到 "${processedLines[lastIndex]}"`);
                     continue;
                 }
             }
