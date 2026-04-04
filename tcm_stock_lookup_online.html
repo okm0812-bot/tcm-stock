@@ -1264,6 +1264,10 @@ async function handleImage(e) {
             if (i < minLen) {
                 processedLines.push(productLines[i] + numberLines[i]);
                 console.log(`[图片辨识] 配对: "${productLines[i]}" + ${numberLines[i]} = "${processedLines[processedLines.length - 1]}"`);
+            } else if (i === productLines.length - 1 && numberLines.length === productLines.length - 1) {
+                // 如果数量比产品少1个，把最后一个数量给最后一个产品
+                processedLines.push(productLines[i] + numberLines[numberLines.length - 1]);
+                console.log(`[图片辨识] 补足: "${productLines[i]}" + ${numberLines[numberLines.length - 1]} = "${processedLines[processedLines.length - 1]}"`);
             } else {
                 processedLines.push(productLines[i]);
             }
