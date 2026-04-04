@@ -1234,25 +1234,33 @@ async function handleImage(e) {
         console.log(`[图片辨识] 共 ${lines.length} 行原始数据:`);
         lines.forEach((line, i) => console.log(`  行${i+1}: "${line}"`));
         
-        // 预处理：将数量合并到对应的产品行
+        // 预处理：将数量配对到对应的产品
         const processedLines = [];
+        let currentProduct = null;
+        
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
             const cleaned = line.replace(/[^\u4e00-\u9fa50-9]/g, '');
             
-            // 如果当前行是纯数字（1-99），合并到前一个产品
-            if (/^\d{1,2}$/.test(cleaned) && processedLines.length > 0) {
+            // 如果当前行是纯数字（1-99）
+            if (/^\d{1,2}$/.test(cleaned)) {
                 const num = parseInt(cleaned);
-                if (num >= 1 && num <= 99) {
-                    // 合并到前一行（覆盖之前的数量）
-                    const lastIndex = processedLines.length - 1;
-                    processedLines[lastIndex] = processedLines[lastIndex].replace(/\d+$/, '') + cleaned;
-                    console.log(`[图片辨识] 合并数量: ${num} 到 "${processedLines[lastIndex]}"`);
+                if (num >= 1 && num <= 99 && currentProduct) {
+                    // 把数字追加到当前产品
+                    processedLines.push(currentProduct + cleaned);
+                    console.log(`[图片辨识] 配对: "${currentProduct}" + ${num} = "${currentProduct}${num}"`);
+                    currentProduct = null;
                     continue;
                 }
             }
             
-            processedLines.push(cleaned);
+            // 非数字行：可能是产品名，先暂存
+            currentProduct = cleaned;
+        }
+        
+        // 如果最后还有未配对的产品名，直接加入
+        if (currentProduct) {
+            processedLines.push(currentProduct);
         }
         
         console.log(`[图片辨识] 处理后共 ${processedLines.length} 行:`);
