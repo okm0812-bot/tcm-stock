@@ -86,7 +86,9 @@ const SHEET_URL_KEZHONG = 'https://docs.google.com/spreadsheets/d/1ekYUBtuQNjLB0
 const SHEET_URL_TABLET = 'https://docs.google.com/spreadsheets/d/1e4EjRPC43YBAoPl4UyjZeEnS3XH7oKltgAG7k8wtfcc/gviz/tq?tqx=out:csv';
 
 // ===== 状态 =====
-let DB = {};
+let DB_KZ = {};      // 科中数据库
+let DB_TABLET = {};  // 锭劑数据库
+
 let showPrice = false;
 
 // ===== 常见错别字对照表 =====
@@ -96,7 +98,7 @@ const TYPO_MAP = {
     // === 1劃 ===
     '一貫煎': ['一罐煎', '一貫間', '一罐間', '一貫建', '一贯煎'],
     '乙字湯': ['以致湯', '一直湯', '一字湯', '已知湯'],
-    
+
     // === 2劃 ===
     '二陳湯': ['二沉湯', '二成湯'],
     '八味地黃丸': ['八味'],
@@ -110,7 +112,7 @@ const TYPO_MAP = {
     '八正散': ['八正'],
     '八味帶下方': ['八味帶下'],
     '八珍湯': ['八珍'],
-    
+
     // === 3劃 ===
     '大柴胡湯': ['大柴胡'],
     '小青龍湯': ['小青龍'],
@@ -126,7 +128,7 @@ const TYPO_MAP = {
     '三黃瀉心湯': ['三黃瀉心'],
     '三痹湯': ['三痺湯', '三必湯'],
     '大秦艽湯': ['大秦芨湯'],
-    
+
     // === 4劃 ===
     '五苓散': ['五苓'],
     '六君子湯': ['六君子'],
@@ -138,7 +140,7 @@ const TYPO_MAP = {
     '五淋散': ['五淋'],
     '五積散': ['五積'],
     '木香檳榔丸': ['木香檳榔'],
-    
+
     // === 5劃 ===
     '加味逍遙散': ['加味逍遙', '加味逍遥'],
     '半夏天麻白朮湯': ['半夏天麻', '半夏天麻白術'],
@@ -161,14 +163,14 @@ const TYPO_MAP = {
     '四逆湯': ['四逆'],
     '半夏厚朴湯': ['半夏厚朴'],
     '玉女煎': ['玉女'],
-    
+
     // === 6劃 ===
     '血府逐瘀湯': ['血府逐瘀'],
     '地黃飲子': ['地黃飲'],
     '安中散': ['安中'],
     '百合固金湯': ['百合固金'],
     '炙甘草湯': ['炙甘草', '灸甘草湯'],
-    
+
     // === 7劃 ===
     '杏蘇散': ['杏蘇'],
     '杞菊地黃丸': ['杞菊', '杞菊地黃', '杞菊丸', '桂菊地黃丸', '起菊地黃丸'],
@@ -186,7 +188,7 @@ const TYPO_MAP = {
     '防己黃耆湯': ['防己黃耆', '防己黄芪'],
     '延胡索': ['延胡索', '延胡所', '延湖索'],
     '虎潛丸': ['虎潛', '虎前丸'],
-    
+
     // === 8劃 ===
     '定喘湯': ['定喘'],
     '炙甘草湯': ['炙甘草', '加工草湯'],
@@ -196,7 +198,7 @@ const TYPO_MAP = {
     '附子理中湯': ['附子理中'],
     '虎潛丸': ['虎潛'],
     '金鎖固精丸': ['金鎖固精'],
-    
+
     // === 9劃 ===
     '苓桂朮甘湯': ['苓桂朮甘', '苓桂术甘'],
     '香砂六君子湯': ['香砂六君子'],
@@ -204,7 +206,7 @@ const TYPO_MAP = {
     '保和丸': ['保和'],
     '胃苓湯': ['胃苓'],
     '洗肝明目散': ['洗肝明目'],
-    
+
     // === 10劃 ===
     '桂枝茯苓丸': ['桂枝茯苓'],
     '柴胡加龍骨牡蠣湯': ['柴龍牡', '柴胡加龍骨', '柴胡加龙骨牡蛎'],
@@ -229,7 +231,7 @@ const TYPO_MAP = {
     '桑螵蛸散': ['桑螵蛸'],
     '烏藥順氣散': ['烏藥順氣'],
     '益氣聰明湯': ['益氣聰明', '益志聰明'],
-    
+
     // === 11劃 ===
     '清上防風湯': ['清上防風'],
     '清心蓮子飲': ['清心蓮子'],
@@ -242,7 +244,7 @@ const TYPO_MAP = {
     '參苓白朮散': ['參苓白朮', '参苓白术', '參靈白朮散', '參零白朮散', '身靈白朮散', '深苓白朮散', '參林白朮散', '身苓白朮散', '森苓白朮散', '蔘苓白朮湯', '蔘苓白朮散', '參苓白朮湯', '參苓白術散'],
     '涼膈散': ['涼膈', '凉膈', '良膈'],
     '清上蠲痛湯': ['清上蠲痛'],
-    
+
     // === 12劃 ===
     '清心利膈湯': ['清心利膈'],
     '清肺湯': ['清肺'],
@@ -267,7 +269,7 @@ const TYPO_MAP = {
     '黃耆建中湯': ['黃耆建中', '黄芪建中'],
     '復元活血湯': ['復元活血'],
     '黃連解毒湯': ['黃連解毒'],
-    
+
     // === 13劃 ===
     '溫經湯': ['溫經'],
     '當歸芍藥散': ['當歸芍藥', '當龜勺藥散', '當歸勺藥'],
@@ -287,7 +289,7 @@ const TYPO_MAP = {
     '複方丹參片': ['複方丹參', '福方丹參', '複方丹三片', '複方單參片', '複方淡蔘片'],
     '寧嗽丸': ['寧嗽'],
     '膈下逐瘀湯': ['膈下逐瘀'],
-    
+
     // === 14劃 ===
     '潤腸湯': ['潤腸'],
     '養心湯': ['養心'],
@@ -297,7 +299,7 @@ const TYPO_MAP = {
     '豬苓湯': ['豬苓', '朱苓'],
     '龜鹿二仙膏': ['龜鹿二仙', '歸祿二仙'],
     '導水茯苓湯': ['導水茯苓'],
-    
+
     // === 15劃 ===
     '濟生腎氣丸': ['濟生腎氣'],
     '還少丹': ['還少'],
@@ -305,22 +307,22 @@ const TYPO_MAP = {
     '歸脾湯': ['歸脾'],
     '瀉白散': ['瀉白', '泻白'],
     '瀉黃散': ['瀉黃', '泻黄'],
-    
+
     // === 16劃 ===
     '蘇子降氣湯': ['蘇子降氣'],
     '藿香正氣散': ['藿香正氣', '藿香正气'],
     '蠲痹湯': ['蠲痹'],
     '響聲破笛丸': ['響聲破笛'],
-    
+
     // === 17劃 ===
     '濟生腎氣丸': ['濟生腎氣'],
-    
+
     // === 18劃 ===
     '歸脾湯': ['歸脾'],
-    
+
     // === 19劃 ===
     '藿香正氣散': ['藿香正氣'],
-    
+
     // === 單方 100g ===
     '大黃': ['大黃', '大黄'],
     '大棗': ['大棗'],
@@ -396,7 +398,7 @@ const TYPO_MAP = {
     '澤瀉': ['澤瀉', '泽泻'],
     '獨活': ['獨活', '独活'],
     '龍膽': ['龍膽', '龙胆'],
-    
+
     // === 單方 200g ===
     '薑黃': ['薑黃', '姜黄'],
     '麻黃': ['麻黃', '麻黄'],
@@ -439,7 +441,7 @@ const parseCSVLine = line => {
 const parseCSV = csvText => {
     const data = {};
     const skipWords = ['劃', '品名', '單方', '目前', '每日', '實際', '以上'];
-    
+
     csvText.split('\n').slice(1).forEach(line => {
         const row = parseCSVLine(line);
         for (let j = 0; j < row.length; j += 4) {
@@ -467,20 +469,20 @@ const parseCSV = csvText => {
 const findBestMatch = query => {
     query = query.trim();
     if (!query || !Object.keys(DB).length) return null;
-    
+
     // 1. 精确匹配
     if (DB[query]) return { name: query, status: DB[query][0], price: DB[query][1], corrected: false };
-    
+
     // 2. 错别字匹配
     for (const [correct, typos] of Object.entries(TYPO_MAP)) {
         if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
             if (DB[correct]) return { name: correct, status: DB[correct][0], price: DB[correct][1], corrected: true, original: query };
         }
     }
-    
+
     // 3. 复方优先匹配（按名称长度降序，优先匹配最长的）
     const allNames = Object.keys(DB).sort((a, b) => b.length - a.length);
-    
+
     for (const name of allNames) {
         if (!isSingleHerb(name)) {
             // 复方：完全匹配 或 产品名包含查询（用户输入简写）
@@ -489,7 +491,7 @@ const findBestMatch = query => {
             }
         }
     }
-    
+
     // 4. 单方匹配（只有完全匹配或产品名包含查询时才匹配）
     for (const name of allNames) {
         if (isSingleHerb(name)) {
@@ -501,11 +503,62 @@ const findBestMatch = query => {
             }
         }
     }
-    
+
     // 5. 模糊匹配（仅3字以上）- 作为最后兜底
     if (query.length >= 3) {
         let best = null, bestScore = 0.5;  // 降低门槛到0.5，让更多产品能匹配
         for (const [name, data] of Object.entries(DB)) {
+            const chars = [...query].filter(c => name.includes(c));
+            const score = chars.length / query.length;
+            if (score > bestScore) {
+                bestScore = score;
+                best = { name, status: data[0], price: data[1], corrected: true, original: query };
+            }
+        }
+        if (best) return best;
+    }
+
+    return null;
+};
+
+// ===== 科中专用匹配函数 =====
+const findBestMatchInKZ = query => {
+    if (!query || !Object.keys(DB_KZ).length) return null;
+    
+    // 1. 精确匹配
+    if (DB_KZ[query]) return { name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], corrected: false };
+    
+    // 2. 错别字匹配
+    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
+        if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
+            if (DB_KZ[correct]) return { name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], corrected: true, original: query };
+        }
+    }
+    
+    // 3. 复方优先匹配（按名称长度降序，优先匹配最长的）
+    const allNames = Object.keys(DB_KZ).sort((a, b) => b.length - a.length);
+    
+    for (const name of allNames) {
+        if (!isSingleHerb(name)) {
+            if (name === query || name.includes(query)) {
+                return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: name !== query, original: query };
+            }
+        }
+    }
+    
+    // 4. 单方匹配
+    for (const name of allNames) {
+        if (isSingleHerb(name)) {
+            if (name === query || name.includes(query)) {
+                return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: name !== query, original: query };
+            }
+        }
+    }
+    
+    // 5. 模糊匹配（仅3字以上）
+    if (query.length >= 3) {
+        let best = null, bestScore = 0.5;
+        for (const [name, data] of Object.entries(DB_KZ)) {
             const chars = [...query].filter(c => name.includes(c));
             const score = chars.length / query.length;
             if (score > bestScore) {
@@ -524,40 +577,36 @@ async function loadData() {
     const btn = document.getElementById('refreshBtn');
     const status = document.getElementById('status');
     const searchBtn = document.getElementById('searchBtn');
-    
+
     btn.disabled = true;
     btn.textContent = '載入中...';
     searchBtn.disabled = true;
-    
+
     try {
         // 同时加载两个 Sheet
         const [res1, res2] = await Promise.all([
             fetch(SHEET_URL_KEZHONG),
             fetch(SHEET_URL_TABLET)
         ]);
-        
+
         if (!res1.ok || !res2.ok) throw new Error('網路錯誤');
-        
+
         // 解析两个 Sheet
-        const db1 = parseCSV(await res1.text());
-        const db2 = parseCSV(await res2.text());
-        
-        // 合并数据库（锭劑覆盖同名产品，因为锭劑是独立品类）
-        DB = { ...db1, ...db2 };
-        
-        const count = Object.keys(DB).length;
-        const kzCount = Object.keys(db1).length;
-        const tabletCount = Object.keys(db2).length;
-        status.textContent = `✅ 資料已更新: ${new Date().toLocaleTimeString()} (${count}項)`;
+        DB_KZ = parseCSV(await res1.text());
+        DB_TABLET = parseCSV(await res2.text());
+
+        const kzCount = Object.keys(DB_KZ).length;
+        const tabletCount = Object.keys(DB_TABLET).length;
+        status.textContent = `✅ 資料已更新: ${new Date().toLocaleTimeString()} (${kzCount + tabletCount}項)`;
         searchBtn.disabled = false;
-        console.log('資料載入成功:', kzCount, '項科中 +', tabletCount, '項錠劑 =', count, '項總計');
-        
+        console.log('資料載入成功:', kzCount, '項科中 +', tabletCount, '項錠劑');
+
     } catch (e) {
         console.error('載入失敗:', e);
         status.textContent = '❌ 載入失敗，請重新整理';
         document.getElementById('result').innerHTML = '<div class="error">無法連線 Google Sheet<br>請檢查網路後點「更新資料」</div>';
     }
-    
+
     btn.textContent = '更新資料';
     btn.disabled = false;
 }
@@ -572,71 +621,87 @@ function search() {
         voiceBtn.textContent = '🎤 語音輸入';
         voiceBtn.style.background = '#667eea';
     }
-    
+
     // 检查数据
-    if (!Object.keys(DB).length) {
+    if (!Object.keys(DB_KZ).length || !Object.keys(DB_TABLET).length) {
         document.getElementById('result').innerHTML = '<div class="error">請先點「更新資料」載入庫存資料</div>';
         return;
     }
-    
+
     const inputEl = document.getElementById('input');
     const lines = inputEl.value.trim().split('\n').map(l => l.trim()).filter(Boolean);
-    
+
     if (!lines.length) {
         inputEl.focus();
         return;
     }
-    
+
     const skipKeywords = ['100g', '200g', '錠劑', '錠'];
-    let matched100g = [];
-    let matched200g = [];
-    let matchedTablet = [];
-    let unmatched = [];
+    let results = [];  // 保存结果，保持顺序
     let copyText = '';
     let stats = { inStock: 0, outStock: 0, booking: 0, total: 0 };
     let firstLine = true;
-    
+
     for (const line of lines) {
         // 跳过规格行
         if (skipKeywords.includes(line.toLowerCase())) {
             copyText += line + '\n';
             continue;
         }
-        
+
         // 跳过客户名
         if (firstLine) {
             firstLine = false;
-            const isCustomerName = !line.match(/\d/) && line.length <= 4 && 
+            const isCustomerName = !line.match(/\d/) && line.length <= 4 &&
                 !['湯','散','丸','飲','煎','丹','膏','錠'].some(c => line.includes(c));
             if (isCustomerName) {
                 copyText += line + '\n';
                 continue;
             }
         }
-        
+
         // 解析产品名和数量
         // 移除常见的单位词（瓶、罐、包、盒等），只保留数字作为数量
         let cleanLine = line.replace(/[瓶罐包盒顆粒]/g, '');
-        
+
         // 提取数字（末尾1-2位）
         const numMatch = cleanLine.match(/(\d{1,2})$/);
         const qty = numMatch ? parseInt(numMatch[1]) : 1;
-        
+
         // 移除数字得到产品名
         const query = cleanLine.replace(/\d+$/, '').trim();
-        
+
         if (!query) continue;
-        
-        // 查询匹配
-        const result = findBestMatch(query);
-        
+
+        // 判断是锭劑还是科中
+        const isTabletInput = query.includes('錠') || query.includes('锭');
+
+        let result = null;
+
+        if (isTabletInput) {
+            // 锭劑：直接在锭劑库精确匹配，不做修正
+            if (DB_TABLET[query]) {
+                result = { name: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1], source: 'tablet', corrected: false };
+            } else {
+                // 尝试移除"錠"后匹配
+                const queryWithoutDing = query.replace(/錠$/, '').trim();
+                const tabletName = queryWithoutDing + '錠';
+                if (DB_TABLET[tabletName]) {
+                    result = { name: tabletName, status: DB_TABLET[tabletName][0], price: DB_TABLET[tabletName][1], source: 'tablet', corrected: false };
+                }
+            }
+        } else {
+            // 科中：使用完整匹配逻辑
+            result = findBestMatchInKZ(query);
+        }
+
         if (result) {
-            let { name, status, price } = result;
+            const { name, status, price, source } = result;
             const unitPrice = price === '時價' ? 0 : parseInt(price) || 0;
             const totalPrice = unitPrice * qty;
             const isInStock = status === '有货';
             const isBooking = status === '預訂';
-            
+
             // 更新统计
             if (isBooking) {
                 stats.booking += qty;
@@ -646,98 +711,44 @@ function search() {
             } else {
                 stats.outStock += qty;
             }
-            if (result.corrected) stats.corrected++;
-            
-            // 移除"錠"后缀用于显示
-            const displayName = name.replace(/錠$/, '');
-            
+
             // 复制文本
-            copyText += displayName + (qty > 1 ? qty : '') + '\t' + (isBooking ? '預訂' : isInStock ? '有貨' : '缺貨') + '\n';
-            
-            // 判断分类并添加到对应数组
-            if (isTablet(name)) {
-                matchedTablet.push({ name: displayName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, result });
-            } else if (isSingleHerb(displayName)) {
-                matched100g.push({ name: displayName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, result });
-            } else {
-                matched200g.push({ name: displayName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, result });
-            }
+            copyText += name + (qty > 1 ? qty : '') + '\t' + (isBooking ? '預訂' : isInStock ? '有貨' : '缺貨') + '\n';
+
+            // 保存结果
+            results.push({ name, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source });
         } else {
             copyText += line + '\t找不到\n';
-            unmatched.push(line);
+            results.push({ name: line, qty, status: 'not_found', source: 'none' });
         }
     }
     
-    // 构建HTML
+    // 构建HTML（保持输入顺序）
     let html = '';
     
-    // 100g
-    if (matched100g.length > 0) {
-        html += '<div class="category"><h3>100g</h3>';
-        for (const item of matched100g) {
-            const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
-            const statusClass = item.isBooking ? 'booking' : item.isInStock ? 'in-stock' : 'out-stock';
-            const statusText = item.isBooking ? '預訂' : item.isInStock ? '有貨' : '缺貨';
+    for (const item of results) {
+        if (item.status === 'not_found') {
             html += `<div class="result-item">
                 <div class="name">${item.name}${item.qty > 1 ? ' x' + item.qty : ''}</div>
-                ${item.result.corrected ? `<div class="original">原: ${item.result.original}</div><div class="badge corrected">已更正</div>` : ''}
-                <div class="badge ${statusClass}">${statusText}</div>
-                <div class="price">${priceStr}</div>
-            </div>`;
-        }
-        html += '</div>';
-    }
-    
-    // 200g
-    if (matched200g.length > 0) {
-        html += '<div class="category"><h3>200g</h3>';
-        for (const item of matched200g) {
-            const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
-            const statusClass = item.isBooking ? 'booking' : item.isInStock ? 'in-stock' : 'out-stock';
-            const statusText = item.isBooking ? '預訂' : item.isInStock ? '有貨' : '缺貨';
-            html += `<div class="result-item">
-                <div class="name">${item.name}${item.qty > 1 ? ' x' + item.qty : ''}</div>
-                ${item.result.corrected ? `<div class="original">原: ${item.result.original}</div><div class="badge corrected">已更正</div>` : ''}
-                <div class="badge ${statusClass}">${statusText}</div>
-                <div class="price">${priceStr}</div>
-            </div>`;
-        }
-        html += '</div>';
-    }
-    
-    // 錠劑（放在最后）
-    if (matchedTablet.length > 0) {
-        html += '<div class="category"><h3>錠劑</h3>';
-        for (const item of matchedTablet) {
-            const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
-            const statusClass = item.isBooking ? 'booking' : item.isInStock ? 'in-stock' : 'out-stock';
-            const statusText = item.isBooking ? '預訂' : item.isInStock ? '有貨' : '缺貨';
-            html += `<div class="result-item">
-                <div class="name">${item.name}${item.qty > 1 ? ' x' + item.qty : ''}</div>
-                ${item.result.corrected ? `<div class="original">原: ${item.result.original}</div><div class="badge corrected">已更正</div>` : ''}
-                <div class="badge ${statusClass}">${statusText}</div>
-                <div class="price">${priceStr}</div>
-            </div>`;
-        }
-        html += '</div>';
-    }
-    
-    // 未找到
-    if (unmatched.length > 0) {
-        html += '<div class="category"><h3>找不到</h3>';
-        for (const name of unmatched) {
-            html += `<div class="result-item">
-                <div class="name">${name}</div>
                 <div class="badge not-found">找不到</div>
             </div>`;
+        } else {
+            const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
+            const statusClass = item.isBooking ? 'booking' : item.isInStock ? 'in-stock' : 'out-stock';
+            const statusText = item.isBooking ? '預訂' : item.isInStock ? '有貨' : '缺貨';
+            const sourceLabel = item.source === 'tablet' ? '錠劑' : (isSingleHerb(item.name) ? '100g' : '200g');
+            html += `<div class="result-item">
+                <div class="name">${item.name}${item.qty > 1 ? ' x' + item.qty : ''}</div>
+                <div class="badge ${statusClass}">${statusText}</div>
+                <div class="price">${priceStr}</div>
+            </div>`;
         }
-        html += '</div>';
     }
     
     // 汇总统计
     html += `<div class="summary">
         <div class="total">${showPrice && stats.total > 0 ? stats.total + ' 元' : '-'}</div>
-        <div class="count">有貨 ${stats.inStock} 罐 | 缺貨 ${stats.outStock} 罐 | 預訂 ${stats.booking} 罐${stats.corrected > 0 ? ' | 更正 ' + stats.corrected + ' 項' : ''}</div>
+        <div class="count">有貨 ${stats.inStock} 罐 | 缺貨 ${stats.outStock} 罐 | 預訂 ${stats.booking} 罐</div>
     </div>`;
     
     // 复制框
@@ -775,13 +786,13 @@ let isListening = false;
 
 function startVoiceInput() {
     const btn = document.getElementById('voiceBtn');
-    
+
     // 检查浏览器支持
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
         alert('您的瀏覽器不支援語音輸入，請使用 Chrome 或 Safari');
         return;
     }
-    
+
     // 停止录音
     if (isListening && recognition) {
         recognition.stop();
@@ -791,7 +802,7 @@ function startVoiceInput() {
         btn.style.background = '#667eea';
         return;
     }
-    
+
     // 开始录音
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
@@ -799,26 +810,26 @@ function startVoiceInput() {
     recognition.continuous = true;
     recognition.interimResults = true;  // 开启实时结果，加快响应
     recognition.maxAlternatives = 1;    // 只返回最佳结果，减少计算
-    
+
     recognition.onresult = event => {
         const textarea = document.getElementById('input');
-        
+
         for (let i = event.resultIndex; i < event.results.length; i++) {
             const text = event.results[i][0].transcript.trim();
-            
+
             // 只处理最终结果（isFinal=true），忽略实时识别中的临时结果
             if (!event.results[i].isFinal) continue;
-            
+
             console.log('语音最终结果:', text);
-            
+
             if (text.length < 2) continue;
-            
+
             // 清理文本
             const cleanedText = text.replace(/[，。、！？\s]/g, '');
-            
+
             // 智能匹配数据库产品
             const match = smartMatchProduct(cleanedText);
-            
+
             if (match) {
                 const currentText = textarea.value.trim();
                 textarea.value = currentText + (currentText ? '\n' : '') + match;
@@ -827,14 +838,14 @@ function startVoiceInput() {
             // 如果没匹配到，不添加（避免无效输入）
         }
     };
-    
+
     recognition.onerror = event => {
         console.error('语音识别错误:', event.error);
         if (event.error === 'not-allowed') {
             alert('請允許麥克風權限');
         }
     };
-    
+
     recognition.onend = () => {
         if (isListening) {
             try {
@@ -846,7 +857,7 @@ function startVoiceInput() {
             }
         }
     };
-    
+
     recognition.start();
     isListening = true;
     btn.textContent = '🔴 停止聆聽';
@@ -856,10 +867,10 @@ function startVoiceInput() {
 // 智能匹配产品（用于语音和图片输入）
 function smartMatchProduct(text) {
     if (!text || text.length < 2 || !Object.keys(DB).length) return null;
-    
+
     // 清理文本
     const cleanedText = text.replace(/[^\u4e00-\u9fa50-9]/g, '');
-    
+
     // 1. 先尝试直接匹配
     const directMatch = findBestMatch(cleanedText);
     if (directMatch) {
@@ -868,27 +879,27 @@ function smartMatchProduct(text) {
         const qty = numMatch ? numMatch[1] : '';
         return directMatch.name + qty;
     }
-    
+
     // 2. 尝试提取产品名和数量
     const numMatch = cleanedText.match(/^(.+?)(\d+)$/);
     const productName = numMatch ? numMatch[1] : cleanedText;
     const qty = numMatch ? numMatch[2] : '';
-    
+
     // 3. 计算与所有产品的相似度
     let bestMatch = null;
     let bestScore = 0.5;  // 降低基础门槛，配合5字3匹配规则
     let bestExactCount = 0;
-    
+
     for (const name of Object.keys(DB)) {
         const chars = [...productName];
         const nameChars = [...name];
-        
+
         // 计算精确匹配字符数
         let exactCount = 0;
         for (const c of chars) {
             if (nameChars.includes(c)) exactCount++;
         }
-        
+
         // 计算相似字符匹配数（发音相似）
         let similarCount = 0;
         for (const c of chars) {
@@ -902,23 +913,23 @@ function smartMatchProduct(text) {
                 }
             }
         }
-        
+
         // 相似度 = (精确匹配 + 相似匹配) / 较长字符串长度
         const charScore = (exactCount + similarCount) / Math.max(chars.length, nameChars.length);
-        
+
         // 【5字3匹配规则】如果字符数>=5且精确匹配>=3，给予额外加分
         let bonus = 0;
         if (chars.length >= 5 && exactCount >= 3) {
             // 3字匹配 +15%, 4字匹配 +20%, 5字匹配 +25%
             bonus = 0.15 + (exactCount - 3) * 0.05;
         }
-        
+
         // 发音相似度
         const pronScore = getPronunciationSimilarity(productName, name);
-        
+
         // 最终分数 = 最高相似度 + 额外加分
         const finalScore = Math.max(charScore, pronScore) + bonus;
-        
+
         // 更新最佳匹配
         if (finalScore > bestScore) {
             bestScore = finalScore;
@@ -926,12 +937,12 @@ function smartMatchProduct(text) {
             bestExactCount = exactCount;
         }
     }
-    
+
     if (bestMatch) {
         console.log(`智能匹配: "${text}" → "${bestMatch}" (相似度: ${(bestScore * 100).toFixed(0)}%, 精確匹配: ${bestExactCount}字)`);
         return bestMatch + qty;
     }
-    
+
     return null;
 }
 
@@ -942,7 +953,7 @@ function getSimilarChars(char) {
         '錠': ['定', '訂', '锭', '郑', '正', '症'],
         '定': ['定', '訂', '錠', '郑'],
         '訂': ['定', '訂', '錠'],
-        
+
         // === 异体字（同音同义不同写法）===
         '參': ['参', '身', '深', '森', '蔘'], '蔘': ['參', '参', '身'],
         '朮': ['术', '竹', '熟', '述'],  // 朮≠術，但容易混淆
@@ -954,7 +965,7 @@ function getSimilarChars(char) {
         '瀉': ['泻', '写', '謝'],
         '散': ['傘', '三'],
         '苓': ['零', '靈', '鈴', '林', '臨'],
-        
+
         // === 容易识别错误的字（字形相似）===
         '蟅': ['蟲', '虫', '哲', '者'],  // 大黃蟅蟲丸
         '蠔': ['蛎', '豪'],              // 牡蠣
@@ -962,7 +973,7 @@ function getSimilarChars(char) {
         '薤': ['韭', '菲'],              // 栝樓薤白
         '橘': ['局', '橘', '桔'],        // 橘皮
         '朮': ['术', '述', '秫'],        // 白朮、蒼朮
-        
+
         // === 同音异字（语音识别容易混淆）===
         '芍': ['勺', '灼', '卓'],        // 芍藥
         '麥': ['脈', '賣', '麥', '麥'],  // 麥門冬
@@ -995,7 +1006,7 @@ function getSimilarChars(char) {
         '暑': ['屬', '數', '書'],
         '益': ['意', '義', '易'],
         '氣': ['气', '器', '期'],
-        
+
         // === 单方药材常见识别错误 ===
         '黃': ['黄', '皇', '蝗'],
         '耆': ['芪', '齐', '祈'],
@@ -1009,13 +1020,13 @@ function getSimilarChars(char) {
         '朴': ['普', '浦', '撲'],
         '藍': ['兰', '籃'],
         '藍': ['蘭', '藍'],
-        
+
         // === 常见OCR识别错误 ===
         '藍': ['藍', '兰', '篮'],
         '藍': ['藍', '兰'],
         '藍': ['藍', '兰', '篮'],
         '藍': ['藍', '兰'],
-        
+
         // === 更多药材 ===
         '大黃': ['大黄', '大皇'],
         '北板藍根': ['北板蓝根', '北板蘭根'],
@@ -1070,7 +1081,7 @@ function getPronunciationSimilarity(text, name) {
         '行': ['行', '形', '刑', '航'],
         // 「差」：chā（差别）/ chà（差不多）
         '差': ['差', '插', '茶'],
-        
+
         // === 同音异字 ===
         // 易混淆的同音字
         '黃': ['黃', '黄', '王', '皇', '簧'],
@@ -1093,7 +1104,7 @@ function getPronunciationSimilarity(text, name) {
         '清': ['清', '青', '輕', '傾', '氫'],
         '瀉': ['瀉', '泻', '寫', '謝', '卸', '洩'],
         '虎': ['虎', '戶', '湖', '互', '護'],
-        
+
         // === 语音识别常见错误 ===
         '乙': ['乙', '一', '已', '以', '致', '直', '意', '易'],
         '字': ['字', '自', '致', '只', '之', '紫', '子'],
@@ -1202,32 +1213,32 @@ function getPronunciationSimilarity(text, name) {
         '鬱': ['鬱', '郁', '玉', '育', '獄', '欲'],
         '金': ['金', '今', '津', '筋', '巾'],
     };
-    
+
     let matchScore = 0;
     let totalChars = 0;
     const textChars = [...text];
     const nameChars = [...name];
     const maxLen = Math.max(textChars.length, nameChars.length);
-    
+
     for (let i = 0; i < Math.min(textChars.length, nameChars.length); i++) {
         const t = textChars[i];
         const n = nameChars[i];
-        
+
         totalChars++;
-        
+
         if (t === n) {
             matchScore += 1;
         } else {
             // 检查是否为相似字符
             const tSimilar = similarChars[t] || [];
             const nSimilar = similarChars[n] || [];
-            
+
             if (tSimilar.includes(n) || nSimilar.includes(t)) {
                 matchScore += 0.7;  // 相似字符给 0.7 分
             }
         }
     }
-    
+
     return totalChars > 0 ? matchScore / maxLen : 0;
 }
 
@@ -1237,30 +1248,30 @@ const OCR_SPACE_API_KEY = 'helloworld'; // 免费 API Key，每天 500 次
 // OCR.space 图片辨识
 async function ocrSpaceOCR(file) {
     console.log('[OCR.space] 开始辨识图片...');
-    
+
     const formData = new FormData();
     formData.append('language', 'cht'); // 繁体中文
     formData.append('isOverlayRequired', 'false');
     formData.append('detectOrientation', 'true');
     formData.append('scale', 'true');
     formData.append('OCREngine', '2'); // Engine 2 准确度更高
-    
+
     // 如果文件大于 1MB，先压缩
     if (file.size > 1024 * 1024) {
         console.log('[OCR.space] 图片太大，需要压缩...');
         file = await compressImage(file, 1024);
     }
     formData.append('file', file);
-    
+
     try {
         const res = await fetch(`https://api.ocr.space/parse/image`, {
             method: 'POST',
             headers: { 'apikey': OCR_SPACE_API_KEY },
             body: formData
         });
-        
+
         const data = await res.json();
-        
+
         if (data.ParsedResults && data.ParsedResults.length > 0) {
             const text = data.ParsedResults.map(r => r.ParsedText).join('\n');
             console.log('[OCR.space] 辨识成功');
@@ -1283,18 +1294,18 @@ async function compressImage(file, maxWidth) {
             const canvas = document.createElement('canvas');
             let width = img.width;
             let height = img.height;
-            
+
             if (width > maxWidth) {
                 height = (height * maxWidth) / width;
                 width = maxWidth;
             }
-            
+
             canvas.width = width;
             canvas.height = height;
-            
+
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
-            
+
             canvas.toBlob(blob => {
                 resolve(new File([blob], file.name, { type: 'image/jpeg' }));
             }, 'image/jpeg', 0.8);
@@ -1306,18 +1317,18 @@ async function compressImage(file, maxWidth) {
 // 备用 Tesseract.js 辨识
 async function tesseractOCR(file) {
     console.log('[备用OCR] 正在加载 Tesseract.js...');
-    
+
     if (!window.Tesseract) {
         const script = document.createElement('script');
         script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js';
         document.head.appendChild(script);
         await new Promise(r => script.onload = r);
     }
-    
+
     const result = await Tesseract.recognize(file, 'chi_tra', {
         logger: m => console.log('[备用OCR] 进度:', Math.round((m.progress || 0) * 100) + '%')
     });
-    
+
     return result.data.text;
 }
 
@@ -1325,45 +1336,45 @@ async function tesseractOCR(file) {
 async function handleImage(e) {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     const btn = document.querySelector('[onclick*="imageInput"]');
     const originalText = btn.textContent;
     btn.textContent = '辨識中...';
     btn.disabled = true;
-    
+
     try {
         // 先尝试 OCR.space
         let text = await ocrSpaceOCR(file);
-        
+
         // 如果失败，使用备用 Tesseract.js
         if (!text) {
             console.log('[图片辨识] OCR.space 失败，尝试备用方案...');
             text = await tesseractOCR(file);
         }
-        
+
         if (!text) {
             alert('圖片辨識失敗，請確認網路連線或稍後再試');
             btn.textContent = originalText;
             btn.disabled = false;
             return;
         }
-        
+
         console.log('[图片辨识] 原始结果:', text);
-        
+
         // 提取所有行
         const lines = text.split('\n').map(l => l.trim()).filter(l => l.length >= 1);
         console.log(`[图片辨识] 共 ${lines.length} 行原始数据:`);
         lines.forEach((line, i) => console.log(`  行${i+1}: "${line}"`));
-        
+
         // 预处理：分离产品名和数量，然后一对一配对
         const productLines = [];
         const numberLines = [];
-        
+
         // 第一步：分离产品名行和数量行
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
             const cleaned = line.replace(/[^\u4e00-\u9fa50-9]/g, '');
-            
+
             // 如果是纯数字（1-99），记录到数量列表
             if (/^\d{1,2}$/.test(cleaned)) {
                 const num = parseInt(cleaned);
@@ -1377,7 +1388,7 @@ async function handleImage(e) {
                 console.log(`[图片辨识] 产品: "${cleaned}"`);
             }
         }
-        
+
         // 第二步：一对一配对（产品 + 对应位置的数量）
         const processedLines = [];
         const minLen = Math.min(productLines.length, numberLines.length);
@@ -1393,52 +1404,52 @@ async function handleImage(e) {
                 processedLines.push(productLines[i]);
             }
         }
-        
+
         console.log(`[图片辨识] 处理后共 ${processedLines.length} 行:`);
         processedLines.forEach((line, i) => console.log(`  处理${i+1}: "${line}"`));
-        
+
         // 分类存储
         const matchedTablet = [];
         const matched100g = [];
         const matched200g = [];
         const unmatchedLines = [];
-        
+
         for (const cleaned of processedLines) {
             if (cleaned.length < 2) continue;
-            
+
             // 移除开头的数字（如序号 1. 2. 等）
             let productName = cleaned.replace(/^\d+/, '');
             if (productName.length < 2) continue;
-            
+
             // 移除末尾的大数字（价格）
             productName = productName.replace(/\d{3,}$/, '');
             if (productName.length < 2) continue;
-            
+
             // 提取产品名和数量（末尾1-2位数字）
             const numMatch = productName.match(/^(.+?)(\d{1,2})$/);
             let qty = '';
-            
+
             if (numMatch) {
                 productName = numMatch[1];
                 qty = numMatch[2];
                 // 如果数字大于99，可能是误识别
                 if (parseInt(qty) > 99) qty = '';
             }
-            
+
             if (productName.length < 2) continue;
-            
+
             // 智能匹配
             const match = smartMatchProduct(productName);
-            
+
             if (match) {
                 // 组合产品名和数量（用于显示）
                 const finalMatch = match + qty;
-                
+
                 // 判断是单方、复方还是锭劑
                 const matchProductName = match.replace(/\d+$/, '');
                 const isSingle = isSingleHerb(matchProductName);
                 const isTab = isTablet(matchProductName);
-                
+
                 if (isTab) {
                     if (!matchedTablet.includes(finalMatch)) matchedTablet.push(finalMatch);
                 } else if (isSingle) {
@@ -1446,36 +1457,36 @@ async function handleImage(e) {
                 } else {
                     if (!matched200g.includes(finalMatch)) matched200g.push(finalMatch);
                 }
-                
+
                 console.log(`[图片辨识] 匹配: "${productName}" → "${finalMatch}" (${isTab ? '錠劑' : isSingle ? '100g' : '200g'})`);
             } else {
                 console.log(`[图片辨识] 未匹配: "${productName}"`);
                 unmatchedLines.push(productName);
             }
         }
-        
+
         console.log('[图片辨识] 结果:', matchedTablet.length, '个錠劑', matched100g.length, '个100g', matched200g.length, '个200g', unmatchedLines.length, '个未匹配');
-        
+
         // 组装输出结果
         let output = '';
-        
+
         // 先输出锭劑
         if (matchedTablet.length > 0) {
             output += '錠劑\n' + matchedTablet.join('\n');
         }
-        
+
         // 再输出单方（100g）
         if (matched100g.length > 0) {
             if (output) output += '\n';
             output += '100g\n' + matched100g.join('\n');
         }
-        
+
         // 再输出复方（200g）
         if (matched200g.length > 0) {
             if (output) output += '\n';
             output += '200g\n' + matched200g.join('\n');
         }
-        
+
         // 填入输入框
         const textarea = document.getElementById('input');
         if (output) {
@@ -1484,12 +1495,12 @@ async function handleImage(e) {
         } else {
             alert('無法辨識圖片中的產品，請確認圖片清晰度或手動輸入');
         }
-        
+
     } catch (err) {
         console.error('图片辨识错误:', err);
         alert('圖片辨識失敗，請嘗試其他圖片');
     }
-    
+
     btn.textContent = originalText;
     btn.disabled = false;
     e.target.value = '';
@@ -1503,17 +1514,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // 绑定图片输入事件
     const imageInput = document.getElementById('imageInput');
     const imageBtn = document.getElementById('imageBtn');
-    
+
     if (imageBtn && imageInput) {
         imageBtn.addEventListener('click', function() {
             imageInput.click();
         });
-        
+
         imageInput.addEventListener('change', function(event) {
             handleImage(event);
         });
     }
-    
+
     // 页面加载时自动加载数据
     loadData();
 });
