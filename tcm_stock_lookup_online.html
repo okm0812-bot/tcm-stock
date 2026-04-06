@@ -493,11 +493,17 @@ const findBestMatchInKZ = query => {
     }
 
     // 4. 单方匹配
+    // 先尝试精确匹配
     for (const name of allNames) {
-        if (isSingleHerb(name)) {
-            if (name === query || name.includes(query)) {
-                return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: name !== query, original: query };
-            }
+        if (isSingleHerb(name) && name === query) {
+            return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: false, original: query };
+        }
+    }
+    
+    // 再尝试包含匹配
+    for (const name of allNames) {
+        if (isSingleHerb(name) && name.includes(query)) {
+            return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: true, original: query };
         }
     }
 
