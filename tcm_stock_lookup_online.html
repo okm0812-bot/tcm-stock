@@ -855,10 +855,11 @@ function startVoiceInput() {
 
 // 智能匹配产品（用于语音和图片输入）
 function smartMatchProduct(text) {
-    if (!text || text.length < 2 || !Object.keys(DB_KZ).length) return null;
+    if (!text || text.length < 2) return null;
     
     // 清理文本
     const cleanedText = text.replace(/[^\u4e00-\u9fa50-9]/g, '');
+    if (!cleanedText) return null;
     
     // 1. 先尝试科中精确匹配
     const directMatch = findBestMatchInKZ(cleanedText);
@@ -874,60 +875,72 @@ function smartMatchProduct(text) {
     const productName = numMatch ? numMatch[1] : cleanedText;
     const qty = numMatch ? numMatch[2] : '';
     
-    // 3. 计算与所有科中产品的相似度
+    // 3. 如果包含「錠」，先在锭劑库匹配
     let bestMatch = null;
-    let bestScore = 0.5;
-    let bestExactCount = 0;
+    let bestScore = 0;
     
-    for (const name of Object.keys(DB_KZ)) {
-        const chars = [...productName];
-        const nameChars = [...name];
-        
-        // 计算精确匹配字符数
-        let exactCount = 0;
-        for (const c of chars) {
-            if (nameChars.includes(c)) exactCount++;
+    if (productName.includes('錠')) {
+        const tabletResult = findBestMatchInTablet(productName);
+        if (tabletResult) {
+            bestMatch = tabletResult.name;
+            bestScore = 1;  // 锭劑库精确匹配优先
         }
+    }
+    
+    // 4. 如果锭劑库没匹配到，继续在科中库模糊匹配
+    if (!bestMatch) {
+        let maxScore = 0.5;
         
-        // 计算相似字符匹配数（发音相似）
-        let similarCount = 0;
-        for (const c of chars) {
-            if (!nameChars.includes(c)) {
-                const similarChars = getSimilarChars(c);
-                for (const sc of similarChars) {
-                    if (nameChars.includes(sc)) {
-                        similarCount += 0.7;
-                        break;
+        for (const name of Object.keys(DB_KZ)) {
+            const chars = [...productName];
+            const nameChars = [...name];
+            
+            // 计算精确匹配字符数
+            let exactCount = 0;
+            for (const c of chars) {
+                if (nameChars.includes(c)) exactCount++;
+            }
+            
+            // 计算相似字符匹配数（发音相似）
+            let similarCount = 0;
+            for (const c of chars) {
+                if (!nameChars.includes(c)) {
+                    const similarChars = getSimilarChars(c);
+                    for (const sc of similarChars) {
+                        if (nameChars.includes(sc)) {
+                            similarCount += 0.7;
+                            break;
+                        }
                     }
                 }
             }
-        }
-        
-        // 相似度 = (精确匹配 + 相似匹配) / 较长字符串长度
-        const charScore = (exactCount + similarCount) / Math.max(chars.length, nameChars.length);
-        
-        // 【5字3匹配规则】如果字符数>=5且精确匹配>=3，给予额外加分
-        let bonus = 0;
-        if (chars.length >= 5 && exactCount >= 3) {
-            bonus = 0.15 + (exactCount - 3) * 0.05;
-        }
-        
-        // 发音相似度
-        const pronScore = getPronunciationSimilarity(productName, name);
-        
-        // 最终分数 = 最高相似度 + 额外加分
-        const finalScore = Math.max(charScore, pronScore) + bonus;
-        
-        // 更新最佳匹配
-        if (finalScore > bestScore) {
-            bestScore = finalScore;
-            bestMatch = name;
-            bestExactCount = exactCount;
+            
+            // 相似度 = (精确匹配 + 相似匹配) / 较长字符串长度
+            const charScore = (exactCount + similarCount) / Math.max(chars.length, nameChars.length);
+            
+            // 【5字3匹配规则】如果字符数>=5且精确匹配>=3，给予额外加分
+            let bonus = 0;
+            if (chars.length >= 5 && exactCount >= 3) {
+                bonus = 0.15 + (exactCount - 3) * 0.05;
+            }
+            
+            // 发音相似度
+            const pronScore = getPronunciationSimilarity(productName, name);
+            
+            // 最终分数 = 最高相似度 + 额外加分
+            const finalScore = Math.max(charScore, pronScore) + bonus;
+            
+            // 更新最佳匹配
+            if (finalScore > maxScore) {
+                maxScore = finalScore;
+                bestMatch = name;
+                bestScore = finalScore;
+            }
         }
     }
     
     if (bestMatch) {
-        console.log(`智能匹配: "${text}" → "${bestMatch}" (相似度: ${(bestScore * 100).toFixed(0)}%, 精確匹配: ${bestExactCount}字)`);
+        console.log(`智能匹配: "${text}" → "${bestMatch}" (分数: ${(bestScore * 100).toFixed(0)}%)`);
         return bestMatch + qty;
     }
     
