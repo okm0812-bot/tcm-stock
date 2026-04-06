@@ -721,8 +721,8 @@ function search() {
                 stats.outStock += qty;
             }
 
-            // 输出时组合：产品名 + 数量（数量>1时才显示）
-            const outputName = qty > 1 ? displayName + qty : displayName;
+            // 输出时组合：产品名 + 数量（总是显示数量）
+            const outputName = displayName + (qty > 1 ? qty : '1');
 
             // 复制文本 - 新格式：产品名数量（状态）
             const statusSymbol = isBooking ? '（預）' : isInStock ? '（有）' : '（缺）';
