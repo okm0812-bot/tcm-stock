@@ -866,22 +866,33 @@ function startVoiceInput() {
 function smartMatchProduct(text) {
     if (!text || text.length < 2) return null;
     
+    console.log('[智能匹配] 输入:', text);
+    
     // 清理文本
     const cleanedText = text.replace(/[^\u4e00-\u9fa50-9]/g, '');
     if (!cleanedText) return null;
+    
+    console.log('[智能匹配] 清理后:', cleanedText);
     
     // 提取数量
     const numMatch = cleanedText.match(/(\d+)$/);
     const qty = numMatch ? numMatch[1] : '';
     const productName = numMatch ? cleanedText.slice(0, -numMatch[1].length) : cleanedText;
     
+    console.log('[智能匹配] 产品名:', productName, '数量:', qty);
+    
     // 1. 如果包含「錠」，只在锭劑库匹配
     if (productName.includes('錠')) {
+        console.log('[智能匹配] 检测到锭劑，检查锭劑库...');
+        console.log('[智能匹配] 锭劑库产品数:', Object.keys(DB_TABLET).length);
+        console.log('[智能匹配] 锭劑库包含 加味逍遙散錠?', DB_TABLET['加味逍遙散錠'] ? '是' : '否');
+        
         const tabletResult = findBestMatchInTablet(productName);
         if (tabletResult) {
-            console.log(`[智能匹配] 锭劑: "${productName}" → "${tabletResult.name}"`);
+            console.log(`[智能匹配] 锭劑匹配成功: "${productName}" → "${tabletResult.name}"`);
             return tabletResult.name + qty;
         }
+        console.log('[智能匹配] 锭劑库没找到，返回null');
         return null;  // 锭劑没找到就返回null，不在科中库匹配
     }
     
