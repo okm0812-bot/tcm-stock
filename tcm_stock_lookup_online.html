@@ -78,7 +78,7 @@
 
 <script>
 // ===== 配置 =====
-const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1ekYUBtuQNjLB0RpWGCPJN7409sL74tqT36NfzUIM6o4/gviz/tq?tqx=out:csv';
+const SHEET_URL = 'https://docs.google.com/spreadsheets/u/0/d/1e4EjRPC43YBAoPl4UyjZeEnS3XH7oKltgAG7k8wtfcc/gviz/tq?tqx=out:csv';
 
 // ===== 状态 =====
 let DB = {};
@@ -398,13 +398,23 @@ const TYPO_MAP = {
 };
 
 // ===== 工具函数 =====
+// 判断是否为锭劑（包含"锭"或同音字）
+const isTablet = name => {
+    // 锭的同音字/异体字
+    const tabletChars = ['錠', '锭', '定', '訂', '餕', '飣'];
+    return tabletChars.some(c => name.includes(c));
+};
+
 // 判断是否为单方（不是复方制剂）
-// 复方特征：湯、散、丸、飲、煎、膏、片、錠 + 明確的複方關鍵字
+// 复方特征：湯、散、丸、飲、煎、膏、片 + 明確的複方關鍵字
+// 注意：锭劑单独分类，不属于单方或复方
 const isSingleHerb = name => {
+    // 如果是锭劑，单独分类
+    if (isTablet(name)) return false;  // 归类到锭劑
     // 如果包含「複方」關鍵字，一定是複方
     if (name.includes('複方')) return false;
     // 如果包含常見複方後綴，可能是複方
-    if (['湯','散','丸','飲','煎','膏','片','錠'].some(c => name.includes(c))) return false;
+    if (['湯','散','丸','飲','煎','膏','片'].some(c => name.includes(c))) return false;
     // 其他視為單方
     return true;
 };
@@ -822,6 +832,11 @@ function smartMatchProduct(text) {
 // 获取相似字符列表
 function getSimilarChars(char) {
     const similarMap = {
+        // === 锭/定 同音异字 ===
+        '錠': ['定', '訂', '锭', '郑', '正', '症'],
+        '定': ['定', '訂', '錠', '郑'],
+        '訂': ['定', '訂', '錠'],
+        
         // === 异体字（同音同义不同写法）===
         '參': ['参', '身', '深', '森', '蔘'], '蔘': ['參', '参', '身'],
         '朮': ['术', '竹', '熟', '述'],  // 朮≠術，但容易混淆
@@ -1277,6 +1292,7 @@ async function handleImage(e) {
         processedLines.forEach((line, i) => console.log(`  处理${i+1}: "${line}"`));
         
         // 分类存储
+        const matchedTablet = [];
         const matched100g = [];
         const matched200g = [];
         const unmatchedLines = [];
@@ -1312,30 +1328,39 @@ async function handleImage(e) {
                 // 组合产品名和数量（用于显示）
                 const finalMatch = match + qty;
                 
-                // 判断是单方还是复方
+                // 判断是单方、复方还是锭劑
                 const matchProductName = match.replace(/\d+$/, '');
                 const isSingle = isSingleHerb(matchProductName);
+                const isTab = isTablet(matchProductName);
                 
-                if (isSingle) {
+                if (isTab) {
+                    if (!matchedTablet.includes(finalMatch)) matchedTablet.push(finalMatch);
+                } else if (isSingle) {
                     if (!matched100g.includes(finalMatch)) matched100g.push(finalMatch);
                 } else {
                     if (!matched200g.includes(finalMatch)) matched200g.push(finalMatch);
                 }
                 
-                console.log(`[图片辨识] 匹配: "${productName}" → "${finalMatch}" (${isSingle ? '100g' : '200g'})`);
+                console.log(`[图片辨识] 匹配: "${productName}" → "${finalMatch}" (${isTab ? '錠劑' : isSingle ? '100g' : '200g'})`);
             } else {
                 console.log(`[图片辨识] 未匹配: "${productName}"`);
                 unmatchedLines.push(productName);
             }
         }
         
-        console.log('[图片辨识] 结果:', matched100g.length, '个100g', matched200g.length, '个200g', unmatchedLines.length, '个未匹配');
+        console.log('[图片辨识] 结果:', matchedTablet.length, '个錠劑', matched100g.length, '个100g', matched200g.length, '个200g', unmatchedLines.length, '个未匹配');
         
         // 组装输出结果
         let output = '';
         
-        // 先输出单方（100g）
+        // 先输出锭劑
+        if (matchedTablet.length > 0) {
+            output += '錠劑\n' + matchedTablet.join('\n');
+        }
+        
+        // 再输出单方（100g）
         if (matched100g.length > 0) {
+            if (output) output += '\n';
             output += '100g\n' + matched100g.join('\n');
         }
         
@@ -1349,7 +1374,7 @@ async function handleImage(e) {
         const textarea = document.getElementById('input');
         if (output) {
             textarea.value = output;
-            console.log('图片辨识完成，匹配到:', matched100g.length + matched200g.length, '项');
+            console.log('图片辨识完成，匹配到:', matchedTablet.length + matched100g.length + matched200g.length, '项');
         } else {
             alert('無法辨識圖片中的產品，請確認圖片清晰度或手動輸入');
         }
