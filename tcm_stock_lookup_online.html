@@ -600,6 +600,15 @@ async function loadData() {
     btn.disabled = false;
 }
 
+// ===== 离开页面时自动关闭麦克风 =====
+window.addEventListener('beforeunload', function() {
+    if (isListening && recognition) {
+        recognition.stop();
+        recognition = null;
+        isListening = false;
+    }
+});
+
 function search() {
     // 关闭麦克风（如果在录音中）
     if (isListening && recognition) {
