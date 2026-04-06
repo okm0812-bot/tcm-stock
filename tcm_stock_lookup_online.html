@@ -903,8 +903,8 @@ function smartMatchProduct(text) {
             console.log(`[智能匹配] 锭劑匹配成功: "${productName}" → "${tabletResult.name}"`);
             return tabletResult.name + qty;
         }
-        console.log('[智能匹配] 锭劑库没找到，尝试科中库...');
-        // 锭劑库没找到，继续到科中库匹配
+        console.log('[智能匹配] 锭劑库没找到，返回null（不查科中库）');
+        return null;  // 锭劑库没找到就返回null，不到科中库
     }
     
     // 2. 不包含「錠」，在科中库匹配
