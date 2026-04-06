@@ -44,38 +44,53 @@
         .tip { background: rgba(255,255,255,0.2); border-radius: 15px; padding: 12px; margin-top: 15px; color: white; font-size: 12px; }
         .tip li { margin: 3px 0; }
         .error { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 10px; text-align: center; font-size: 13px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+        .stat-item { background: rgba(255,255,255,0.2); padding: 8px 4px; border-radius: 8px; text-align: center; color: white; font-size: 11px; }
+        .stat-number { font-size: 18px; font-weight: bold; display: block; }
+        .btn-small:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: all 0.2s; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); transition: all 0.2s; }
+        .result-item { box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.2s; }
+        .result-item:hover { transform: translateY(-1px); }
     </style>
 </head>
 <body>
 <div class="container">
     <div class="header">
-        <h1>科學中藥庫存查詢</h1>
+        <h1>🏥 科學中藥庫存查詢</h1>
         <div class="status" id="status">載入中...</div>
+        <div class="stats-grid" id="quickStats" style="display:none;">
+            <div class="stat-item"><span class="stat-number" id="totalItems">0</span>總項</div>
+            <div class="stat-item"><span class="stat-number" id="inStockItems">0</span>有貨</div>
+            <div class="stat-item"><span class="stat-number" id="outStockItems">0</span>缺貨</div>
+            <div class="stat-item"><span class="stat-number" id="bookingItems">0</span>預訂</div>
+        </div>
     </div>
 
     <div class="search-box">
         <div class="btn-group">
-            <button class="btn-small" id="refreshBtn" onclick="loadData()">更新資料</button>
-            <button class="btn-small btn-clear" onclick="clearInput()">清除</button>
-            <button class="btn-small" id="priceBtn" onclick="togglePrice()">顯示價格</button>
+            <button class="btn-small" id="refreshBtn" onclick="loadData()">🔄 更新資料</button>
+            <button class="btn-small btn-clear" onclick="clearInput()">🗑️ 清除</button>
+            <button class="btn-small" id="priceBtn" onclick="togglePrice()">💰 顯示價格</button>
         </div>
         <div class="btn-group">
-            <button class="btn-small" id="voiceBtn" onclick="startVoiceInput()">語音輸入</button>
-            <button class="btn-small" onclick="document.getElementById('imageInput').click()">圖片辨識</button>
+            <button class="btn-small" id="voiceBtn" onclick="startVoiceInput()">🎤 語音輸入</button>
+            <button class="btn-small" onclick="document.getElementById('imageInput').click()">📷 圖片辨識</button>
             <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleImage(event)">
         </div>
-        <textarea id="input" placeholder="每行輸入一個產品&#10;支援錯別字自動更正&#10;支援數量（例如：生脈飲2）&#10;語音/圖片自動比對資料庫"></textarea>
-        <button class="btn" id="searchBtn" onclick="search()">查詢庫存</button>
+        <textarea id="input" placeholder="每行輸入一個產品&#10;範例：&#10;羌活勝濕湯錠&#10;苦參2&#10;語音/圖片自動比對資料庫"></textarea>
+        <button class="btn" id="searchBtn" onclick="search()">🔍 查詢庫存</button>
     </div>
 
     <div id="result"></div>
 
     <div class="tip">
-        <li>有貨 = 可出貨</li>
-        <li>缺貨 = 無庫存</li>
-        <li>點「顯示價格」查看價格</li>
-        <li>數量輸入：生脈飲2 = 2罐</li>
-        <li>語音/圖片：自動比對資料庫（繁簡體）</li>
+        <strong>💡 使用提示：</strong>
+        <ul>
+            <li>✅ 有貨 = 可出貨 | ⚠️ 缺貨 = 無庫存（缺）| ⏳ 預訂 = 需等待（預）</li>
+            <li>數量輸入：生脈飲2 = 2罐</li>
+            <li>語音/圖片：自動比對資料庫（繁簡體）</li>
+            <li>點「顯示價格」查看詳細報價</li>
+        </ul>
     </div>
 </div>
 
@@ -621,6 +636,11 @@ async function loadData() {
         const kzCount = Object.keys(DB_KZ).length;
         const tabletCount = Object.keys(DB_TABLET).length;
         status.textContent = `✅ 資料已更新: ${new Date().toLocaleTimeString()} (${kzCount + tabletCount}項)`;
+        
+        // 更新快速統計
+        document.getElementById('totalItems').textContent = kzCount + tabletCount;
+        document.getElementById('quickStats').style.display = 'grid';
+        
         searchBtn.disabled = false;
         console.log('資料載入成功:', kzCount, '項科中 +', tabletCount, '項錠劑');
         console.log('苦參 in DB_KZ?', '苦參' in DB_KZ, DB_KZ['苦參']);
@@ -788,12 +808,12 @@ function search() {
         } else {
             const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
             const statusClass = item.isBooking ? 'booking' : item.isInStock ? 'in-stock' : 'out-stock';
-            const statusText = item.isBooking ? '（預）' : item.isInStock ? '' : '（缺）';
-            const badgeContent = item.isBooking ? '（預）' : item.isInStock ? '✓' : '（缺）';
-            const nameWithStatus = statusText ? item.outputName + statusText : item.outputName;
+            const statusText = item.isBooking ? '（預）' : item.isInStock ? '✅' : '（缺）';
+            const badgeContent = item.isBooking ? '⏳ 預訂' : item.isInStock ? '✅ 有貨' : '⚠️ 缺貨';
+            const nameWithStatus = item.outputName + (item.isBooking ? '（預）' : item.isInStock ? '✅' : '（缺）');
             html += `<div class="result-item">
                 <div class="name">${nameWithStatus}</div>
-                ${badgeContent ? `<div class="badge ${statusClass}">${badgeContent}</div>` : '<div class="badge" style="visibility: hidden;"></div>'}
+                <div class="badge ${statusClass}">${badgeContent}</div>
                 <div class="price">${priceStr}</div>
             </div>`;
         }
@@ -801,9 +821,14 @@ function search() {
 
     // 汇总统计
     html += `<div class="summary">
-        <div class="total">${showPrice && stats.total > 0 ? stats.total + ' 元' : '-'}</div>
-        <div class="count">有貨 ${stats.inStock} 罐 | 缺貨 ${stats.outStock} 罐 | 預訂 ${stats.booking} 罐</div>
+        <div class="total">${showPrice && stats.total > 0 ? stats.total + ' 元' : '查詢完成'}</div>
+        <div class="count">✅ 有貨 ${stats.inStock} 項 | ⚠️ 缺貨 ${stats.outStock} 項 | ⏳ 預訂 ${stats.booking} 項</div>
     </div>`;
+    
+    // 更新快速統計
+    document.getElementById('inStockItems').textContent = stats.inStock;
+    document.getElementById('outStockItems').textContent = stats.outStock;
+    document.getElementById('bookingItems').textContent = stats.booking;
 
     // 复制框
     html += `<div class="copy-box">
@@ -832,7 +857,7 @@ function search() {
 }
 
 function clearInput() { document.getElementById('input').value = ''; document.getElementById('result').innerHTML = ''; }
-function togglePrice() { showPrice = !showPrice; document.getElementById('priceBtn').textContent = showPrice ? '隱藏價格' : '顯示價格'; }
+function togglePrice() { showPrice = !showPrice; document.getElementById('priceBtn').textContent = showPrice ? '🙈 隱藏價格' : '💰 顯示價格'; if (document.getElementById('input').value) search(); }
 
 // ===== 语音输入 =====
 let recognition = null;
