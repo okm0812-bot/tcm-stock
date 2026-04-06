@@ -1,3 +1,0 @@
-﻿Timestamp,Module,Error_Type,Error_Message,Corrected_Value,Raw_Value
-2026-03-31 23:17:58,adjusted_price.py,NameError,Variable name mismatch: output_path defined as 输出路徑 but called as 輸出路徑,output_path (ASCII),Mixed Chinese characters encoding mismatch
-2026-03-31 23:17:58,adjusted_price.py,TypeError,Timezone-aware datetime64 comparison failed with pd.Timestamp(start_date),strftime comparison,"datetime64[ns, Asia/Taipei] vs Timestamp"
