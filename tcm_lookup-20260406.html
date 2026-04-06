@@ -128,6 +128,7 @@ const TYPO_MAP = {
     '小建中湯': ['小建中'],
     '三黃瀉心湯': ['三黃瀉心'],
     '三痹湯': ['三痺湯', '三必湯'],
+    '三痹湯錠': ['三痺湯錠', '三必湯錠', '三婢湯錠', '三痹汤錠', '三痺汤錠', '三婢汤錠'],
     '大秦艽湯': ['大秦芨湯'],
 
     // === 4劃 ===
@@ -424,7 +425,12 @@ const isTablet = name => {
 const isSingleHerb = name => {
     if (isTablet(name)) return false;  // 锭劑单独分类
     if (name.includes('複方')) return false;
-    if (['湯','散','丸','飲','煎','膏'].some(c => name.includes(c))) return false;
+    const isComplex = ['湯','散','丸','飲','煎','膏'].some(c => name.includes(c));
+    if (isComplex) {
+        console.log('isSingleHerb: 複方檢測', name, '包含關鍵字，回傳 false');
+        return false;
+    }
+    console.log('isSingleHerb: 單方', name, '回傳 true');
     return true;
 };
 
@@ -449,16 +455,24 @@ const parseCSV = csvText => {
         for (let j = 0; j < row.length; j += 4) {
             const [name, status, price] = [row[j], row[j+1], row[j+2]];
             if (name && !skipWords.some(w => name.includes(w))) {
-                // 状态转换：低=有货，無=缺货，預=預訂
+                // 状态转换：低=有货，無=缺货，預=預訂，缺=缺货
+                // 特殊规则：科中100G/200G单方药材，标记为"缺"实际有货
                 let stockStatus;
                 if (status === '低') {
                     stockStatus = '有货';
-                } else if (status === '無') {
-                    stockStatus = '缺货';
+                } else if (status === '無' || status === '缺') {
+                    // 判断是否为单方药材（100G/200G）
+                    const isSingle = isSingleHerb(name);
+                    console.log('parseCSV:', name, '狀態=', status, 'isSingleHerb=', isSingle);
+                    if (isSingle) {
+                        stockStatus = '有货';  // 单方药材的"缺"视为有货
+                    } else {
+                        stockStatus = '缺货';  // 复方、锭剂等保持缺货
+                    }
                 } else if (status && (status.includes('預') || status.includes('订') || status.includes('定'))) {
                     stockStatus = '預訂';
                 } else {
-                    stockStatus = status === '無' ? '缺货' : '有货';
+                    stockStatus = '有货';
                 }
                 data[name] = [stockStatus, price?.replace(/,/g, '') || '時價'];
             }
@@ -535,6 +549,7 @@ const findBestMatchInTablet = query => {
     // 2. 错别字匹配（锭劑专用）
     for (const [correct, typos] of Object.entries(TYPO_MAP)) {
         if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
+            console.log('锭剂错别字匹配:', query, '→', correct, 'typos:', typos);
             if (DB_TABLET[correct]) return { name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1] };
         }
     }
@@ -597,6 +612,7 @@ async function loadData() {
         status.textContent = `✅ 資料已更新: ${new Date().toLocaleTimeString()} (${kzCount + tabletCount}項)`;
         searchBtn.disabled = false;
         console.log('資料載入成功:', kzCount, '項科中 +', tabletCount, '項錠劑');
+        console.log('苦參 in DB_KZ?', '苦參' in DB_KZ, DB_KZ['苦參']);
 
     } catch (e) {
         console.error('載入失敗:', e);
@@ -727,19 +743,20 @@ function search() {
                 stats.outStock += qty;
             }
 
-            // 输出时组合：产品名 + 数量（如果用户输入了数量就显示）
-            const hasUserQty = numMatch !== null;  // 用户是否输入了数量
-            const outputName = hasUserQty ? displayName + qty : displayName;
+            // 输出时组合：产品名 + 数量（始终显示数量）
+            const outputName = displayName + qty;
 
-            // 复制文本 - 新格式：产品名数量（状态）
-            const statusSymbol = isBooking ? '（預）' : isInStock ? '（有）' : '（缺）';
-            copyText += outputName + statusSymbol + '\n';
+            // 复制文本 - 新格式：有货只显示品名数量，缺货/預訂才显示状态
+            const statusSymbol = isBooking ? '（預）' : isInStock ? '' : '（缺）';
+            const copyLine = statusSymbol ? outputName + statusSymbol + '\n' : outputName + '\n';
+            copyText += copyLine;
 
             // 保存结果
             results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source });
         } else {
-            copyText += line + '\t找不到\n';
-            results.push({ displayName: line, outputName: line, qty: 1, status: 'not_found', source: 'none' });
+            const outputNameForNotFound = originalProductName + qty;
+            copyText += outputNameForNotFound + '\t找不到\n';
+            results.push({ displayName: originalProductName, outputName: outputNameForNotFound, qty: qty, status: 'not_found', source: 'none' });
         }
     }
 
@@ -761,10 +778,12 @@ function search() {
         } else {
             const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
             const statusClass = item.isBooking ? 'booking' : item.isInStock ? 'in-stock' : 'out-stock';
-            const statusText = item.isBooking ? '（預）' : item.isInStock ? '（有）' : '（缺）';
+            const statusText = item.isBooking ? '（預）' : item.isInStock ? '' : '（缺）';
+            const badgeContent = statusText;
+            const nameWithStatus = statusText ? item.outputName + statusText : item.outputName;
             html += `<div class="result-item">
-                <div class="name">${item.outputName}${statusText}</div>
-                <div class="badge ${statusClass}">${statusText}</div>
+                <div class="name">${nameWithStatus}</div>
+                ${badgeContent ? `<div class="badge ${statusClass}">${badgeContent}</div>` : '<div class="badge" style="visibility: hidden;"></div>'}
                 <div class="price">${priceStr}</div>
             </div>`;
         }
