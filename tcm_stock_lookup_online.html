@@ -881,19 +881,24 @@ function smartMatchProduct(text) {
     
     console.log('[智能匹配] 产品名:', productName, '数量:', qty);
     
-    // 1. 如果包含「錠」，只在锭劑库匹配
-    if (productName.includes('錠')) {
-        console.log('[智能匹配] 检测到锭劑，检查锭劑库...');
+    // 0. 检测是否可能是锭劑（包含「錠」的同音字：罐、堅、定、訂）
+    const isLikelyTablet = /[罐堅定訂].*[煎散丸湯]/.test(productName) || 
+                          productName.includes('錠') ||
+                          productName.includes('罐') ||
+                          productName.includes('堅');
+    
+    // 1. 如果可能是锭劑（包含同音字），优先在锭劑库匹配
+    if (isLikelyTablet) {
+        console.log('[智能匹配] 检测到锭劑关键字，检查锭劑库...');
         console.log('[智能匹配] 锭劑库产品数:', Object.keys(DB_TABLET).length);
-        console.log('[智能匹配] 锭劑库包含 加味逍遙散錠?', DB_TABLET['加味逍遙散錠'] ? '是' : '否');
         
         const tabletResult = findBestMatchInTablet(productName);
         if (tabletResult) {
             console.log(`[智能匹配] 锭劑匹配成功: "${productName}" → "${tabletResult.name}"`);
             return tabletResult.name + qty;
         }
-        console.log('[智能匹配] 锭劑库没找到，返回null');
-        return null;  // 锭劑没找到就返回null，不在科中库匹配
+        console.log('[智能匹配] 锭劑库没找到，尝试科中库...');
+        // 锭劑库没找到，继续到科中库匹配
     }
     
     // 2. 不包含「錠」，在科中库匹配
