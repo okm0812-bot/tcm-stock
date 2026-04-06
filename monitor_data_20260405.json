@@ -1,0 +1,49 @@
+{
+  "check_time": "2026-04-05 13:45:46",
+  "script_count": 153,
+  "report_count": 39,
+  "recent_reports": [
+    {
+      "name": "ceo_integrated_20260405_134541.txt",
+      "time": "13:45:41"
+    },
+    {
+      "name": "risk_alert_now.txt",
+      "time": "13:45:41"
+    },
+    {
+      "name": "workflow_report_20260405_134448.txt",
+      "time": "13:44:48"
+    },
+    {
+      "name": "monitor_report_20260405_134313.txt",
+      "time": "13:43:13"
+    },
+    {
+      "name": "monitor_report_20260405_134117.txt",
+      "time": "13:41:17"
+    }
+  ],
+  "module_health": {
+    "風險預警": {
+      "exists": true,
+      "size": 9814
+    },
+    "法人籌碼": {
+      "exists": true,
+      "size": 7028
+    },
+    "選股自動化": {
+      "exists": true,
+      "size": 10508
+    },
+    "CEO整合": {
+      "exists": true,
+      "size": 7361
+    },
+    "測試執行器": {
+      "exists": true,
+      "size": 3338
+    }
+  }
+}
