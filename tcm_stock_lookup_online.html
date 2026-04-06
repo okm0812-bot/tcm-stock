@@ -573,19 +573,26 @@ const findBestMatchInKZ = query => {
 };
 
 // ===== 锭劑专用匹配函数 =====
-// 规则：有「錠」就直接在锭劑库匹配，精确匹配优先
+// 规则：与科中相同的匹配规则，但只在锭劑库中匹配
 const findBestMatchInTablet = query => {
     if (!query || !Object.keys(DB_TABLET).length) return null;
     
-    // 1. 精确匹配（保留原始输入格式）
+    // 1. 精确匹配
     if (DB_TABLET[query]) return { name: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1] };
     
-    // 2. 移除"錠"后加"錠"精确匹配
+    // 2. 错别字匹配（锭劑专用）
+    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
+        if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
+            if (DB_TABLET[correct]) return { name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1] };
+        }
+    }
+    
+    // 3. 移除"錠"后精确匹配
     const queryWithoutDing = query.replace(/錠$/, '').trim();
     const tabletName = queryWithoutDing + '錠';
     if (DB_TABLET[tabletName]) return { name: tabletName, status: DB_TABLET[tabletName][0], price: DB_TABLET[tabletName][1] };
     
-    // 3. 精确匹配锭劑库中任何包含输入的产品名（优先匹配最长的）
+    // 4. 包含匹配（锭劑库中按长度降序）
     const allTabletNames = Object.keys(DB_TABLET).sort((a, b) => b.length - a.length);
     for (const name of allTabletNames) {
         if (name === query || name.includes(query)) {
@@ -593,21 +600,17 @@ const findBestMatchInTablet = query => {
         }
     }
     
-    // 4. 如果还是找不到，才进行模糊匹配（门槛提高）
+    // 5. 模糊匹配（仅3字以上，门槛50%）
     if (query.length >= 3) {
-        let best = null, bestScore = 0.7;  // 提高门槛到0.7，更严格
-        
+        let best = null, bestScore = 0.5;
         for (const [name, data] of Object.entries(DB_TABLET)) {
-            // 计算相似度：查询中有多少字出现在产品名中
             const matchedChars = [...query].filter(c => name.includes(c));
             const score = matchedChars.length / query.length;
-            
             if (score > bestScore) {
                 bestScore = score;
-                best = { name, status: data[0], price: data[1], score };
+                best = { name, status: data[0], price: data[1] };
             }
         }
-        
         if (best) return best;
     }
     
