@@ -660,6 +660,17 @@ function search() {
             }
         }
 
+        // 检查是否为规格关键词（100G, 200G, 單方, 複方, 錠劑）
+        const specKeywords = ['100G', '200G', '單方', '複方', '錠劑'];
+        const isSpecification = specKeywords.some(keyword => line.includes(keyword));
+        
+        if (isSpecification) {
+            // 规格关键词直接输出，不进行产品匹配
+            copyText += line + '\n';
+            results.push({ displayName: line, outputName: line, qty: 1, status: 'specification', source: 'spec' });
+            continue;
+        }
+
         // 解析产品名和数量
         // 移除常见的单位词（瓶、罐、包、盒等）
         let cleanLine = line.replace(/[瓶罐包盒顆粒]/g, '');
@@ -733,6 +744,12 @@ function search() {
             html += `<div class="result-item">
                 <div class="name">${item.outputName}</div>
                 <div class="badge not-found">找不到</div>
+            </div>`;
+        } else if (item.status === 'specification') {
+            // 规格关键词：直接显示，不加状态
+            html += `<div class="result-item">
+                <div class="name">${item.outputName}</div>
+                <div class="badge spec">規格</div>
             </div>`;
         } else {
             const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
