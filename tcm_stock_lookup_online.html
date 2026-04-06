@@ -524,20 +524,20 @@ const findBestMatch = query => {
 // ===== 科中专用匹配函数 =====
 const findBestMatchInKZ = query => {
     if (!query || !Object.keys(DB_KZ).length) return null;
-    
+
     // 1. 精确匹配
     if (DB_KZ[query]) return { name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], corrected: false };
-    
+
     // 2. 错别字匹配
     for (const [correct, typos] of Object.entries(TYPO_MAP)) {
         if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
             if (DB_KZ[correct]) return { name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], corrected: true, original: query };
         }
     }
-    
+
     // 3. 复方优先匹配（按名称长度降序，优先匹配最长的）
     const allNames = Object.keys(DB_KZ).sort((a, b) => b.length - a.length);
-    
+
     for (const name of allNames) {
         if (!isSingleHerb(name)) {
             if (name === query || name.includes(query)) {
@@ -545,7 +545,7 @@ const findBestMatchInKZ = query => {
             }
         }
     }
-    
+
     // 4. 单方匹配
     for (const name of allNames) {
         if (isSingleHerb(name)) {
@@ -554,7 +554,7 @@ const findBestMatchInKZ = query => {
             }
         }
     }
-    
+
     // 5. 模糊匹配（仅3字以上）
     if (query.length >= 3) {
         let best = null, bestScore = 0.5;
@@ -568,7 +568,7 @@ const findBestMatchInKZ = query => {
         }
         if (best) return best;
     }
-    
+
     return null;
 };
 
@@ -661,15 +661,16 @@ function search() {
         }
 
         // 解析产品名和数量
-        // 移除常见的单位词（瓶、罐、包、盒等），只保留数字作为数量
+        // 移除常见的单位词（瓶、罐、包、盒等）
         let cleanLine = line.replace(/[瓶罐包盒顆粒]/g, '');
 
-        // 提取数字（末尾1-2位）
+        // 提取数字（末尾1-2位）作为数量
         const numMatch = cleanLine.match(/(\d{1,2})$/);
         const qty = numMatch ? parseInt(numMatch[1]) : 1;
 
-        // 移除数字得到产品名
-        const query = cleanLine.replace(/\d+$/, '').trim();
+        // 移除数字得到产品名（保留原始输入的产品名格式）
+        const originalProductName = cleanLine.replace(/\d+$/, '').trim();
+        const query = originalProductName;
 
         if (!query) continue;
 
@@ -679,24 +680,27 @@ function search() {
         let result = null;
 
         if (isTabletInput) {
-            // 锭劑：直接在锭劑库精确匹配，不做修正
+            // 锭劑：直接在锭劑库精确匹配
             if (DB_TABLET[query]) {
-                result = { name: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1], source: 'tablet', corrected: false };
+                result = { displayName: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1], source: 'tablet' };
             } else {
                 // 尝试移除"錠"后匹配
                 const queryWithoutDing = query.replace(/錠$/, '').trim();
                 const tabletName = queryWithoutDing + '錠';
                 if (DB_TABLET[tabletName]) {
-                    result = { name: tabletName, status: DB_TABLET[tabletName][0], price: DB_TABLET[tabletName][1], source: 'tablet', corrected: false };
+                    result = { displayName: tabletName, status: DB_TABLET[tabletName][0], price: DB_TABLET[tabletName][1], source: 'tablet' };
                 }
             }
         } else {
             // 科中：使用完整匹配逻辑
-            result = findBestMatchInKZ(query);
+            const kzResult = findBestMatchInKZ(query);
+            if (kzResult) {
+                result = { displayName: kzResult.name, status: kzResult.status, price: kzResult.price, source: 'kz', corrected: kzResult.corrected };
+            }
         }
 
         if (result) {
-            const { name, status, price, source } = result;
+            const { displayName, status, price, source } = result;
             const unitPrice = price === '時價' ? 0 : parseInt(price) || 0;
             const totalPrice = unitPrice * qty;
             const isInStock = status === '有货';
@@ -712,14 +716,17 @@ function search() {
                 stats.outStock += qty;
             }
 
+            // 输出时组合：产品名 + 数量（数量>1时才显示）
+            const outputName = qty > 1 ? displayName + qty : displayName;
+
             // 复制文本
-            copyText += name + (qty > 1 ? qty : '') + '\t' + (isBooking ? '預訂' : isInStock ? '有貨' : '缺貨') + '\n';
+            copyText += outputName + '\t' + (isBooking ? '預訂' : isInStock ? '有貨' : '缺貨') + '\n';
 
             // 保存结果
-            results.push({ name, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source });
+            results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source });
         } else {
             copyText += line + '\t找不到\n';
-            results.push({ name: line, qty, status: 'not_found', source: 'none' });
+            results.push({ displayName: line, outputName: line, qty: 1, status: 'not_found', source: 'none' });
         }
     }
     
@@ -729,38 +736,37 @@ function search() {
     for (const item of results) {
         if (item.status === 'not_found') {
             html += `<div class="result-item">
-                <div class="name">${item.name}${item.qty > 1 ? ' x' + item.qty : ''}</div>
+                <div class="name">${item.outputName}</div>
                 <div class="badge not-found">找不到</div>
             </div>`;
         } else {
             const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
             const statusClass = item.isBooking ? 'booking' : item.isInStock ? 'in-stock' : 'out-stock';
             const statusText = item.isBooking ? '預訂' : item.isInStock ? '有貨' : '缺貨';
-            const sourceLabel = item.source === 'tablet' ? '錠劑' : (isSingleHerb(item.name) ? '100g' : '200g');
             html += `<div class="result-item">
-                <div class="name">${item.name}${item.qty > 1 ? ' x' + item.qty : ''}</div>
+                <div class="name">${item.outputName}</div>
                 <div class="badge ${statusClass}">${statusText}</div>
                 <div class="price">${priceStr}</div>
             </div>`;
         }
     }
-    
+
     // 汇总统计
     html += `<div class="summary">
         <div class="total">${showPrice && stats.total > 0 ? stats.total + ' 元' : '-'}</div>
         <div class="count">有貨 ${stats.inStock} 罐 | 缺貨 ${stats.outStock} 罐 | 預訂 ${stats.booking} 罐</div>
     </div>`;
-    
+
     // 复制框
     html += `<div class="copy-box">
         <h4>📋 查詢結果（可複製）</h4>
         <div class="copy-content" id="copyContent">${copyText}</div>
         <button class="copy-btn" id="copyBtn">複製結果</button>
     </div>`;
-    
+
     // 更新DOM
     document.getElementById('result').innerHTML = html;
-    
+
     // 绑定复制按钮
     document.getElementById('copyBtn').addEventListener('click', function() {
         navigator.clipboard.writeText(copyText).then(() => {
