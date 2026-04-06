@@ -412,7 +412,8 @@ const TYPO_MAP = {
 // ===== 工具函数 =====
 // 判断是否为锭劑（包含"锭"或同音字）
 const isTablet = name => {
-    const tabletChars = ['錠', '锭'];
+    // 錠的所有同音字/异体字
+    const tabletChars = ['錠', '锭', '罐', '堅', '定', '訂', '碇', '腚', '䦺'];
     return tabletChars.some(c => name.includes(c));
 };
 
@@ -881,11 +882,15 @@ function smartMatchProduct(text) {
     
     console.log('[智能匹配] 产品名:', productName, '数量:', qty);
     
-    // 0. 检测是否可能是锭劑（包含「錠」的同音字：罐、堅、定、訂）
-    const isLikelyTablet = /[罐堅定訂].*[煎散丸湯]/.test(productName) || 
+    // 0. 检测是否可能是锭劑（包含「錠」的同音字：罐、堅、定、訂、碇、腚、䦺）
+    const isLikelyTablet = /[罐堅定訂碇腚䦺].*[煎散丸湯]/.test(productName) || 
                           productName.includes('錠') ||
                           productName.includes('罐') ||
-                          productName.includes('堅');
+                          productName.includes('堅') ||
+                          productName.includes('定') ||
+                          productName.includes('訂') ||
+                          productName.includes('碇') ||
+                          productName.includes('腚');
     
     // 1. 如果可能是锭劑（包含同音字），优先在锭劑库匹配
     if (isLikelyTablet) {
