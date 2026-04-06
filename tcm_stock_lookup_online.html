@@ -26,8 +26,11 @@
         .badge { font-size: 12px; padding: 4px 10px; border-radius: 15px; white-space: nowrap; }
         .in-stock { background: #d4edda; color: #155724; }
         .out-stock { background: #f8d7da; color: #721c24; }
+        .booking { background: #fff3cd; color: #856404; }
         .not-found { background: #e2e3e5; color: #383d41; }
         .corrected { background: #fff3cd; color: #856404; }
+        .category { margin-top: 12px; }
+        .category h3 { background: rgba(255,255,255,0.3); color: white; padding: 8px 15px; border-radius: 10px; margin: 0 0 8px 0; font-size: 14px; }
         .price { font-size: 15px; font-weight: bold; }
         .summary { background: white; border-radius: 15px; padding: 15px; margin-top: 12px; text-align: center; }
         .summary .total { font-size: 26px; font-weight: bold; color: #28a745; }
@@ -400,22 +403,17 @@ const TYPO_MAP = {
 // ===== 工具函数 =====
 // 判断是否为锭劑（包含"锭"或同音字）
 const isTablet = name => {
-    // 锭的同音字/异体字
-    const tabletChars = ['錠', '锭', '定', '訂', '餕', '飣'];
+    const tabletChars = ['錠', '锭'];
     return tabletChars.some(c => name.includes(c));
 };
 
 // 判断是否为单方（不是复方制剂）
-// 复方特征：湯、散、丸、飲、煎、膏、片 + 明確的複方關鍵字
-// 注意：锭劑单独分类，不属于单方或复方
+// 复方特征：湯、散、丸、飲、煎、膏 + 明確的複方關鍵字
+// 注意：锭劑单独分类
 const isSingleHerb = name => {
-    // 如果是锭劑，单独分类
-    if (isTablet(name)) return false;  // 归类到锭劑
-    // 如果包含「複方」關鍵字，一定是複方
+    if (isTablet(name)) return false;  // 锭劑单独分类
     if (name.includes('複方')) return false;
-    // 如果包含常見複方後綴，可能是複方
-    if (['湯','散','丸','飲','煎','膏','片'].some(c => name.includes(c))) return false;
-    // 其他視為單方
+    if (['湯','散','丸','飲','煎','膏'].some(c => name.includes(c))) return false;
     return true;
 };
 
@@ -440,7 +438,18 @@ const parseCSV = csvText => {
         for (let j = 0; j < row.length; j += 4) {
             const [name, status, price] = [row[j], row[j+1], row[j+2]];
             if (name && !skipWords.some(w => name.includes(w))) {
-                data[name] = [status === '無' ? '缺货' : '有货', price?.replace(/,/g, '') || '時價'];
+                // 状态转换：低=有货，無=缺货，預=預訂
+                let stockStatus;
+                if (status === '低') {
+                    stockStatus = '有货';
+                } else if (status === '無') {
+                    stockStatus = '缺货';
+                } else if (status && (status.includes('預') || status.includes('订') || status.includes('定'))) {
+                    stockStatus = '預訂';
+                } else {
+                    stockStatus = status === '無' ? '缺货' : '有货';
+                }
+                data[name] = [stockStatus, price?.replace(/,/g, '') || '時價'];
             }
         }
     });
@@ -559,14 +568,17 @@ function search() {
         return;
     }
     
-    const skipKeywords = ['100g', '200g'];
-    let html = '';
+    const skipKeywords = ['100g', '200g', '錠劑', '錠'];
+    let matched100g = [];
+    let matched200g = [];
+    let matchedTablet = [];
+    let unmatched = [];
     let copyText = '';
-    let stats = { inStock: 0, outStock: 0, corrected: 0, total: 0 };
+    let stats = { inStock: 0, outStock: 0, booking: 0, total: 0 };
     let firstLine = true;
     
     for (const line of lines) {
-        // 跳过规格行（注意：只匹配完整的 '100g' 或 '200g'，避免跳过「複方丹參片」等有效产品名）
+        // 跳过规格行
         if (skipKeywords.includes(line.toLowerCase())) {
             copyText += line + '\n';
             continue;
@@ -576,7 +588,7 @@ function search() {
         if (firstLine) {
             firstLine = false;
             const isCustomerName = !line.match(/\d/) && line.length <= 4 && 
-                !['湯','散','丸','飲','煎','丹','膏'].some(c => line.includes(c));
+                !['湯','散','丸','飲','煎','丹','膏','錠'].some(c => line.includes(c));
             if (isCustomerName) {
                 copyText += line + '\n';
                 continue;
@@ -593,13 +605,16 @@ function search() {
         const result = findBestMatch(query);
         
         if (result) {
-            const { name, status, price } = result;
+            let { name, status, price } = result;
             const unitPrice = price === '時價' ? 0 : parseInt(price) || 0;
             const totalPrice = unitPrice * qty;
             const isInStock = status === '有货';
+            const isBooking = status === '預訂';
             
             // 更新统计
-            if (isInStock) {
+            if (isBooking) {
+                stats.booking += qty;
+            } else if (isInStock) {
                 stats.inStock += qty;
                 stats.total += totalPrice;
             } else {
@@ -607,31 +622,96 @@ function search() {
             }
             if (result.corrected) stats.corrected++;
             
+            // 移除"錠"后缀用于显示
+            const displayName = name.replace(/錠$/, '');
+            
             // 复制文本
-            copyText += name + (qty > 1 ? qty : '') + '\t' + (isInStock ? '有貨' : '缺貨') + '\n';
+            copyText += displayName + (qty > 1 ? qty : '') + '\t' + (isBooking ? '預訂' : isInStock ? '有貨' : '缺貨') + '\n';
             
-            // 构建HTML
-            const priceStr = showPrice ? (price === '時價' ? '請電洽' : (qty > 1 ? `${unitPrice}x${qty}=${totalPrice}元` : `${price}元`)) : '';
-            
-            html += `<div class="result-item">
-                <div class="name">${name}${qty > 1 ? ' x' + qty : ''}</div>
-                ${result.corrected ? `<div class="original">原: ${result.original}</div><div class="badge corrected">已更正</div>` : ''}
-                <div class="badge ${isInStock ? 'in-stock">有貨' : 'out-stock">缺貨'}</div>
-                <div class="price">${priceStr}</div>
-            </div>`;
+            // 判断分类并添加到对应数组
+            if (isTablet(name)) {
+                matchedTablet.push({ name: displayName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, result });
+            } else if (isSingleHerb(displayName)) {
+                matched100g.push({ name: displayName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, result });
+            } else {
+                matched200g.push({ name: displayName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, result });
+            }
         } else {
             copyText += line + '\t找不到\n';
+            unmatched.push(line);
+        }
+    }
+    
+    // 构建HTML
+    let html = '';
+    
+    // 100g
+    if (matched100g.length > 0) {
+        html += '<div class="category"><h3>100g</h3>';
+        for (const item of matched100g) {
+            const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
+            const statusClass = item.isBooking ? 'booking' : item.isInStock ? 'in-stock' : 'out-stock';
+            const statusText = item.isBooking ? '預訂' : item.isInStock ? '有貨' : '缺貨';
             html += `<div class="result-item">
-                <div class="name">${line}</div>
+                <div class="name">${item.name}${item.qty > 1 ? ' x' + item.qty : ''}</div>
+                ${item.result.corrected ? `<div class="original">原: ${item.result.original}</div><div class="badge corrected">已更正</div>` : ''}
+                <div class="badge ${statusClass}">${statusText}</div>
+                <div class="price">${priceStr}</div>
+            </div>`;
+        }
+        html += '</div>';
+    }
+    
+    // 200g
+    if (matched200g.length > 0) {
+        html += '<div class="category"><h3>200g</h3>';
+        for (const item of matched200g) {
+            const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
+            const statusClass = item.isBooking ? 'booking' : item.isInStock ? 'in-stock' : 'out-stock';
+            const statusText = item.isBooking ? '預訂' : item.isInStock ? '有貨' : '缺貨';
+            html += `<div class="result-item">
+                <div class="name">${item.name}${item.qty > 1 ? ' x' + item.qty : ''}</div>
+                ${item.result.corrected ? `<div class="original">原: ${item.result.original}</div><div class="badge corrected">已更正</div>` : ''}
+                <div class="badge ${statusClass}">${statusText}</div>
+                <div class="price">${priceStr}</div>
+            </div>`;
+        }
+        html += '</div>';
+    }
+    
+    // 錠劑（放在最后）
+    if (matchedTablet.length > 0) {
+        html += '<div class="category"><h3>錠劑</h3>';
+        for (const item of matchedTablet) {
+            const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
+            const statusClass = item.isBooking ? 'booking' : item.isInStock ? 'in-stock' : 'out-stock';
+            const statusText = item.isBooking ? '預訂' : item.isInStock ? '有貨' : '缺貨';
+            html += `<div class="result-item">
+                <div class="name">${item.name}${item.qty > 1 ? ' x' + item.qty : ''}</div>
+                ${item.result.corrected ? `<div class="original">原: ${item.result.original}</div><div class="badge corrected">已更正</div>` : ''}
+                <div class="badge ${statusClass}">${statusText}</div>
+                <div class="price">${priceStr}</div>
+            </div>`;
+        }
+        html += '</div>';
+    }
+    
+    // 未找到
+    if (unmatched.length > 0) {
+        html += '<div class="category"><h3>找不到</h3>';
+        for (const name of unmatched) {
+            html += `<div class="result-item">
+                <div class="name">${name}</div>
                 <div class="badge not-found">找不到</div>
             </div>`;
         }
+        html += '</div>';
     }
     
     // 汇总统计
     html += `<div class="summary">
         <div class="total">${showPrice && stats.total > 0 ? stats.total + ' 元' : '-'}</div>
-        <div class="count">有貨 ${stats.inStock} 罐 | 缺貨 ${stats.outStock} 罐${stats.corrected > 0 ? ' | 更正 ' + stats.corrected + ' 項' : ''}</div>
+        <div class="count">有貨 ${stats.inStock} 罐 | 缺貨 ${stats.outStock} 罐 | 預訂 ${stats.booking} 罐${stats.corrected > 0 ? ' | 更正 ' + stats.corrected + ' 項' : ''}</div>
     </div>`;
     
     // 复制框
