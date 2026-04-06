@@ -446,7 +446,7 @@ const parseCSVLine = line => {
     return result;
 };
 
-const parseCSV = csvText => {
+const parseCSV = (csvText, source = 'kezhong') => {
     const data = {};
     const skipWords = ['劃', '品名', '單方', '目前', '每日', '實際', '以上'];
 
@@ -456,18 +456,23 @@ const parseCSV = csvText => {
             const [name, status, price] = [row[j], row[j+1], row[j+2]];
             if (name && !skipWords.some(w => name.includes(w))) {
                 // 状态转换：低=有货，無=缺货，預=預訂，缺=缺货
-                // 特殊规则：科中100G/200G单方药材，标记为"缺"实际有货
+                // 特殊规则：科中庫存表（source='kezhong'）所有"缺"都视为有货
                 let stockStatus;
                 if (status === '低') {
                     stockStatus = '有货';
                 } else if (status === '無' || status === '缺') {
-                    // 判断是否为单方药材（100G/200G）
-                    const isSingle = isSingleHerb(name);
-                    console.log('parseCSV:', name, '狀態=', status, 'isSingleHerb=', isSingle);
-                    if (isSingle) {
-                        stockStatus = '有货';  // 单方药材的"缺"视为有货
+                    if (source === 'kezhong') {
+                        // 科中庫存表：全部品項的"缺"都视为有货
+                        stockStatus = '有货';
                     } else {
-                        stockStatus = '缺货';  // 复方、锭剂等保持缺货
+                        // 锭劑庫存表：保持原有逻辑
+                        const isSingle = isSingleHerb(name);
+                        console.log('parseCSV:', name, '狀態=', status, 'isSingleHerb=', isSingle);
+                        if (isSingle) {
+                            stockStatus = '有货';  // 单方药材的"缺"视为有货
+                        } else {
+                            stockStatus = '缺货';  // 复方、锭剂等保持缺货
+                        }
                     }
                 } else if (status && (status.includes('預') || status.includes('订') || status.includes('定'))) {
                     stockStatus = '預訂';
@@ -604,8 +609,8 @@ async function loadData() {
         if (!res1.ok || !res2.ok) throw new Error('網路錯誤');
 
         // 解析两个 Sheet
-        DB_KZ = parseCSV(await res1.text());
-        DB_TABLET = parseCSV(await res2.text());
+        DB_KZ = parseCSV(await res1.text(), 'kezhong');
+        DB_TABLET = parseCSV(await res2.text(), 'tablet');
 
         const kzCount = Object.keys(DB_KZ).length;
         const tabletCount = Object.keys(DB_TABLET).length;
@@ -746,10 +751,9 @@ function search() {
             // 输出时组合：产品名 + 数量（始终显示数量）
             const outputName = displayName + qty;
 
-            // 复制文本 - 新格式：有货只显示品名数量，缺货/預訂才显示状态
-            const statusSymbol = isBooking ? '（預）' : isInStock ? '' : '（缺）';
-            const copyLine = statusSymbol ? outputName + statusSymbol + '\n' : outputName + '\n';
-            copyText += copyLine;
+            // 复制文本 - 新格式：有货显示✓，缺货显示（缺），預訂显示（預）
+            const statusSymbol = isBooking ? '（預）' : isInStock ? '✓' : '（缺）';
+            copyText += outputName + statusSymbol + '\n';
 
             // 保存结果
             results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source });
@@ -779,7 +783,7 @@ function search() {
             const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
             const statusClass = item.isBooking ? 'booking' : item.isInStock ? 'in-stock' : 'out-stock';
             const statusText = item.isBooking ? '（預）' : item.isInStock ? '' : '（缺）';
-            const badgeContent = statusText;
+            const badgeContent = item.isBooking ? '（預）' : item.isInStock ? '✓' : '（缺）';
             const nameWithStatus = statusText ? item.outputName + statusText : item.outputName;
             html += `<div class="result-item">
                 <div class="name">${nameWithStatus}</div>
