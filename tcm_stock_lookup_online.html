@@ -81,7 +81,9 @@
 
 <script>
 // ===== 配置 =====
-const SHEET_URL = 'https://docs.google.com/spreadsheets/u/0/d/1e4EjRPC43YBAoPl4UyjZeEnS3XH7oKltgAG7k8wtfcc/gviz/tq?tqx=out:csv';
+// ===== Google Sheet 链接 =====
+const SHEET_URL_KEZHONG = 'https://docs.google.com/spreadsheets/d/1ekYUBtuQNjLB0RpWGCPJN7409sL74tqT36NfzUIM6o4/gviz/tq?tqx=out:csv';
+const SHEET_URL_TABLET = 'https://docs.google.com/spreadsheets/d/1e4EjRPC43YBAoPl4UyjZeEnS3XH7oKltgAG7k8wtfcc/gviz/tq?tqx=out:csv';
 
 // ===== 状态 =====
 let DB = {};
@@ -523,15 +525,27 @@ async function loadData() {
     searchBtn.disabled = true;
     
     try {
-        const res = await fetch(SHEET_URL);
-        if (!res.ok) throw new Error('網路錯誤');
+        // 同时加载两个 Sheet
+        const [res1, res2] = await Promise.all([
+            fetch(SHEET_URL_KEZHONG),
+            fetch(SHEET_URL_TABLET)
+        ]);
         
-        DB = parseCSV(await res.text());
+        if (!res1.ok || !res2.ok) throw new Error('網路錯誤');
+        
+        // 解析两个 Sheet
+        const db1 = parseCSV(await res1.text());
+        const db2 = parseCSV(await res2.text());
+        
+        // 合并数据库（锭劑覆盖同名产品，因为锭劑是独立品类）
+        DB = { ...db1, ...db2 };
         
         const count = Object.keys(DB).length;
+        const kzCount = Object.keys(db1).length;
+        const tabletCount = Object.keys(db2).length;
         status.textContent = `✅ 資料已更新: ${new Date().toLocaleTimeString()} (${count}項)`;
         searchBtn.disabled = false;
-        console.log('資料載入成功，共', count, '項產品');
+        console.log('資料載入成功:', kzCount, '項科中 +', tabletCount, '項錠劑 =', count, '項總計');
         
     } catch (e) {
         console.error('載入失敗:', e);
