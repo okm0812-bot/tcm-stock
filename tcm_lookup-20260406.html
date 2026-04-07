@@ -664,6 +664,20 @@ window.addEventListener('beforeunload', function() {
     }
 });
 
+// 當頁面不可見時自動停止錄音（切換標籤頁或最小化視窗）
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden && isListening && recognition) {
+        recognition.stop();
+        recognition = null;
+        isListening = false;
+        const voiceBtn = document.getElementById('voiceBtn');
+        if (voiceBtn) {
+            voiceBtn.textContent = '🎤 語音輸入';
+            voiceBtn.style.background = '#667eea';
+        }
+    }
+});
+
 function search() {
     // 关闭麦克风（如果在录音中）
     if (isListening && recognition) {
@@ -777,9 +791,11 @@ function search() {
             // 输出时组合：产品名 + 数量（始终显示数量）
             const outputName = displayName + qty;
 
-            // 复制文本 - 新格式：有货显示✓，缺货显示（缺），預訂显示（預）
-            const statusSymbol = isBooking ? '（預）' : isInStock ? '✅' : '（缺）';
-            copyText += outputName + statusSymbol + '\n';
+            // 复制文本 - 只保留有货品项，不显示✅符号
+            if (isInStock) {
+                copyText += outputName + '\n';
+            }
+            // 缺货和预订单项不输出到复制文本
 
             // 保存结果
             results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source });
