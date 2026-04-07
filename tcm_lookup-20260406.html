@@ -705,7 +705,7 @@ function search() {
         }
 
         // 检查是否为规格关键词（100G, 200G, 單方, 複方, 錠劑）
-        const specKeywords = ['100G', '200G', '單方', '複方', '錠劑'];
+        const specKeywords = ['100G', '200G', '單方', '複方', '錠劑', '科中'];
         const isSpecification = specKeywords.some(keyword => line.includes(keyword));
         
         if (isSpecification) {
