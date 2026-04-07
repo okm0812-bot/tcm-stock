@@ -331,14 +331,8 @@ const TYPO_MAP = {
     '蠲痹湯': ['蠲痹'],
     '響聲破笛丸': ['響聲破笛'],
 
-    // === 17劃 ===
-    '濟生腎氣丸': ['濟生腎氣'],
-
-    // === 18劃 ===
-    '歸脾湯': ['歸脾'],
-
-    // === 19劃 ===
-    '藿香正氣散': ['藿香正氣'],
+    // === 17-19劃 ===
+    // （重複條目已移除）
 
     // === 單方 100g ===
     '大黃': ['大黃', '大黄'],
@@ -441,11 +435,7 @@ const isSingleHerb = name => {
     if (isTablet(name)) return false;  // 锭劑单独分类
     if (name.includes('複方')) return false;
     const isComplex = ['湯','散','丸','飲','煎','膏'].some(c => name.includes(c));
-    if (isComplex) {
-        console.log('isSingleHerb: 複方檢測', name, '包含關鍵字，回傳 false');
-        return false;
-    }
-    console.log('isSingleHerb: 單方', name, '回傳 true');
+    if (isComplex) return false;
     return true;
 };
 
@@ -477,23 +467,13 @@ const parseCSV = (csvText, source = 'kezhong') => {
                 if (status === '低') {
                     stockStatus = '有货';
                 } else if (status === '無') {
-                    // 所有庫存表中的"無"都表示缺货
                     stockStatus = '缺货';
-                    console.log('parseCSV:', name, '狀態=無 → 缺货', 'source=', source);
                 } else if (status === '缺') {
                     if (source === 'kezhong') {
-                        // 科中庫存表："缺"表示有货
                         stockStatus = '有货';
-                        console.log('parseCSV:', name, '狀態=缺 → 有货 (科中特殊規則)', 'source=', source);
                     } else {
-                        // 锭劑庫存表："缺"根据单方/复方判断
                         const isSingle = isSingleHerb(name);
-                        console.log('parseCSV:', name, '狀態=缺', 'isSingleHerb=', isSingle, 'source=', source);
-                        if (isSingle) {
-                            stockStatus = '有货';  // 单方药材的"缺"视为有货
-                        } else {
-                            stockStatus = '缺货';  // 复方、锭剂等保持缺货
-                        }
+                        stockStatus = isSingle ? '有货' : '缺货';
                     }
                 } else if (status && (status.includes('預') || status.includes('订') || status.includes('定'))) {
                     stockStatus = '預訂';
@@ -575,7 +555,6 @@ const findBestMatchInTablet = query => {
     // 2. 错别字匹配（锭劑专用）
     for (const [correct, typos] of Object.entries(TYPO_MAP)) {
         if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
-            console.log('锭剂错别字匹配:', query, '→', correct, 'typos:', typos);
             if (DB_TABLET[correct]) return { name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1] };
         }
     }
@@ -642,8 +621,6 @@ async function loadData() {
         document.getElementById('quickStats').style.display = 'grid';
         
         searchBtn.disabled = false;
-        console.log('資料載入成功:', kzCount, '項科中 +', tabletCount, '項錠劑');
-        console.log('苦參 in DB_KZ?', '苦參' in DB_KZ, DB_KZ['苦參']);
 
     } catch (e) {
         console.error('載入失敗:', e);
@@ -791,11 +768,13 @@ function search() {
             // 输出时组合：产品名 + 数量（始终显示数量）
             const outputName = displayName + qty;
 
-            // 复制文本 - 只保留有货品项，不显示✅符号
+            // 复制文本 - 只保留有货和预订品项
             if (isInStock) {
                 copyText += outputName + '\n';
+            } else if (isBooking) {
+                copyText += outputName + '（預）\n';
             }
-            // 缺货和预订单项不输出到复制文本
+            // 缺货品项不输出到复制文本
 
             // 保存结果
             results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source });
