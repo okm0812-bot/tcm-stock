@@ -680,7 +680,7 @@ function search() {
         return;
     }
 
-    const skipKeywords = ['100g', '200g', '錠劑', '錠'];
+    const skipKeywords = ['100g', '200g', '錠劑', '錠', '謝謝', '谢谢'];
     let results = [];  // 保存结果，保持顺序
     let copyText = '';
     let stats = { inStock: 0, outStock: 0, booking: 0, total: 0 };
@@ -706,7 +706,10 @@ function search() {
 
         // 检查是否为规格关键词（100G, 200G, 單方, 複方, 錠劑）
         const specKeywords = ['100G', '200G', '單方', '複方', '錠劑', '科中'];
-        const isSpecification = specKeywords.some(keyword => line.includes(keyword));
+        // 白名单：包含这些关键词的行不当作规格关键词，直接匹配库存
+        const specWhitelist = ['複方丹參', '复方丹参', '複方丹蔘', '复方丹蔘'];
+        const isSpecification = specKeywords.some(keyword => line.includes(keyword)) &&
+                                 !specWhitelist.some(keyword => line.includes(keyword));
         
         if (isSpecification) {
             // 规格关键词直接输出，不进行产品匹配
