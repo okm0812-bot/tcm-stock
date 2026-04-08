@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
@@ -884,6 +884,7 @@ function startVoiceInput() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     recognition = new SpeechRecognition();
     recognition.lang = 'zh-TW';
+    recognition.model = 'phone_call';     // 電話錄音模式，對咬字/專業術語辨識較佳
     recognition.continuous = true;
     recognition.interimResults = true;  // 开启实时结果，加快响应
     recognition.maxAlternatives = 1;    // 只返回最佳结果，减少计算
@@ -1344,7 +1345,82 @@ function getPronunciationSimilarity(text, name) {
     return totalChars > 0 ? matchScore / maxLen : 0;
 }
 
-// ===== 图片辨识（OCR.space API + 备用 Tesseract）=====
+// ===== 图片辨识（Google Vision API + OCR.space + Tesseract 备援）=====
+
+// === Google Cloud Vision API（主引擎）===
+const GOOGLE_VISION_API_KEY = 'AIzaSyBnx-dcJEbm0nBdNW2pduaj1CrMSBzu7Tw'; // 你的 Google Cloud Vision API Key
+
+// 图片转 base64
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+// Google Cloud Vision OCR
+async function googleVisionOCR(file) {
+    console.log('[Google Vision] 开始辨识图片...');
+
+    try {
+        // 压缩大图（Vision API 单张限 20MB）
+        let imgFile = file;
+        if (file.size > 4 * 1024 * 1024) {
+            console.log('[Google Vision] 图片 > 4MB，压缩中...');
+            imgFile = await compressImage(file, 2048);
+        }
+
+        const base64 = await fileToBase64(imgFile);
+
+        const request = {
+            requests: [{
+                image: { content: base64 },
+                features: [
+                    { type: 'DOCUMENT_TEXT_DETECTION', model: 'builtin/latest' }
+                ],
+                imageContext: {
+                    languageHints: ['zh-Hant', 'zh-TW', 'zh-CN']
+                }
+            }]
+        };
+
+        const res = await fetch(
+            `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(request)
+            }
+        );
+
+        const data = await res.json();
+
+        if (data.error) {
+            console.error('[Google Vision] API 错误:', data.error.message);
+            return null;
+        }
+
+        if (data.responses && data.responses[0] && data.responses[0].textAnnotations && data.responses[0].textAnnotations.length > 0) {
+            // textAnnotations[0] 是完整合并文本；用後面個別的以行為單位
+            const texts = data.responses[0].textAnnotations;
+            // 第一筆是全體文字，其餘逐個單字/單詞，取有意義的行
+            // 改用 DOCUMENT_TEXT_DETECTION 更好，但 TEXT_DETECTION 也能用
+            const fullText = texts[0].description;
+            console.log('[Google Vision] 辨识成功');
+            return fullText;
+        } else {
+            console.log('[Google Vision] 无文字识别结果');
+            return null;
+        }
+    } catch (e) {
+        console.error('[Google Vision] 网络错误:', e.message);
+        return null;
+    }
+}
+
+// === OCR.space API（第一备援）===
 const OCR_SPACE_API_KEY = 'helloworld'; // 免费 API Key，每天 500 次
 
 // OCR.space 图片辨识
@@ -1445,12 +1521,16 @@ async function handleImage(e) {
     btn.disabled = true;
 
     try {
-        // 先尝试 OCR.space
-        let text = await ocrSpaceOCR(file);
+        // 优先级：Google Vision → OCR.space → Tesseract.js
+        let text = await googleVisionOCR(file);
 
-        // 如果失败，使用备用 Tesseract.js
         if (!text) {
-            console.log('[图片辨识] OCR.space 失败，尝试备用方案...');
+            console.log('[图片辨识] Google Vision 失败，尝试 OCR.space...');
+            text = await ocrSpaceOCR(file);
+        }
+
+        if (!text) {
+            console.log('[图片辨识] OCR.space 失败，尝试 Tesseract.js...');
             text = await tesseractOCR(file);
         }
 
@@ -1633,3 +1713,4 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 </body>
 </html>
+
