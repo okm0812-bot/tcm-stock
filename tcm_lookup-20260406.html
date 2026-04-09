@@ -634,6 +634,11 @@ async function loadData() {
     btn.disabled = false;
 }
 
+// ===== 页面加载时自动抓资料 =====
+window.addEventListener('load', function() {
+loadData();
+});
+
 // ===== 离开页面时自动关闭麦克风 =====
 window.addEventListener('beforeunload', function() {
     if (isListening && recognition) {
@@ -657,7 +662,7 @@ document.addEventListener('visibilitychange', function() {
     }
 });
 
-async function search() {
+function search() {
     // 关闭麦克风（如果在录音中）
     if (isListening && recognition) {
         recognition.stop();
@@ -672,20 +677,15 @@ async function search() {
     const isStale = !lastLoadTime || (Date.now() - lastLoadTime > STALE_MS);
     const needsLoad = !Object.keys(DB_KZ).length || !Object.keys(DB_TABLET).length;
 
-    if (needsLoad || isStale) {
-        const status = document.getElementById('status');
-        if (isStale) {
-            status.textContent = '⏳ 自動刷新資料中...';
-        } else {
-            status.textContent = '⏳ 首次載入資料中...';
-        }
-        // 先加载，加载完成后执行查询
-        await loadData();
-        // loadData 不会重新触发 search，继续执行下面的查询逻辑
-        if (!Object.keys(DB_KZ).length && !Object.keys(DB_TABLET).length) {
-            document.getElementById('result').innerHTML = '<div class="error">無法載入資料，請檢查網路後重試</div>';
-            return;
-        }
+    if (needsLoad) {
+        // 没有资料：显示提示，让用户点更新按钮
+        document.getElementById('result').innerHTML = '<div class="error">請先點「🔄 更新資料」載入庫存資料</div>';
+        return;
+    }
+    if (isStale) {
+        // 数据过期：后台静默刷新
+        lastLoadTime = Date.now();
+        loadData();  // 异步后台刷新，不阻塞查询
     }
         document.getElementById('result').innerHTML = '<div class="error">請先點「更新資料」載入庫存資料</div>';
         return;
