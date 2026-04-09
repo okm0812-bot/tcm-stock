@@ -423,7 +423,9 @@ const TYPO_MAP = {
 // 只有锭剂产品（品名含"锭"字）才能进入锭剂库匹配
 // 查詢本身不含"锭"字時完全不進此流程（由 search() 的 isTabletInput 把關）
 const TYPO_MAP_TABLET = {
-};
+    '一貫煎': ['一罐煎', '一貫間', '一罐間', '一貫建', '一贯煎', '一貫堅', '一貫碇', '一貫腚']
+    };
+
 
 // ===== 工具函数 =====
 // 判断是否为锭劑（品名含"錠"或"锭"）
@@ -512,8 +514,26 @@ const findBestMatchInKZ = query => {
         }
     }
 
-    // 3. 3字以上精确失败 → 直接返回 null（不做模糊匹配）
+    // 3. 3字以上精确+typo均失败 → 检查 DB 是否有相似品项（同类产品不同结尾，如散/湯/丸/膏）
+    const suggestions = checkSimilarDB(query, DB_KZ);
+    if (suggestions && suggestions.length > 0) {
+        return { name: null, status: 'questionable', suggestions: suggestions };
+    }
+
     return null;
+};
+
+// ===== 检查 DB 中是否有同类相似品项（仅结尾不同）=====
+// 例：十味敗毒散 → 提示 DB 中有十味敗毒湯
+// 逻辑：同长度 + 同前缀（末字除外）+ 不同末字
+const checkSimilarDB = (query, db) => {
+    if (!query || query.length < 2) return null;
+    const ql = query.length;
+    const prefix = query.slice(0, -1);
+    const suffix = query.slice(-1);
+    const samePrefix = Object.keys(db).filter(k => k.length === ql && k.startsWith(prefix) && k !== query);
+    if (samePrefix.length === 0) return null;
+    return samePrefix.map(k => ({ name: k, status: db[k][0], price: db[k][1] }));
 };
 
 // ===== 锭剂专用匹配函数 =====
@@ -532,6 +552,12 @@ const findBestMatchInTablet = query => {
                 if (DB_TABLET[correct]) return { name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1] };
             }
         }
+    }
+
+    // 精确+typo均失败 → 检查同类相似品项
+    const suggestions = checkSimilarDB(query, DB_TABLET);
+    if (suggestions && suggestions.length > 0) {
+        return { name: null, status: 'questionable', suggestions: suggestions };
     }
 
     return null;
@@ -667,15 +693,15 @@ function search() {
         }
 
         // 解析产品名和数量
-        // 移除常见的单位词（瓶、罐、包、盒等）
-        let cleanLine = line.replace(/[瓶罐包盒顆粒]/g, '');
+        // 移除常见的单位词（瓶、罐、包、盒等）以及前導 + 號
+        let cleanLine = line.replace(/[瓶罐包盒顆粒]/g, '').replace(/x/i, '').replace(/^\+/, '');
 
-        // 提取数字（末尾1-2位）作为数量
-        const numMatch = cleanLine.match(/(\d{1,2})$/);
+        // 提取末尾數字（支援 1 或 +1 或 1+ 等格式，1-2位）作為數量
+        const numMatch = cleanLine.match(/(\d{1,2})[+]?$/);
         const qty = numMatch ? parseInt(numMatch[1]) : 1;
 
-        // 移除数字得到产品名（保留原始输入的产品名格式）
-        const originalProductName = cleanLine.replace(/\d+$/, '').trim();
+        // 移除數字得到產品名（支援 +N 結尾的格式）
+        const originalProductName = cleanLine.replace(/[+]?\d+$/, '').trim();
         const query = originalProductName;
 
         if (!query) continue;
@@ -700,35 +726,52 @@ function search() {
         }
 
         if (result) {
-            const { displayName, status, price, source } = result;
-            const unitPrice = price === '時價' ? 0 : parseInt(price) || 0;
-            const totalPrice = unitPrice * qty;
-            const isInStock = status === '有货';
-            const isBooking = status === '預訂';
-
-            // 更新统计
-            if (isBooking) {
-                stats.booking += qty;
-            } else if (isInStock) {
-                stats.inStock += qty;
-                stats.total += totalPrice;
+            // 处理「有疑问」特殊结果（DB 有同类相似品项）
+            if (result.status === 'questionable') {
+                const suggList = result.suggestions.map(s => s.name).join('、');
+                const suggHtml = result.suggestions.map(s => {
+                    const sc = s.status === '有' ? 'in-stock' : s.status === '預' ? 'booking' : 'out-stock';
+                    return `<span class="badge ${sc}">${s.name} (${s.status})</span>`;
+                }).join(' ');
+                html += `<div class="result-item" style="border-left:4px solid #ffc107;">
+                    <div class="name">${originalProductName}${qty} ❓ 有疑問</div>
+                    <div style="width:100%;font-size:12px;color:#666;margin-top:4px;">
+                        找不到「${originalProductName}」，DB 相似品項：${suggHtml}
+                    </div>
+                </div>`;
+                copyText += `${originalProductName}${qty}\t❓ 有疑問（DB相似：${suggList}）\n`;
+                results.push({ displayName: originalProductName, outputName: originalProductName + qty, qty: qty, status: 'questionable', suggestions: result.suggestions });
             } else {
-                stats.outStock += qty;
+                const { displayName, status, price, source } = result;
+                const unitPrice = price === '時價' ? 0 : parseInt(price) || 0;
+                const totalPrice = unitPrice * qty;
+                const isInStock = status === '有';
+                const isBooking = status === '預';
+
+                // 更新统计
+                if (isBooking) {
+                    stats.booking += qty;
+                } else if (isInStock) {
+                    stats.inStock += qty;
+                    stats.total += totalPrice;
+                } else {
+                    stats.outStock += qty;
+                }
+
+                // 输出时组合：产品名 + 数量（始终显示数量）
+                const outputName = displayName + qty;
+
+                // 复制文本 - 只保留有货和预订品项
+                if (isInStock) {
+                    copyText += outputName + '\n';
+                } else if (isBooking) {
+                    copyText += outputName + '（預）\n';
+                }
+                // 缺货品项不输出到复制文本
+
+                // 保存结果
+                results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source });
             }
-
-            // 输出时组合：产品名 + 数量（始终显示数量）
-            const outputName = displayName + qty;
-
-            // 复制文本 - 只保留有货和预订品项
-            if (isInStock) {
-                copyText += outputName + '\n';
-            } else if (isBooking) {
-                copyText += outputName + '（預）\n';
-            }
-            // 缺货品项不输出到复制文本
-
-            // 保存结果
-            results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source });
         } else {
             const outputNameForNotFound = originalProductName + qty;
             copyText += outputNameForNotFound + '\t找不到\n';
@@ -751,6 +794,8 @@ function search() {
                 <div class="name">${item.outputName}</div>
                 <div class="badge spec">規格</div>
             </div>`;
+        } else if (item.status === 'questionable') {
+            // 有疑问：已在 search() 內建過 HTML，直接跳過
         } else {
             const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
             const statusClass = item.isBooking ? 'booking' : item.isInStock ? 'in-stock' : 'out-stock';
