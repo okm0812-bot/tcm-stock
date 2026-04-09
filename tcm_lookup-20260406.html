@@ -103,8 +103,9 @@ const SHEET_URL_TABLET = 'https://docs.google.com/spreadsheets/d/1e4EjRPC43YBAoP
 // ===== 状态 =====
 let DB_KZ = {};      // 科中数据库
 let DB_TABLET = {};  // 锭劑数据库
-
 let showPrice = false;
+let lastLoadTime = null;  // 上次加载时间（毫秒）
+const STALE_MS = 5 * 60 * 1000;  // 5分钟后自动刷新
 
 // ===== 常见错别字对照表 =====
 // 格式：'正确名称': ['语音/OCR常见错误']
@@ -614,6 +615,7 @@ async function loadData() {
 
         const kzCount = Object.keys(DB_KZ).length;
         const tabletCount = Object.keys(DB_TABLET).length;
+        lastLoadTime = Date.now();  // 记录加载时间
         status.textContent = `✅ 資料已更新: ${new Date().toLocaleTimeString()} (${kzCount + tabletCount}項)`;
         
         // 更新快速統計
@@ -655,7 +657,7 @@ document.addEventListener('visibilitychange', function() {
     }
 });
 
-function search() {
+async function search() {
     // 关闭麦克风（如果在录音中）
     if (isListening && recognition) {
         recognition.stop();
@@ -666,8 +668,25 @@ function search() {
         voiceBtn.style.background = '#667eea';
     }
 
-    // 检查数据
-    if (!Object.keys(DB_KZ).length || !Object.keys(DB_TABLET).length) {
+    // 检查数据——首次查询或超过5分钟未刷新时自动更新
+    const isStale = !lastLoadTime || (Date.now() - lastLoadTime > STALE_MS);
+    const needsLoad = !Object.keys(DB_KZ).length || !Object.keys(DB_TABLET).length;
+
+    if (needsLoad || isStale) {
+        const status = document.getElementById('status');
+        if (isStale) {
+            status.textContent = '⏳ 自動刷新資料中...';
+        } else {
+            status.textContent = '⏳ 首次載入資料中...';
+        }
+        // 先加载，加载完成后执行查询
+        await loadData();
+        // loadData 不会重新触发 search，继续执行下面的查询逻辑
+        if (!Object.keys(DB_KZ).length && !Object.keys(DB_TABLET).length) {
+            document.getElementById('result').innerHTML = '<div class="error">無法載入資料，請檢查網路後重試</div>';
+            return;
+        }
+    }
         document.getElementById('result').innerHTML = '<div class="error">請先點「更新資料」載入庫存資料</div>';
         return;
     }
