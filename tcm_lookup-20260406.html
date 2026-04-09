@@ -672,23 +672,24 @@ function search() {
             }
         }
 
-        // 检查是否为规格关键词（100G, 200G, 單方, 複方, 錠劑）
-        const specKeywords = ['100G', '200G', '單方', '複方', '錠劑', '科中'];
-        // 白名单：包含这些关键词的行不当作规格关键词，直接匹配库存
-        const specWhitelist = ['複方丹參', '复方丹参', '複方丹蔘', '复方丹蔘'];
-        const isSpecification = specKeywords.some(keyword => line.includes(keyword)) &&
-                                 !specWhitelist.some(keyword => line.includes(keyword));
-        
+        // 规格关键词判定：关键词必须在行首，后方只能跟空白/数量数字，不能跟中文字符
+        // 例如："複方" → 规格，"複方+2" → 规格，"複方單參片" → 产品名（不触发）
+        const SPEC_KW_REG = /^(100G|200G|單方|複方|錠劑|科中)\s*(?:(\+?\d{1,2}))?\s*$/;
+        const isSpecification = SPEC_KW_REG.test(line.trim());
+        let cleanLine = line;
+
         if (isSpecification) {
             // 规格关键词直接输出，不进行产品匹配
+            const specQtyMatch = line.match(/\+?(\d{1,2})$/);
+            const specQty = specQtyMatch ? parseInt(specQtyMatch[1]) : 1;
             copyText += line + '\n';
-            results.push({ displayName: line, outputName: line, qty: 1, status: 'specification', source: 'spec' });
+            results.push({ displayName: line.trim(), outputName: line.trim(), qty: specQty, status: 'specification', source: 'spec' });
             continue;
         }
 
         // 解析产品名和数量
         // 移除常见的单位词（瓶、罐、包、盒等）以及前導 + 號
-        let cleanLine = line.replace(/[瓶罐包盒顆粒]/g, '').replace(/x/i, '').replace(/^\+/, '');
+        cleanLine = cleanLine.replace(/[瓶罐包盒顆粒]/g, '').replace(/x/i, '');
 
         // 提取末尾數字（支援 1 或 +1 或 1+ 等格式，1-2位）作為數量
         const numMatch = cleanLine.match(/(\d{1,2})[+]?$/);
