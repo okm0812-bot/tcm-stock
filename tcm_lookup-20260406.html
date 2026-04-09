@@ -421,7 +421,7 @@ const TYPO_MAP = {
 
 // ===== 锭剂专用错别字表 =====
 // 只有锭剂产品（品名含"锭"字）才能进入锭剂库匹配
-// 查询可能含碇/碇等tablet末字异体字，由 isTabletInput 统一判断是否进tablet流程
+// 查询含碇(U+78EB)或碇(U+7899)時進tablet流程，其餘進科中流程
 const TYPO_MAP_TABLET = {
     '一貫煎': ['一罐煎', '一貫間', '一罐間', '一貫建', '一贯煎', '一貫堅', '一貫碇', '一貫腚']
     };
@@ -537,40 +537,23 @@ const checkSimilarDB = (query, db) => {
 };
 
 // ===== 锭剂专用匹配函数 =====
-// 进入此函数的查询已由 search() 的 isTabletInput 把關，必定含碇/碇/錠等tablet末字
-// 匹配规则：精确匹配 > 错别字匹配 > null
+// 规则：严格精确匹配。输入"一貫煎"→科中，输入"一貫煎碇"→錠劑，二分法不模糊
+// Tablet DB品名以碇(U+9320)结尾，查不到时尝试剥离末尾+數量後追加碇
 const findBestMatchInTablet = query => {
     if (!query || !Object.keys(DB_TABLET).length) return null;
-
-    // 精确匹配（任意长度）
+    // 策略1：直接精确匹配
     if (DB_TABLET[query]) return { name: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1] };
-
-    // 错别字匹配（仅 3 字以上）
-    if (query.length >= 3) {
-        for (const [correct, typos] of Object.entries(TYPO_MAP_TABLET)) {
-            if (Array.isArray(typos) && typos.includes(query)) {
-                if (DB_TABLET[correct]) return { name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1] };
-            }
-        }
-    }
-
-    // 【关键fallback A】精確+typo均失败 → 剥除末字（常見碇/碇/錠等尾碼混淆），重试精确匹配
-    // 处理用户输入「一貫煎碇」(碇/碇)但DB存「一貫煎錠」(錠)的混淆情况
-    const base = query.slice(0, -1);
-    if (base && base !== query) {
-        // 策略A：直接用base在DB_TABLET重試（處理+N格式：品名+數量直接進入tablet流程但品名本身不帶末字的情況）
-        if (DB_TABLET[base]) return { name: base, status: DB_TABLET[base][0], price: DB_TABLET[base][1] };
-        // 策略B：base + '錠' 重試（處理用戶輸入錯誤末字的混淆：base可能是錯誤字元，一貫煎碇→一貫煎+錠=一貫煎錠）
-        const withZhen = base + '錠';
+    // 策略2：剥除末尾+數量後，追加碇重试（处理「一貫煎+2」→「一貫煎碇」的路由）
+    const numStripped = query.replace(/[+]?\d+$/, '');
+    if (numStripped !== query) {
+        const withZhen = numStripped + '碇';  // 碇 = U+9320 (DB实际末字)
         if (DB_TABLET[withZhen]) return { name: withZhen, status: DB_TABLET[withZhen][0], price: DB_TABLET[withZhen][1] };
     }
-
-    // 精确+typo均失败 → 检查同类相似品项
+    // 精确+剥數後追加均失败 → 检查同类相似品项
     const suggestions = checkSimilarDB(query, DB_TABLET);
     if (suggestions && suggestions.length > 0) {
         return { name: null, status: 'questionable', suggestions: suggestions };
     }
-
     return null;
 };
 
@@ -717,8 +700,8 @@ function search() {
 
         if (!query) continue;
 
-        // 判断是锭劑还是科中（含碇/碇等常見tablet末字混淆也進tablet流程）
-        const isTabletInput = query.includes('錠') || query.includes('锭') || query.includes('碇') || query.includes('碇');
+        // 判断是锭劑还是科中：含碇(U+78EB)或碇(U+7899)或碇(U+9320)→錠劑，否則→科中
+        const isTabletInput = query.includes('碇') || query.includes('碇') || query.includes('碇');
 
         let result = null;
 
