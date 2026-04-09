@@ -739,8 +739,8 @@ function search() {
                 const { displayName, status, price, source } = result;
                 const unitPrice = price === '時價' ? 0 : parseInt(price) || 0;
                 const totalPrice = unitPrice * qty;
-                const isInStock = status === '有';
-                const isBooking = status === '預';
+                const isInStock = status === '有货' || status === '有';
+                const isBooking = status === '預' || status.includes('預');
 
                 // 更新统计
                 if (isBooking) {
