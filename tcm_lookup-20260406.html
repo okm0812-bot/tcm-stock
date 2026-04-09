@@ -204,15 +204,16 @@ const TYPO_MAP = {
     '折衝飲': ['折衝'],
     '防己黃耆湯': ['防己黃耆', '防己黄芪'],
     '延胡索': ['延胡索', '延胡所', '延湖索'],
-    '虎潛丸': ['虎潛', '虎前丸', '虎濳丸'],
+    '虎潛丸': ['虎潛', '虎前丸'],
 
     // === 8劃 ===
     '定喘湯': ['定喘'],
-
+    '炙甘草湯': ['炙甘草', '加工草湯'],
     '知柏地黃丸': ['知柏', '知柏地黃'],
     '兒科杏蘇散': ['兒科杏蘇'],
     '羌活勝濕湯': ['羌活勝濕'],
     '附子理中湯': ['附子理中'],
+    '虎潛丸': ['虎潛'],
     '金鎖固精丸': ['金鎖固精'],
 
     // === 9劃 ===
@@ -419,17 +420,13 @@ const TYPO_MAP = {
     '鬱金': ['鬱金', '郁金'],
 };
 
-// ===== 锭剂专用错别字表 =====
-// 只有锭剂产品（品名含"锭"字）才能进入锭剂库匹配
-// 查询含碇(U+78EB)或碇(U+7899)時進tablet流程，其餘進科中流程
-const TYPO_MAP_TABLET = {
-    '一貫煎': ['一罐煎', '一貫間', '一罐間', '一貫建', '一贯煎', '一貫堅', '一貫碇', '一貫腚']
-    };
-
-
 // ===== 工具函数 =====
-// 判断是否为锭劑（品名含"錠"或"锭"）
-const isTablet = name => name.includes('錠') || name.includes('锭');
+// 判断是否为锭劑（包含"锭"或同音字）
+const isTablet = name => {
+    // 錠的所有同音字/异体字
+    const tabletChars = ['錠', '锭', '碇', '碇'];
+    return tabletChars.some(c => name.includes(c));
+};
 
 // 判断是否为单方（不是复方制剂）
 // 复方特征：湯、散、丸、飲、煎、膏 + 明確的複方關鍵字
@@ -491,69 +488,104 @@ const parseCSV = (csvText, source = 'kezhong') => {
 };
 
 // ===== 科中专用匹配函数 =====
-// 匹配规则：
-// - 1字查询：不做任何匹配（返回null）
-// - 2字查询：精确匹配（单方100G/200G精准匹配，不走模糊）
-// - 3字以上：精确匹配 → 错别字匹配 → 模糊匹配
-// - 精确匹配优先于错别字匹配（防止"葛根"被TYPO_MAP纠正为"葛根湯"）
 const findBestMatchInKZ = query => {
     if (!query || !Object.keys(DB_KZ).length) return null;
 
-    // 1. 精确匹配（任意长度，最优先）
+    // 1. 精确匹配
     if (DB_KZ[query]) return { name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], corrected: false };
 
-    // 1字查询：不做任何后续匹配
-    if (query.length < 2) return null;
+    // 2. 错别字匹配
+    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
+        if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
+            if (DB_KZ[correct]) return { name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], corrected: true, original: query };
+        }
+    }
 
-    // 2. 错别字匹配（仅3字以上查询才进入，2字查询精确匹配失败则直接返回null）
-    if (query.length >= 3) {
-        for (const [correct, typos] of Object.entries(TYPO_MAP)) {
-            if (Array.isArray(typos) && typos.includes(query)) {
-                if (DB_KZ[correct]) return { name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], corrected: true, original: query };
+    // 3. 复方优先匹配（按名称长度降序，优先匹配最长的）
+    const allNames = Object.keys(DB_KZ).sort((a, b) => b.length - a.length);
+
+    for (const name of allNames) {
+        if (!isSingleHerb(name)) {
+            if (name === query || name.includes(query)) {
+                return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: name !== query, original: query };
             }
         }
     }
 
-    // 3. 3字以上精确+typo均失败 → 检查 DB 是否有相似品项（同类产品不同结尾，如散/湯/丸/膏）
-    const suggestions = checkSimilarDB(query, DB_KZ);
-    if (suggestions && suggestions.length > 0) {
-        return { name: null, status: 'questionable', suggestions: suggestions };
+    // 4. 单方匹配
+    // 先尝试精确匹配
+    for (const name of allNames) {
+        if (isSingleHerb(name) && name === query) {
+            return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: false, original: query };
+        }
+    }
+    
+    // 再尝试包含匹配
+    for (const name of allNames) {
+        if (isSingleHerb(name) && name.includes(query)) {
+            return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: true, original: query };
+        }
+    }
+
+    // 5. 模糊匹配（仅3字以上）
+    if (query.length >= 3) {
+        let best = null, bestScore = 0.5;
+        for (const [name, data] of Object.entries(DB_KZ)) {
+            const chars = [...query].filter(c => name.includes(c));
+            const score = chars.length / query.length;
+            if (score > bestScore) {
+                bestScore = score;
+                best = { name, status: data[0], price: data[1], corrected: true, original: query };
+            }
+        }
+        if (best) return best;
     }
 
     return null;
 };
 
-// ===== 检查 DB 中是否有同类相似品项（仅结尾不同）=====
-// 例：十味敗毒散 → 提示 DB 中有十味敗毒湯
-// 逻辑：同长度 + 同前缀（末字除外）+ 不同末字
-const checkSimilarDB = (query, db) => {
-    if (!query || query.length < 2) return null;
-    const ql = query.length;
-    const prefix = query.slice(0, -1);
-    const suffix = query.slice(-1);
-    const samePrefix = Object.keys(db).filter(k => k.length === ql && k.startsWith(prefix) && k !== query);
-    if (samePrefix.length === 0) return null;
-    return samePrefix.map(k => ({ name: k, status: db[k][0], price: db[k][1] }));
-};
-
-// ===== 锭剂专用匹配函数 =====
-// 规则：严格精确匹配。输入"一貫煎"→科中，输入"一貫煎碇"→錠劑，二分法不模糊
-// Tablet DB品名以碇(U+9320)结尾，查不到时尝试剥离末尾+數量後追加碇
+// ===== 锭劑专用匹配函数 =====
+// 规则：与科中相同的匹配规则，但只在锭劑库中匹配
 const findBestMatchInTablet = query => {
     if (!query || !Object.keys(DB_TABLET).length) return null;
-    // 策略1：直接精确匹配
+
+    // 1. 精确匹配
     if (DB_TABLET[query]) return { name: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1] };
-    // 策略2：剥除末尾+數量後，追加碇重试（处理「一貫煎+2」→「一貫煎碇」的路由）
-    const numStripped = query.replace(/[+]?\d+$/, '');
-    if (numStripped !== query) {
-        const withZhen = numStripped + '碇';  // 碇 = U+9320 (DB实际末字)
-        if (DB_TABLET[withZhen]) return { name: withZhen, status: DB_TABLET[withZhen][0], price: DB_TABLET[withZhen][1] };
+
+    // 2. 错别字匹配（锭劑专用）
+    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
+        if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
+            if (DB_TABLET[correct]) return { name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1] };
+        }
     }
-    // 精确+剥數後追加均失败 → 检查同类相似品项
-    const suggestions = checkSimilarDB(query, DB_TABLET);
-    if (suggestions && suggestions.length > 0) {
-        return { name: null, status: 'questionable', suggestions: suggestions };
+
+    // 3. 移除"錠"后精确匹配
+    const queryWithoutDing = query.replace(/[錠锭碇碇]$/, '').trim();
+    const tabletName = queryWithoutDing + '錠';
+    if (DB_TABLET[tabletName]) return { name: tabletName, status: DB_TABLET[tabletName][0], price: DB_TABLET[tabletName][1] };
+
+    // 4. 包含匹配（锭劑库中按长度降序）
+    const allTabletNames = Object.keys(DB_TABLET).sort((a, b) => b.length - a.length);
+    for (const name of allTabletNames) {
+        if (name === query || name.includes(query)) {
+            return { name, status: DB_TABLET[name][0], price: DB_TABLET[name][1] };
+        }
     }
+
+    // 5. 模糊匹配（仅3字以上，门槛50%）
+    if (query.length >= 3) {
+        let best = null, bestScore = 0.5;
+        for (const [name, data] of Object.entries(DB_TABLET)) {
+            const matchedChars = [...query].filter(c => name.includes(c));
+            const score = matchedChars.length / query.length;
+            if (score > bestScore) {
+                bestScore = score;
+                best = { name, status: data[0], price: data[1] };
+            }
+        }
+        if (best) return best;
+    }
+
     return null;
 };
 
@@ -672,37 +704,38 @@ function search() {
             }
         }
 
-        // 规格关键词判定：关键词必须在行首，后方只能跟空白/数量数字，不能跟中文字符
-        // 例如："複方" → 规格，"複方+2" → 规格，"複方單參片" → 产品名（不触发）
-        const SPEC_KW_REG = /^(100G|200G|單方|複方|錠劑|科中)\s*(?:(\+?\d{1,2}))?\s*$/;
-        const isSpecification = SPEC_KW_REG.test(line.trim());
-        let cleanLine = line;
+        // 检查是否为规格关键词（100G, 200G, 單方, 複方, 錠劑）
 
+        // 白名单：包含这些关键词的行不当作规格关键词，直接匹配库存
+
+        const SPEC_KW_REG = /^(100G|200G|單方|複方|錠劑|科中)\s*(?:\+?\d{1,2})?\s*$/;
+        const isSpecification = SPEC_KW_REG.test(line.trim());
+        
         if (isSpecification) {
             // 规格关键词直接输出，不进行产品匹配
+            copyText += line + '\n';
             const specQtyMatch = line.match(/\+?(\d{1,2})$/);
             const specQty = specQtyMatch ? parseInt(specQtyMatch[1]) : 1;
-            copyText += line + '\n';
             results.push({ displayName: line.trim(), outputName: line.trim(), qty: specQty, status: 'specification', source: 'spec' });
             continue;
         }
 
         // 解析产品名和数量
-        // 移除常见的单位词（瓶、罐、包、盒等）以及前導 + 號
-        cleanLine = cleanLine.replace(/[瓶罐包盒顆粒]/g, '').replace(/x/i, '');
+        // 移除常见的单位词（瓶、罐、包、盒等）
+        let cleanLine = line.replace(/[瓶罐包盒顆粒]/g, '').replace(/^\+/, '');
 
-        // 提取末尾數字（支援 1 或 +1 或 1+ 等格式，1-2位）作為數量
-        const numMatch = cleanLine.match(/(\d{1,2})[+]?$/);
+        // 提取数字（末尾1-2位）作为数量
+        const numMatch = cleanLine.match(/\+?(\d{1,2})$/);
         const qty = numMatch ? parseInt(numMatch[1]) : 1;
 
-        // 移除數字得到產品名（支援 +N 結尾的格式）
+        // 移除数字得到产品名（保留原始输入的产品名格式）
         const originalProductName = cleanLine.replace(/[+]?\d+$/, '').trim();
         const query = originalProductName;
 
         if (!query) continue;
 
-        // 判断是锭劑还是科中：含碇(U+78EB)或碇(U+7899)或碇(U+9320)→錠劑，否則→科中
-        const isTabletInput = query.includes('碇') || query.includes('碇') || query.includes('碇');
+        // 判断是锭劑还是科中
+        const isTabletInput = query.includes('錠') || query.includes('锭') || query.includes('磫') || query.includes('碙');
 
         let result = null;
 
@@ -721,52 +754,35 @@ function search() {
         }
 
         if (result) {
-            // 处理「有疑问」特殊结果（DB 有同类相似品项）
-            if (result.status === 'questionable') {
-                const suggList = result.suggestions.map(s => s.name).join('、');
-                const suggHtml = result.suggestions.map(s => {
-                    const sc = s.status === '有' ? 'in-stock' : s.status === '預' ? 'booking' : 'out-stock';
-                    return `<span class="badge ${sc}">${s.name} (${s.status})</span>`;
-                }).join(' ');
-                html += `<div class="result-item" style="border-left:4px solid #ffc107;">
-                    <div class="name">${originalProductName}${qty} ❓ 有疑問</div>
-                    <div style="width:100%;font-size:12px;color:#666;margin-top:4px;">
-                        找不到「${originalProductName}」，DB 相似品項：${suggHtml}
-                    </div>
-                </div>`;
-                copyText += `${originalProductName}${qty}\t❓ 有疑問（DB相似：${suggList}）\n`;
-                results.push({ displayName: originalProductName, outputName: originalProductName + qty, qty: qty, status: 'questionable', suggestions: result.suggestions });
+            const { displayName, status, price, source } = result;
+            const unitPrice = price === '時價' ? 0 : parseInt(price) || 0;
+            const totalPrice = unitPrice * qty;
+            const isInStock = status === '有货';
+            const isBooking = status === '預訂';
+
+            // 更新统计
+            if (isBooking) {
+                stats.booking += qty;
+            } else if (isInStock) {
+                stats.inStock += qty;
+                stats.total += totalPrice;
             } else {
-                const { displayName, status, price, source } = result;
-                const unitPrice = price === '時價' ? 0 : parseInt(price) || 0;
-                const totalPrice = unitPrice * qty;
-                const isInStock = status === '有货' || status === '有';
-                const isBooking = status === '預' || status.includes('預');
-
-                // 更新统计
-                if (isBooking) {
-                    stats.booking += qty;
-                } else if (isInStock) {
-                    stats.inStock += qty;
-                    stats.total += totalPrice;
-                } else {
-                    stats.outStock += qty;
-                }
-
-                // 输出时组合：产品名 + 数量（始终显示数量）
-                const outputName = displayName + qty;
-
-                // 复制文本 - 只保留有货和预订品项
-                if (isInStock) {
-                    copyText += outputName + '\n';
-                } else if (isBooking) {
-                    copyText += outputName + '（預）\n';
-                }
-                // 缺货品项不输出到复制文本
-
-                // 保存结果
-                results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source });
+                stats.outStock += qty;
             }
+
+            // 输出时组合：产品名 + 数量（始终显示数量）
+            const outputName = displayName + qty;
+
+            // 复制文本 - 只保留有货和预订品项
+            if (isInStock) {
+                copyText += outputName + '\n';
+            } else if (isBooking) {
+                copyText += outputName + '（預）\n';
+            }
+            // 缺货品项不输出到复制文本
+
+            // 保存结果
+            results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source });
         } else {
             const outputNameForNotFound = originalProductName + qty;
             copyText += outputNameForNotFound + '\t找不到\n';
@@ -789,8 +805,6 @@ function search() {
                 <div class="name">${item.outputName}</div>
                 <div class="badge spec">規格</div>
             </div>`;
-        } else if (item.status === 'questionable') {
-            // 有疑问：已在 search() 內建過 HTML，直接跳過
         } else {
             const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
             const statusClass = item.isBooking ? 'booking' : item.isInStock ? 'in-stock' : 'out-stock';
