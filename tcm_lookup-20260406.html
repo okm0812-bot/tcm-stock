@@ -687,9 +687,6 @@ function search() {
         lastLoadTime = Date.now();
         loadData();  // 异步后台刷新，不阻塞查询
     }
-        document.getElementById('result').innerHTML = '<div class="error">請先點「更新資料」載入庫存資料</div>';
-        return;
-    }
 
     const inputEl = document.getElementById('input');
     const lines = inputEl.value.trim().split('\n').map(l => l.trim()).filter(Boolean);
