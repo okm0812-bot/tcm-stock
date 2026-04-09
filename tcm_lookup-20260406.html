@@ -204,16 +204,15 @@ const TYPO_MAP = {
     '折衝飲': ['折衝'],
     '防己黃耆湯': ['防己黃耆', '防己黄芪'],
     '延胡索': ['延胡索', '延胡所', '延湖索'],
-    '虎潛丸': ['虎潛', '虎前丸'],
+    '虎潛丸': ['虎潛', '虎前丸', '虎濳丸'],
 
     // === 8劃 ===
     '定喘湯': ['定喘'],
-    '炙甘草湯': ['炙甘草', '加工草湯'],
+
     '知柏地黃丸': ['知柏', '知柏地黃'],
     '兒科杏蘇散': ['兒科杏蘇'],
     '羌活勝濕湯': ['羌活勝濕'],
     '附子理中湯': ['附子理中'],
-    '虎潛丸': ['虎潛'],
     '金鎖固精丸': ['金鎖固精'],
 
     // === 9劃 ===
@@ -420,13 +419,15 @@ const TYPO_MAP = {
     '鬱金': ['鬱金', '郁金'],
 };
 
-// ===== 工具函数 =====
-// 判断是否为锭劑（包含"锭"或同音字）
-const isTablet = name => {
-    // 錠的所有同音字/异体字
-    const tabletChars = ['錠', '锭', '罐', '堅', '定', '訂', '碇', '腚', '䦺'];
-    return tabletChars.some(c => name.includes(c));
+// ===== 锭剂专用错别字表 =====
+// 只有锭剂产品（品名含"锭"字）才能进入锭剂库匹配
+// 查詢本身不含"锭"字時完全不進此流程（由 search() 的 isTabletInput 把關）
+const TYPO_MAP_TABLET = {
 };
+
+// ===== 工具函数 =====
+// 判断是否为锭劑（品名含"錠"或"锭"）
+const isTablet = name => name.includes('錠') || name.includes('锭');
 
 // 判断是否为单方（不是复方制剂）
 // 复方特征：湯、散、丸、飲、煎、膏 + 明確的複方關鍵字
@@ -488,102 +489,49 @@ const parseCSV = (csvText, source = 'kezhong') => {
 };
 
 // ===== 科中专用匹配函数 =====
+// 匹配规则：
+// - 1字查询：不做任何匹配（返回null）
+// - 2字查询：精确匹配（单方100G/200G精准匹配，不走模糊）
+// - 3字以上：精确匹配 → 错别字匹配 → 模糊匹配
+// - 精确匹配优先于错别字匹配（防止"葛根"被TYPO_MAP纠正为"葛根湯"）
 const findBestMatchInKZ = query => {
     if (!query || !Object.keys(DB_KZ).length) return null;
 
-    // 1. 精确匹配
+    // 1. 精确匹配（任意长度，最优先）
     if (DB_KZ[query]) return { name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], corrected: false };
 
-    // 2. 错别字匹配
-    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
-        if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
-            if (DB_KZ[correct]) return { name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], corrected: true, original: query };
-        }
-    }
+    // 1字查询：不做任何后续匹配
+    if (query.length < 2) return null;
 
-    // 3. 复方优先匹配（按名称长度降序，优先匹配最长的）
-    const allNames = Object.keys(DB_KZ).sort((a, b) => b.length - a.length);
-
-    for (const name of allNames) {
-        if (!isSingleHerb(name)) {
-            if (name === query || name.includes(query)) {
-                return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: name !== query, original: query };
-            }
-        }
-    }
-
-    // 4. 单方匹配
-    // 先尝试精确匹配
-    for (const name of allNames) {
-        if (isSingleHerb(name) && name === query) {
-            return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: false, original: query };
-        }
-    }
-    
-    // 再尝试包含匹配
-    for (const name of allNames) {
-        if (isSingleHerb(name) && name.includes(query)) {
-            return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: true, original: query };
-        }
-    }
-
-    // 5. 模糊匹配（仅3字以上）
+    // 2. 错别字匹配（仅3字以上查询才进入，2字查询精确匹配失败则直接返回null）
     if (query.length >= 3) {
-        let best = null, bestScore = 0.5;
-        for (const [name, data] of Object.entries(DB_KZ)) {
-            const chars = [...query].filter(c => name.includes(c));
-            const score = chars.length / query.length;
-            if (score > bestScore) {
-                bestScore = score;
-                best = { name, status: data[0], price: data[1], corrected: true, original: query };
+        for (const [correct, typos] of Object.entries(TYPO_MAP)) {
+            if (Array.isArray(typos) && typos.includes(query)) {
+                if (DB_KZ[correct]) return { name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], corrected: true, original: query };
             }
         }
-        if (best) return best;
     }
 
+    // 3. 3字以上精确失败 → 直接返回 null（不做模糊匹配）
     return null;
 };
 
-// ===== 锭劑专用匹配函数 =====
-// 规则：与科中相同的匹配规则，但只在锭劑库中匹配
+// ===== 锭剂专用匹配函数 =====
+// 进入此函数的查询已由 search() 的 isTabletInput 把關，必定含"锭"字
+// 匹配规则：精确匹配 > 错别字匹配 > null
 const findBestMatchInTablet = query => {
     if (!query || !Object.keys(DB_TABLET).length) return null;
 
-    // 1. 精确匹配
+    // 精确匹配（任意长度）
     if (DB_TABLET[query]) return { name: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1] };
 
-    // 2. 错别字匹配（锭劑专用）
-    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
-        if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
-            if (DB_TABLET[correct]) return { name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1] };
-        }
-    }
-
-    // 3. 移除"錠"后精确匹配
-    const queryWithoutDing = query.replace(/錠$/, '').trim();
-    const tabletName = queryWithoutDing + '錠';
-    if (DB_TABLET[tabletName]) return { name: tabletName, status: DB_TABLET[tabletName][0], price: DB_TABLET[tabletName][1] };
-
-    // 4. 包含匹配（锭劑库中按长度降序）
-    const allTabletNames = Object.keys(DB_TABLET).sort((a, b) => b.length - a.length);
-    for (const name of allTabletNames) {
-        if (name === query || name.includes(query)) {
-            return { name, status: DB_TABLET[name][0], price: DB_TABLET[name][1] };
-        }
-    }
-
-    // 5. 模糊匹配（仅3字以上，门槛50%）
+    // 错别字匹配（仅 3 字以上）
     if (query.length >= 3) {
-        let best = null, bestScore = 0.5;
-        for (const [name, data] of Object.entries(DB_TABLET)) {
-            const matchedChars = [...query].filter(c => name.includes(c));
-            const score = matchedChars.length / query.length;
-            if (score > bestScore) {
-                bestScore = score;
-                best = { name, status: data[0], price: data[1] };
+        for (const [correct, typos] of Object.entries(TYPO_MAP_TABLET)) {
+            if (Array.isArray(typos) && typos.includes(query)) {
+                if (DB_TABLET[correct]) return { name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1] };
             }
         }
-        if (best) return best;
     }
 
     return null;
