@@ -713,7 +713,8 @@ function search() {
         if (firstLine) {
             firstLine = false;
             const isCustomerName = !line.match(/\d/) && line.length <= 4 &&
-                !['湯','散','丸','飲','煎','丹','膏','錠'].some(c => line.includes(c));
+                !['湯','散','丸','飲','煎','丹','膏','錠'].some(c => line.includes(c)) &&
+                !DB_KZ[line] && !DB_TABLET[line];
             if (isCustomerName) {
                 copyText += line + '\n';
                 continue;
@@ -751,7 +752,7 @@ function search() {
         if (!query) continue;
 
         // 判断是锭劑还是科中
-        const isTabletInput = query.includes('錠') || query.includes('锭') || query.includes('磫') || query.includes('碙');
+        const isTabletInput = query.includes('錠') || query.includes('锭');
 
         let result = null;
 
