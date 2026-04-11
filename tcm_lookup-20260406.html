@@ -744,6 +744,7 @@ function search() {
         // 提取数字（末尾1-2位）作为数量
         const numMatch = cleanLine.match(/\+?(\d{1,2})$/);
         const qty = numMatch ? parseInt(numMatch[1]) : 1;
+        const hasUserQty = !!numMatch;  // 用户是否主动输入了数量
 
         // 移除数字得到产品名（保留原始输入的产品名格式）
         const originalProductName = cleanLine.replace(/[+]?\d+$/, '').trim();
@@ -787,8 +788,8 @@ function search() {
                 stats.outStock += qty;
             }
 
-            // 输出时组合：产品名 + 数量（始终显示数量）
-            const outputName = displayName + qty;
+            // 输出时组合：产品名 + 数量（仅用户主动输入数量时才显示）
+            const outputName = displayName + (hasUserQty ? qty : '');
 
             // 复制文本 - 只保留有货和预订品项
             if (isInStock) {
@@ -801,7 +802,7 @@ function search() {
             // 保存结果
             results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source });
         } else {
-            const outputNameForNotFound = originalProductName + qty;
+            const outputNameForNotFound = originalProductName + (hasUserQty ? qty : '');
             copyText += outputNameForNotFound + '\t找不到\n';
             results.push({ displayName: originalProductName, outputName: outputNameForNotFound, qty: qty, status: 'not_found', source: 'none' });
         }
