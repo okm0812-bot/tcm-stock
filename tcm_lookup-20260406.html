@@ -112,8 +112,8 @@ const STALE_MS = 5 * 60 * 1000;  // 5分钟后自动刷新
 // 根据库存表产品定制
 const TYPO_MAP = {
     // === 1劃 ===
-    '一貫煎': ['一罐煎', '一貫間', '一罐間', '一貫建', '一贯煎', '一貫堅', '一貫碇', '一貫腚'],
-    '一貫煎錠': ['一貫煎定', '一貫煎碇', '一貫煎腚', '一貫煎訂', '一貫煎罐', '一貫煎堅', '一貫煎䦺', '一貫堅定', '一貫碇定', '一貫腚定'],
+    '一貫煎': ['一罐煎', '一貫間', '一罐間', '一貫建', '一貫堅', '一貫碇', '一貫腚'],
+    '一貫煎錠': ['一貫煎腚'],
     '乙字湯': ['以致湯', '一直湯', '一字湯', '已知湯'],
 
     // === 2劃 ===
@@ -425,7 +425,7 @@ const TYPO_MAP = {
 // 判断是否为锭劑（包含"锭"或同音字）
 const isTablet = name => {
     // 錠的所有同音字/异体字
-    const tabletChars = ['錠', '锭', '碇', '碇'];
+    const tabletChars = ['錠', '锭', '碇', '碙'];
     return tabletChars.some(c => name.includes(c));
 };
 
@@ -561,7 +561,7 @@ const findBestMatchInTablet = query => {
     }
 
     // 3. 移除"錠"后精确匹配
-    const queryWithoutDing = query.replace(/[錠锭碇碇]$/, '').trim();
+    const queryWithoutDing = query.replace(/[錠锭碇]$/, '').trim();
     const tabletName = queryWithoutDing + '錠';
     if (DB_TABLET[tabletName]) return { name: tabletName, status: DB_TABLET[tabletName][0], price: DB_TABLET[tabletName][1] };
 
@@ -753,7 +753,7 @@ function search() {
         if (!query) continue;
 
         // 判断是锭劑还是科中
-        const isTabletInput = query.includes('錠') || query.includes('锭');
+        const isTabletInput = query.includes('錠') || query.includes('锭') || query.includes('碇') || query.includes('碙');
 
         let result = null;
 
@@ -826,7 +826,6 @@ function search() {
         } else {
             const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
             const statusClass = item.isBooking ? 'booking' : item.isInStock ? 'in-stock' : 'out-stock';
-            const statusText = item.isBooking ? '（預）' : item.isInStock ? '✅' : '（缺）';
             const badgeContent = item.isBooking ? '⏳ 預訂' : item.isInStock ? '✅ 有貨' : '⚠️ 缺貨';
             const nameWithStatus = item.outputName + (item.isBooking ? '（預）' : item.isInStock ? '✅' : '（缺）');
             html += `<div class="result-item">
