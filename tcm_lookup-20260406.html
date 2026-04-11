@@ -51,6 +51,7 @@
         .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); transition: all 0.2s; }
         .result-item { box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.2s; }
         .result-item:hover { transform: translateY(-1px); }
+        .fuzzy-badge { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 10px; background: #fff3cd; color: #856404; margin-left: 6px; vertical-align: middle; }
     </style>
 </head>
 <body>
@@ -493,12 +494,12 @@ const findBestMatchInKZ = query => {
     if (!query || !Object.keys(DB_KZ).length) return null;
 
     // 1. 精确匹配
-    if (DB_KZ[query]) return { name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], corrected: false };
+    if (DB_KZ[query]) return { name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], corrected: false, fuzzy: false };
 
-    // 2. 错别字匹配
+    // 2. 错别字匹配（已知typo，不顯示有疑問）
     for (const [correct, typos] of Object.entries(TYPO_MAP)) {
         if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
-            if (DB_KZ[correct]) return { name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], corrected: true, original: query };
+            if (DB_KZ[correct]) return { name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], corrected: true, fuzzy: false, original: query };
         }
     }
 
@@ -508,7 +509,7 @@ const findBestMatchInKZ = query => {
     for (const name of allNames) {
         if (!isSingleHerb(name)) {
             if (name === query || name.includes(query)) {
-                return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: name !== query, original: query };
+                return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: name !== query, fuzzy: name !== query, original: query };
             }
         }
     }
@@ -517,18 +518,18 @@ const findBestMatchInKZ = query => {
     // 先尝试精确匹配
     for (const name of allNames) {
         if (isSingleHerb(name) && name === query) {
-            return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: false, original: query };
+            return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: false, fuzzy: false, original: query };
         }
     }
     
-    // 再尝试包含匹配
+    // 再尝试包含匹配（模糊）
     for (const name of allNames) {
         if (isSingleHerb(name) && name.includes(query)) {
-            return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: true, original: query };
+            return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: true, fuzzy: true, original: query };
         }
     }
 
-    // 5. 模糊匹配（仅3字以上）
+    // 5. 模糊匹配（仅3字以上，顯示有疑問）
     if (query.length >= 3) {
         let best = null, bestScore = 0.5;
         for (const [name, data] of Object.entries(DB_KZ)) {
@@ -536,7 +537,7 @@ const findBestMatchInKZ = query => {
             const score = chars.length / query.length;
             if (score > bestScore) {
                 bestScore = score;
-                best = { name, status: data[0], price: data[1], corrected: true, original: query };
+                best = { name, status: data[0], price: data[1], corrected: true, fuzzy: true, original: query };
             }
         }
         if (best) return best;
@@ -551,29 +552,29 @@ const findBestMatchInTablet = query => {
     if (!query || !Object.keys(DB_TABLET).length) return null;
 
     // 1. 精确匹配
-    if (DB_TABLET[query]) return { name: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1] };
+    if (DB_TABLET[query]) return { name: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1], corrected: false, fuzzy: false };
 
-    // 2. 错别字匹配（锭劑专用）
+    // 2. 错别字匹配（锭劑专用，已知typo不顯示有疑問）
     for (const [correct, typos] of Object.entries(TYPO_MAP)) {
         if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
-            if (DB_TABLET[correct]) return { name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1] };
+            if (DB_TABLET[correct]) return { name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1], corrected: true, fuzzy: false };
         }
     }
 
     // 3. 移除"錠"后精确匹配
     const queryWithoutDing = query.replace(/[錠锭碇]$/, '').trim();
     const tabletName = queryWithoutDing + '錠';
-    if (DB_TABLET[tabletName]) return { name: tabletName, status: DB_TABLET[tabletName][0], price: DB_TABLET[tabletName][1] };
+    if (DB_TABLET[tabletName]) return { name: tabletName, status: DB_TABLET[tabletName][0], price: DB_TABLET[tabletName][1], corrected: true, fuzzy: false };
 
-    // 4. 包含匹配（锭劑库中按长度降序）
+    // 4. 包含匹配（锭劑库中按长度降序，模糊）
     const allTabletNames = Object.keys(DB_TABLET).sort((a, b) => b.length - a.length);
     for (const name of allTabletNames) {
         if (name === query || name.includes(query)) {
-            return { name, status: DB_TABLET[name][0], price: DB_TABLET[name][1] };
+            return { name, status: DB_TABLET[name][0], price: DB_TABLET[name][1], corrected: name !== query, fuzzy: name !== query };
         }
     }
 
-    // 5. 模糊匹配（仅3字以上，门槛50%）
+    // 5. 模糊匹配（仅3字以上，门槛50%，顯示有疑問）
     if (query.length >= 3) {
         let best = null, bestScore = 0.5;
         for (const [name, data] of Object.entries(DB_TABLET)) {
@@ -581,7 +582,7 @@ const findBestMatchInTablet = query => {
             const score = matchedChars.length / query.length;
             if (score > bestScore) {
                 bestScore = score;
-                best = { name, status: data[0], price: data[1] };
+                best = { name, status: data[0], price: data[1], corrected: true, fuzzy: true };
             }
         }
         if (best) return best;
@@ -767,12 +768,12 @@ function search() {
             // 科中：使用完整匹配逻辑
             const kzResult = findBestMatchInKZ(query);
             if (kzResult) {
-                result = { displayName: kzResult.name, status: kzResult.status, price: kzResult.price, source: 'kz', corrected: kzResult.corrected };
+                result = { displayName: kzResult.name, status: kzResult.status, price: kzResult.price, source: 'kz', corrected: kzResult.corrected, fuzzy: kzResult.fuzzy };
             }
         }
 
         if (result) {
-            const { displayName, status, price, source } = result;
+            const { displayName, status, price, source, fuzzy } = result;
             const unitPrice = price === '時價' ? 0 : parseInt(price) || 0;
             const totalPrice = unitPrice * qty;
             const isInStock = status === '有货';
@@ -800,7 +801,7 @@ function search() {
             // 缺货品项不输出到复制文本
 
             // 保存结果
-            results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source });
+            results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source, fuzzy });
         } else {
             const outputNameForNotFound = originalProductName + (hasUserQty ? qty : '');
             copyText += outputNameForNotFound + '\t找不到\n';
@@ -827,9 +828,10 @@ function search() {
             const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
             const statusClass = item.isBooking ? 'booking' : item.isInStock ? 'in-stock' : 'out-stock';
             const badgeContent = item.isBooking ? '⏳ 預訂' : item.isInStock ? '✅ 有貨' : '⚠️ 缺貨';
+            const fuzzyBadge = item.fuzzy ? '<span class="fuzzy-badge">❓ 有疑問</span>' : '';
             const nameWithStatus = item.outputName + (item.isBooking ? '（預）' : item.isInStock ? '✅' : '（缺）');
             html += `<div class="result-item">
-                <div class="name">${nameWithStatus}</div>
+                <div class="name">${nameWithStatus}${fuzzyBadge}</div>
                 <div class="badge ${statusClass}">${badgeContent}</div>
                 <div class="price">${priceStr}</div>
             </div>`;
