@@ -52,7 +52,6 @@
         .result-item { box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.2s; }
         .result-item:hover { transform: translateY(-1px); }
         .fuzzy-badge { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 10px; background: #fff3cd; color: #856404; margin-left: 6px; vertical-align: middle; }
-        .pack-badge { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 10px; background: #d4edda; color: #155724; margin-left: 6px; vertical-align: middle; }
     </style>
 </head>
 <body>
@@ -442,14 +441,6 @@ const isSingleHerb = name => {
     return true;
 };
 
-// ===== 單方包裝規格 =====
-// 麻黃 = 200G，其他單方 = 100G
-const getPackSize = name => {
-    if (!isSingleHerb(name)) return '';  // 非單方不顯示
-    if (name === '麻黃') return '200G';
-    return '100G';
-};
-
 const parseCSVLine = line => {
     const result = [];
     let current = '', inQuotes = false;
@@ -801,19 +792,16 @@ function search() {
             // 输出时组合：产品名 + 数量（仅用户主动输入数量时才显示）
             const outputName = displayName + (hasUserQty ? qty : '');
 
-            // 單方包裝規格
-            const packSize = getPackSize(displayName);
-
             // 复制文本 - 只保留有货和预订品项
             if (isInStock) {
-                copyText += outputName + (packSize ? ` (${packSize})` : '') + '\n';
+                copyText += outputName + '\n';
             } else if (isBooking) {
-                copyText += outputName + (packSize ? ` (${packSize})` : '') + '（預）\n';
+                copyText += outputName + '（預）\n';
             }
             // 缺货品项不输出到复制文本
 
             // 保存结果
-            results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source, fuzzy, packSize });
+            results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source, fuzzy });
         } else {
             const outputNameForNotFound = originalProductName + (hasUserQty ? qty : '');
             copyText += outputNameForNotFound + '\t找不到\n';
@@ -841,10 +829,9 @@ function search() {
             const statusClass = item.isBooking ? 'booking' : item.isInStock ? 'in-stock' : 'out-stock';
             const badgeContent = item.isBooking ? '⏳ 預訂' : item.isInStock ? '✅ 有貨' : '⚠️ 缺貨';
             const fuzzyBadge = item.fuzzy ? '<span class="fuzzy-badge">❓ 有疑問</span>' : '';
-            const packBadge = item.packSize ? `<span class="pack-badge">${item.packSize}</span>` : '';
             const nameWithStatus = item.outputName + (item.isBooking ? '（預）' : item.isInStock ? '✅' : '（缺）');
             html += `<div class="result-item">
-                <div class="name">${nameWithStatus}${packBadge}${fuzzyBadge}</div>
+                <div class="name">${nameWithStatus}${fuzzyBadge}</div>
                 <div class="badge ${statusClass}">${badgeContent}</div>
                 <div class="price">${priceStr}</div>
             </div>`;
