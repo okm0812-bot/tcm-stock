@@ -503,29 +503,29 @@ const findBestMatchInKZ = query => {
         }
     }
 
-    // 3. 复方优先匹配（按名称长度降序，优先匹配最长的）
+    // 3. 單方優先匹配（2字輸入時優先匹配單方）
     const allNames = Object.keys(DB_KZ).sort((a, b) => b.length - a.length);
 
-    for (const name of allNames) {
-        if (!isSingleHerb(name)) {
-            if (name === query || name.includes(query)) {
-                return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: name !== query, fuzzy: name !== query, original: query };
-            }
-        }
-    }
-
-    // 4. 单方匹配
-    // 先尝试精确匹配
+    // 3a. 單方精確匹配
     for (const name of allNames) {
         if (isSingleHerb(name) && name === query) {
             return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: false, fuzzy: false, original: query };
         }
     }
-    
-    // 再尝试包含匹配（模糊）
+
+    // 3b. 單方包含匹配（如「麻黃」匹配「麻黃」單方，不跳到「麻黃湯」）
     for (const name of allNames) {
         if (isSingleHerb(name) && name.includes(query)) {
-            return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: true, fuzzy: true, original: query };
+            return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: name !== query, fuzzy: name !== query, original: query };
+        }
+    }
+
+    // 4. 复方包含匹配（按名称长度降序，优先匹配最长的）
+    for (const name of allNames) {
+        if (!isSingleHerb(name)) {
+            if (name === query || name.includes(query)) {
+                return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: name !== query, fuzzy: name !== query, original: query };
+            }
         }
     }
 
