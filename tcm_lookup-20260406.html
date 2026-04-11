@@ -496,10 +496,10 @@ const findBestMatchInKZ = query => {
     // 1. 精确匹配
     if (DB_KZ[query]) return { name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], corrected: false, fuzzy: false };
 
-    // 2. 错别字匹配（已知typo，不顯示有疑問）
+    // 2. 错别字匹配（顯示有疑問讓客戶確認）
     for (const [correct, typos] of Object.entries(TYPO_MAP)) {
         if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
-            if (DB_KZ[correct]) return { name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], corrected: true, fuzzy: false, original: query };
+            if (DB_KZ[correct]) return { name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], corrected: true, fuzzy: true, original: query };
         }
     }
 
@@ -554,17 +554,17 @@ const findBestMatchInTablet = query => {
     // 1. 精确匹配
     if (DB_TABLET[query]) return { name: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1], corrected: false, fuzzy: false };
 
-    // 2. 错别字匹配（锭劑专用，已知typo不顯示有疑問）
+    // 2. 错别字匹配（锭劑专用，顯示有疑問讓客戶確認）
     for (const [correct, typos] of Object.entries(TYPO_MAP)) {
         if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
-            if (DB_TABLET[correct]) return { name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1], corrected: true, fuzzy: false };
+            if (DB_TABLET[correct]) return { name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1], corrected: true, fuzzy: true };
         }
     }
 
-    // 3. 移除"錠"后精确匹配
+    // 3. 移除"錠"后精确匹配（顯示有疑問）
     const queryWithoutDing = query.replace(/[錠锭碇]$/, '').trim();
     const tabletName = queryWithoutDing + '錠';
-    if (DB_TABLET[tabletName]) return { name: tabletName, status: DB_TABLET[tabletName][0], price: DB_TABLET[tabletName][1], corrected: true, fuzzy: false };
+    if (DB_TABLET[tabletName]) return { name: tabletName, status: DB_TABLET[tabletName][0], price: DB_TABLET[tabletName][1], corrected: true, fuzzy: true };
 
     // 4. 包含匹配（锭劑库中按长度降序，模糊）
     const allTabletNames = Object.keys(DB_TABLET).sort((a, b) => b.length - a.length);
