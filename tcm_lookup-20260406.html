@@ -559,7 +559,7 @@ const findBestMatchInTablet = query => {
 
     // 3. 移除"錠"后精确匹配（顯示有疑問）
     const queryWithoutDing = query.replace(new RegExp(`[${TABLET_SUFFIX.join('')}]$`), '').trim();
-    const tabletName = queryWithoutDing + '錠';
+    const tabletName = queryWithoutDing + TABLET_SUFFIX[0];
     if (DB_TABLET[tabletName]) return { name: tabletName, status: DB_TABLET[tabletName][0], price: DB_TABLET[tabletName][1], corrected: true, fuzzy: true };
 
     // 4. 包含匹配（锭劑库中按长度降序，模糊）
@@ -750,7 +750,7 @@ function search() {
         if (!query) continue;
 
         // 判断是锭劑还是科中
-        const isTabletInput = query.includes('錠') || query.includes('锭') || query.includes('碇') || query.includes('碙');
+        const isTabletInput = TABLET_SUFFIX.some(c => query.includes(c));
 
         let result = null;
 
@@ -979,10 +979,7 @@ function smartMatchProduct(text) {
     console.log('[智能匹配] 产品名:', productName, '数量:', qty);
     
     // 0. 检测是否可能是锭劑（包含「錠」的同音字：罐、堅、定、訂、碇、腚、䦺）
-    const isLikelyTablet = /[罐堅定訂碇腚䦺].*[煎散丸湯]/.test(productName) || 
-                          productName.includes('錠') ||
-                          TABLET_SUFFIX.some(c => productName.includes(c));
-    
+        const isLikelyTablet = TABLET_SUFFIX.some(c => productName.includes(c));
     // 1. 如果可能是锭劑（包含同音字），优先在锭劑库匹配
     if (isLikelyTablet) {
         console.log('[智能匹配] 检测到锭劑关键字，检查锭劑库...');
