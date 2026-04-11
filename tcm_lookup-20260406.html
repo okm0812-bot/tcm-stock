@@ -462,9 +462,11 @@ const parseCSV = (csvText, source = 'kezhong') => {
         for (let j = 0; j < row.length; j += 4) {
             const [name, status, price] = [row[j], row[j+1], row[j+2]];
             if (name && !skipWords.some(w => name.includes(w))) {
-                // 状态转换：低=有货，無=缺货，預=預訂，缺=缺货
-                // 特殊规则：科中庫存表（source='kezhong'）中，"缺"表示有货，"無"表示缺货
-                // 锭劑庫存表（source='tablet'）中，"無"表示缺货，"缺"根据单方/复方判断
+                // ===== 庫存狀態轉換規則 =====
+                // 科中庫（source='kezhong'）：
+                //   低 → 有貨，無 → 缺貨，缺 → 有貨（目前無預訂品項）
+                // 錠劑庫（source='tablet'）：
+                //   低 → 有貨，無 → 缺貨，預 → 預訂（目前無「缺」狀態）
                 let stockStatus;
                 if (status === '低') {
                     stockStatus = '有货';
