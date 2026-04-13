@@ -749,9 +749,6 @@ function search() {
 
         // 3. 移除末尾殘留的數字得到產品名
         const originalProductName = cleanLine.replace(/\d{1,2}$/, '').trim();
-
-        // 3. 移除末尾殘留的數字得到產品名
-        const originalProductName = cleanLine.replace(/\d{1,2}$/, '').trim();
         const query = originalProductName;
 
         if (!query) continue;
