@@ -738,7 +738,7 @@ function search() {
         // 移除常见的单位词（瓶、罐、包、盒等）
         // 先移除 x / × / ∗ / * 前綴，再移除單位
         // 然後一次性移除結尾的分隔符+數量（支援 - * + / X 空格）
-        let cleanLine = line.replace(/[x×∗*]/gi, '').replace(/[瓶罐包盒顆粒]/g, '').replace(/^\+/, '');
+        let cleanLine = line.replace(/[x×∗]/gi, '').replace(/[瓶罐包盒顆粒]/g, '').replace(/^\+/, '');
         // 移除結尾的分隔符 + 數量（-*/ X 空格都當分隔符）
         cleanLine = cleanLine.replace(/[\s\-*+\/xX]+(\d{1,2})$/i, '').trim();
 
