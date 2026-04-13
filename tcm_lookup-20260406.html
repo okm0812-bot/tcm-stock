@@ -789,8 +789,8 @@ function search() {
                 stats.outStock += qty;
             }
 
-            // 输出时组合：产品名 + 数量（仅用户主动输入数量时才显示）
-            const outputName = displayName + (hasUserQty ? qty : '');
+            // 输出时组合：产品名 + 数量（qty > 1 时永远显示，去掉分隔符）
+            const outputName = displayName + (qty > 1 ? qty : '');
 
             // 复制文本 - 只保留有货和预订品项
             if (isInStock) {
@@ -803,7 +803,7 @@ function search() {
             // 保存结果
             results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source, fuzzy, hasUserQty });
         } else {
-            const outputNameForNotFound = originalProductName + (hasUserQty ? qty : '');
+            const outputNameForNotFound = originalProductName + (qty > 1 ? qty : '');
             copyText += outputNameForNotFound + '\t找不到\n';
             results.push({ displayName: originalProductName, outputName: outputNameForNotFound, qty: qty, status: 'not_found', source: 'none' });
         }
