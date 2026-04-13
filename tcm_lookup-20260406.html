@@ -736,15 +736,19 @@ function search() {
 
         // 解析产品名和数量
         // 移除常见的单位词（瓶、罐、包、盒等）
-        let cleanLine = line.replace(/[瓶罐包盒顆粒]/g, '').replace(/^\+/, '');
+        // 先移除 x / × / ∗ / * 前綴，再移除單位
+        // 然後一次性移除結尾的分隔符+數量（支援 - * + / X 空格）
+        let cleanLine = line.replace(/[x×∗*]/gi, '').replace(/[瓶罐包盒顆粒]/g, '').replace(/^\+/, '');
+        // 移除結尾的分隔符 + 數量（-*/ X 空格都當分隔符）
+        cleanLine = cleanLine.replace(/[\s\-*+\/xX]+(\d{1,2})$/i, '').trim();
 
-        // 提取数字（末尾1-2位）作为数量
-        const numMatch = cleanLine.match(/\+?(\d{1,2})$/);
+        // 提取數字（末尾1-2位）作為數量
+        const numMatch = cleanLine.match(/(\d{1,2})$/);
         const qty = numMatch ? parseInt(numMatch[1]) : 1;
-        const hasUserQty = !!numMatch;  // 用户是否主动输入了数量
+        const hasUserQty = !!numMatch;
 
-        // 移除数字得到产品名（保留原始输入的产品名格式）
-        const originalProductName = cleanLine.replace(/[+]?\d+$/, '').trim();
+        // 移除數字得到產品名
+        const originalProductName = cleanLine.replace(/\d{1,2}$/, '').trim();
         const query = originalProductName;
 
         if (!query) continue;
@@ -758,7 +762,7 @@ function search() {
             // 锭劑：3个字以上进行模糊匹配锭劑库
             const tabletResult = findBestMatchInTablet(query);
             if (tabletResult) {
-                result = { displayName: tabletResult.name, status: tabletResult.status, price: tabletResult.price, source: 'tablet' };
+                result = { displayName: tabletResult.name, status: tabletResult.status, price: tabletResult.price, source: 'tablet', corrected: tabletResult.corrected, fuzzy: tabletResult.fuzzy };
             }
         } else {
             // 科中：使用完整匹配逻辑
