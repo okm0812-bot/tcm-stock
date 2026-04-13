@@ -735,19 +735,22 @@ function search() {
         }
 
         // 解析产品名和数量
-        // 移除常见的单位词（瓶、罐、包、盒等）
-        // 先移除 x / × / ∗ / * 前綴，再移除單位
-        // 然後一次性移除結尾的分隔符+數量（支援 - * + / X 空格）
-        let cleanLine = line.replace(/[x×∗]/gi, '').replace(/[瓶罐包盒顆粒]/g, '').replace(/^\+/, '');
-        // 移除結尾的分隔符 + 數量（-*/ X 空格都當分隔符）
-        cleanLine = cleanLine.replace(/[\s\-*+\/xX]+(\d{1,2})$/i, '').trim();
+        // 1. 先從原始行抓出結尾的「符號+數量」（如 /3、*3、-3）
+        const trailingMatch = line.match(/[\s\-*+\/xX]+(\d{1,2})\s*$/i);
+        const qty = trailingMatch ? parseInt(trailingMatch[1]) : 1;
+        const hasUserQty = !!trailingMatch;
 
-        // 提取數字（末尾1-2位）作為數量
-        const numMatch = cleanLine.match(/(\d{1,2})$/);
-        const qty = numMatch ? parseInt(numMatch[1]) : 1;
-        const hasUserQty = !!numMatch;
+        // 2. 清除：移除常見單位詞、前綴 x/×/∗、結尾的 符號（只留數字）
+        let cleanLine = line
+            .replace(/[x×∗]/gi, '')                                    // 前綴 x/×/∗
+            .replace(/[瓶罐包盒顆粒]/g, '')                             // 單位
+            .replace(/^\+/, '')                                         // 前置 +
+            .replace(/[\s\*+\/xX\s]+(\d{1,2})(\s*)$/i, '$1$2').trim(); // 結尾 符號+數字 → 只留數字
 
-        // 移除數字得到產品名
+        // 3. 移除末尾殘留的數字得到產品名
+        const originalProductName = cleanLine.replace(/\d{1,2}$/, '').trim();
+
+        // 3. 移除末尾殘留的數字得到產品名
         const originalProductName = cleanLine.replace(/\d{1,2}$/, '').trim();
         const query = originalProductName;
 
