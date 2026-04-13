@@ -735,8 +735,8 @@ function search() {
         }
 
         // 解析产品名和数量
-        // 1. 先從原始行抓出結尾的「符號+數量」（如 /3、*3、-3）
-        const trailingMatch = line.match(/[\s\*\-\+\/xX]+(\d{1,2})\s*$/i);
+        // 1. 先從原始行抓出結尾的「符號+數量」（如 /3、*3、-3、x12、x 12）允許數字後接瓶/罐等單位字
+        const trailingMatch = line.match(/[\s\*\-\+\/xX]*(\d{1,2})(?:[瓶罐包盒顆粒]|\s|$)/i);
         const qty = trailingMatch ? parseInt(trailingMatch[1]) : 1;
         const hasUserQty = !!trailingMatch;
 
