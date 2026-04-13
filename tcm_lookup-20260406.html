@@ -736,7 +736,7 @@ function search() {
 
         // 解析产品名和数量
         // 1. 先從原始行抓出結尾的「符號+數量」（如 /3、*3、-3）
-        const trailingMatch = line.match(/[\s\-*+\/xX]+(\d{1,2})\s*$/i);
+        const trailingMatch = line.match(/[\s\*\-\+\/xX]+(\d{1,2})\s*$/i);
         const qty = trailingMatch ? parseInt(trailingMatch[1]) : 1;
         const hasUserQty = !!trailingMatch;
 
@@ -745,7 +745,7 @@ function search() {
             .replace(/[x×∗]/gi, '')                                    // 前綴 x/×/∗
             .replace(/[瓶罐包盒顆粒]/g, '')                             // 單位
             .replace(/^\+/, '')                                         // 前置 +
-            .replace(/[\s\*+\/xX\s]+(\d{1,2})(\s*)$/i, '$1$2').trim(); // 結尾 符號+數字 → 只留數字
+            .replace(/[\s\*\-+xX/\s]+(\d{1,2})(\s*)$/i, '$1$2').trim(); // 結尾 符號+數字 → 只留數字
 
         // 3. 移除末尾殘留的數字得到產品名
         const originalProductName = cleanLine.replace(/\d{1,2}$/, '').trim();
