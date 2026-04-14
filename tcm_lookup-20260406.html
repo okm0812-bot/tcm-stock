@@ -713,7 +713,8 @@ function search() {
             firstLine = false;
             const isCustomerName = !line.match(/\d/) && line.length <= 4 &&
                 !['湯','散','丸','飲','煎','丹','膏','錠'].some(c => line.includes(c)) &&
-                !DB_KZ[line] && !DB_TABLET[line];
+                !DB_KZ[line] && !DB_TABLET[line] &&
+                !Object.values(TYPO_MAP).some(typos => typos.includes(line));
             if (isCustomerName) {
                 copyText += line + '\n';
                 continue;
