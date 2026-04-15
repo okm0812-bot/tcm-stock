@@ -707,17 +707,10 @@ function search() {
             continue;
         }
 
-        // 跳过客户名
+        // 跳过客户名逻辑已删除
+        // 原因：如果客户输入的是公司没有的产品应该显示"找不到"，才对客户有帮助
         if (firstLine) {
             firstLine = false;
-            const isCustomerName = !line.match(/\d/) && line.length <= 4 &&
-                !['湯','散','丸','飲','煎','丹','膏','錠'].some(c => line.includes(c)) &&
-                !DB_KZ[line] && !DB_TABLET[line] &&
-                !Object.values(TYPO_MAP).some(typos => typos.includes(line));
-            if (isCustomerName) {
-                copyText += line + '\n';
-                continue;
-            }
         }
 
         // 检查是否为规格关键词（100G, 200G, 單方, 複方, 錠劑）
