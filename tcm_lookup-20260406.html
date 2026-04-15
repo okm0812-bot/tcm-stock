@@ -488,58 +488,57 @@ const parseCSV = (csvText, source = 'kezhong') => {
 };
 
 // ===== 科中专用匹配函数 =====
+// 匹配规则：
+// - 2字查询：只做精确比对，找不到显示「找不到」
+// - 3+字查询：允许模糊匹配，匹配结果与输入不同显示「有疑问」
 const findBestMatchInKZ = query => {
     if (!query || !Object.keys(DB_KZ).length) return null;
 
-    // 1. 精确匹配
+    // 1. 精确匹配（所有长度都执行）
     if (DB_KZ[query]) return { name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], corrected: false, fuzzy: false };
 
-    // 2. 错别字匹配（顯示有疑問讓客戶確認）
+    // 2. 错别字匹配
     for (const [correct, typos] of Object.entries(TYPO_MAP)) {
         if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
             if (DB_KZ[correct]) return { name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], corrected: true, fuzzy: true, original: query };
         }
     }
 
-    // 3. 單方優先匹配（2字輸入時優先匹配單方）
-    const allNames = Object.keys(DB_KZ).sort((a, b) => b.length - a.length);
-
-    // 3a. 單方精確匹配
-    for (const name of allNames) {
-        if (isSingleHerb(name) && name === query) {
-            return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: false, fuzzy: false, original: query };
-        }
+    // 3. 2字查询只做精确比对，找不到就返回null
+    if (query.length === 2) {
+        return null;
     }
 
-    // 3b. 單方包含匹配（如「麻黃」匹配「麻黃」單方，不跳到「麻黃湯」）
+    // 4. 3+字查询：包含匹配 + 模糊匹配
+    const allNames = Object.keys(DB_KZ).sort((a, b) => b.length - a.length);
+
+    // 4a. 單方包含匹配
     for (const name of allNames) {
         if (isSingleHerb(name) && name.includes(query)) {
             return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: name !== query, fuzzy: name !== query, original: query };
         }
     }
 
-    // 4. 复方包含匹配（按名称长度降序，优先匹配最长的）
+    // 4b. 复方包含匹配（按名称长度降序，优先匹配最长的）
     for (const name of allNames) {
         if (!isSingleHerb(name)) {
-            if (name === query || name.includes(query)) {
+            if (name.includes(query)) {
                 return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: name !== query, fuzzy: name !== query, original: query };
             }
         }
     }
 
-    // 5. 模糊匹配（仅3字以上，顯示有疑問）
-    if (query.length >= 3) {
-        let best = null, bestScore = 0.5;
-        for (const [name, data] of Object.entries(DB_KZ)) {
-            const chars = [...query].filter(c => name.includes(c));
-            const score = chars.length / query.length;
-            if (score > bestScore) {
-                bestScore = score;
-                best = { name, status: data[0], price: data[1], corrected: true, fuzzy: true, original: query };
-            }
+    // 4c. 模糊匹配（3+字，门槛50%，顯示有疑問）
+    let best = null, bestScore = 0.5;
+    for (const [name, data] of Object.entries(DB_KZ)) {
+        const chars = [...query].filter(c => name.includes(c));
+        const score = chars.length / query.length;
+        if (score > bestScore) {
+            bestScore = score;
+            best = { name, status: data[0], price: data[1], corrected: true, fuzzy: true, original: query };
         }
-        if (best) return best;
     }
+    if (best) return best;
 
     return null;
 };
