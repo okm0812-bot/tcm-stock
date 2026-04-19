@@ -800,7 +800,7 @@ function showAutocompleteSuggestions(query) {
         return b.score - a.score;
     });
 
-    const topMatches = matches.slice(0, 12);
+    const topMatches = matches.slice(0, 24);
 
     if (topMatches.length === 0) {
         dropdown.innerHTML = '<div class="autocomplete-empty">無匹配項目</div>';
