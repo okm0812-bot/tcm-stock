@@ -105,6 +105,27 @@
             color: #999;
             font-size: 13px;
         }
+        /* 資料庫類型標籤 */
+        .db-tag {
+            display: inline-block;
+            font-size: 10px;
+            padding: 1px 5px;
+            border-radius: 3px;
+            margin-right: 6px;
+            font-weight: bold;
+        }
+        .db-tag.db-kz {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .db-tag.db-tablet {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        .autocomplete-item:hover .db-tag,
+        .autocomplete-item.selected .db-tag {
+            background: rgba(255,255,255,0.25) !important;
+        }
     </style>
 </head>
 <body>
@@ -731,14 +752,11 @@ function showAutocompleteSuggestions(query) {
         return;
     }
 
-    // 從 DB_KZ 中搜尋匹配項
+    // 從 DB_KZ 和 DB_TABLET 中搜尋匹配項
     const matches = [];
 
+    // 搜尋科中資料庫
     for (const [name, data] of Object.entries(DB_KZ)) {
-        // 跳過錠劑（科中庫不應包含錠劑，但保險起見）
-        if (isTablet(name)) continue;
-
-        // 計算匹配度
         const matchResult = calculateMatchScore(query, name);
         if (matchResult.score > 0) {
             matches.push({
@@ -746,12 +764,28 @@ function showAutocompleteSuggestions(query) {
                 status: data[0],
                 price: data[1],
                 score: matchResult.score,
-                matchType: matchResult.type
+                matchType: matchResult.type,
+                dbType: '科中'
             });
         }
     }
 
-    // 按匹配度排序，取前 10 個
+    // 搜尋錠劑資料庫
+    for (const [name, data] of Object.entries(DB_TABLET)) {
+        const matchResult = calculateMatchScore(query, name);
+        if (matchResult.score > 0) {
+            matches.push({
+                name,
+                status: data[0],
+                price: data[1],
+                score: matchResult.score,
+                matchType: matchResult.type,
+                dbType: '錠劑'
+            });
+        }
+    }
+
+    // 按匹配度排序，取前 12 個
     matches.sort((a, b) => {
         // 優先顯示有貨的
         if (a.status !== b.status) {
@@ -761,7 +795,7 @@ function showAutocompleteSuggestions(query) {
         return b.score - a.score;
     });
 
-    const topMatches = matches.slice(0, 10);
+    const topMatches = matches.slice(0, 12);
 
     if (topMatches.length === 0) {
         dropdown.innerHTML = '<div class="autocomplete-empty">無匹配項目</div>';
@@ -776,9 +810,13 @@ function showAutocompleteSuggestions(query) {
     dropdown.innerHTML = topMatches.map((item, index) => {
         const stockClass = item.status === '有货' ? 'in-stock' : 'out-stock';
         const stockText = item.status === '有货' ? '✅ 有貨' : '⚠️ 缺貨';
+        const dbClass = item.dbType === '科中' ? 'db-kz' : 'db-tablet';
         return `
             <div class="autocomplete-item" data-index="${index}" data-name="${item.name}">
-                <span class="match-text">${highlightMatch(item.name, query)}</span>
+                <span class="match-text">
+                    <span class="db-tag ${dbClass}">${item.dbType}</span>
+                    ${highlightMatch(item.name, query)}
+                </span>
                 <span class="stock-hint ${stockClass}">${stockText}</span>
             </div>
         `;
