@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { width: 340px; font-family: "Microsoft JhengHei", "微軟正黑體", sans-serif; background: #f8f9fa; }
+    .header { background: #2196F3; color: white; padding: 12px 15px; }
+    .header h3 { font-size: 1rem; margin-bottom: 2px; }
+    .header p { font-size: 0.75rem; opacity: 0.9; }
+    .content { padding: 12px; }
+    .form-group { margin-bottom: 10px; }
+    .form-group label { display: block; font-size: 0.8rem; color: #555; margin-bottom: 4px; }
+    select, input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem; font-family: inherit; }
+    .btn-primary { width: 100%; padding: 10px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.95rem; font-weight: bold; }
+    .btn-primary:hover { background: #1976D2; }
+    .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+    .btn-secondary { width: 100%; padding: 8px; background: white; color: #2196F3; border: 1px solid #2196F3; border-radius: 4px; cursor: pointer; font-size: 0.85rem; margin-top: 6px; }
+    .btn-secondary:hover { background: #e3f2fd; }
+    .status { margin-top: 10px; padding: 8px; border-radius: 4px; font-size: 0.8rem; text-align: center; display: none; }
+    .status.info { background: #e3f2fd; color: #1976D2; }
+    .status.success { background: #e8f5e9; color: #2e7d32; }
+    .status.error { background: #ffebee; color: #c62828; }
+    .status.loading { background: #fff8e1; color: #f57f17; }
+    .note { font-size: 0.7rem; color: #999; margin-top: 8px; text-align: center; }
+    .info-box { background: #fffde7; border: 1px solid #fff176; border-radius: 4px; padding: 8px; font-size: 0.75rem; color: #f57f17; margin-bottom: 10px; }
+    .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #ccc; border-top-color: #2196F3; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 4px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h3>🏥 中醫掛號費查詢</h3>
+    <p>健保署中醫一般科院所掛號費</p>
+  </div>
+  <div class="content">
+    <div class="info-box">💡 自動設定「中醫」+「中醫一般科」</div>
+    <div class="form-group">
+      <label>縣市</label>
+      <select id="citySelect">
+        <option value="">-- 請選擇縣市 --</option>
+        <option value="臺北市">臺北市</option>
+        <option value="新北市">新北市</option>
+        <option value="桃園市">桃園市</option>
+        <option value="臺中市">臺中市</option>
+        <option value="臺南市">臺南市</option>
+        <option value="高雄市">高雄市</option>
+        <option value="基隆市">基隆市</option>
+        <option value="新竹市">新竹市</option>
+        <option value="嘉義市">嘉義市</option>
+        <option value="新竹縣">新竹縣</option>
+        <option value="苗栗縣">苗栗縣</option>
+        <option value="彰化縣">彰化縣</option>
+        <option value="南投縣">南投縣</option>
+        <option value="雲林縣">雲林縣</option>
+        <option value="嘉義縣">嘉義縣</option>
+        <option value="屏東縣">屏東縣</option>
+        <option value="宜蘭縣">宜蘭縣</option>
+        <option value="花蓮縣">花蓮縣</option>
+        <option value="臺東縣">臺東縣</option>
+        <option value="澎湖縣">澎湖縣</option>
+        <option value="金門縣">金門縣</option>
+        <option value="連江縣">連江縣</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>院所名稱（選填，模糊搜尋）</label>
+      <input type="text" id="hospitalName" placeholder="例如：長庚、仁愛">
+    </div>
+    <button class="btn-primary" id="searchBtn">🔍 查詢</button>
+    <button class="btn-secondary" id="openPageBtn">📄 直接打開健保署頁面</button>
+    <div class="status" id="status"></div>
+    <p class="note">查詢結果將在健保署頁面顯示</p>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
