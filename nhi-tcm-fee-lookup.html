@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>中醫一般科 掛號費查詢</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Microsoft JhengHei", "微軟正黑體", sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .container { background: white; border-radius: 20px; padding: 35px; width: 100%; max-width: 480px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+    h1 { text-align: center; color: #333; margin-bottom: 8px; font-size: 1.6rem; }
+    .subtitle { text-align: center; color: #888; margin-bottom: 25px; font-size: 0.9rem; }
+    .tip { background: #fff3e0; border-left: 4px solid #ff9800; padding: 10px 14px; margin-bottom: 20px; border-radius: 0 8px 8px 0; font-size: 0.85rem; color: #e65100; }
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; margin-bottom: 6px; color: #555; font-size: 0.9rem; font-weight: 500; }
+    .form-group input, .form-group select { width: 100%; padding: 12px 14px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 1rem; font-family: inherit; transition: border-color 0.3s; }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: #667eea; }
+    .btn { width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 1.1rem; font-weight: bold; transition: transform 0.2s, box-shadow 0.2s; }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4); }
+    .btn:active { transform: translateY(0); }
+    .features { margin-top: 25px; padding-top: 20px; border-top: 1px solid #eee; }
+    .features h3 { font-size: 0.9rem; color: #888; margin-bottom: 10px; }
+    .feature-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .feature-tag { background: #f0f0f0; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; color: #666; }
+    .direct-link { margin-top: 15px; text-align: center; font-size: 0.8rem; color: #999; }
+    .direct-link a { color: #667eea; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🏥 中醫一般科</h1>
+    <h1 style="font-size:1.3rem;color:#667eea;">掛號費查詢</h1>
+    <p class="subtitle">健保署特約醫事機構院所查詢</p>
+    
+    <div class="tip">💡 選擇縣市、輸入院所名稱，自動跳轉至健保署頁面並預填查詢條件</div>
+    
+    <div class="form-group">
+      <label>縣市</label>
+      <select id="citySelect">
+        <option value="">-- 請選擇縣市 --</option>
+        <option value="01">臺北市</option>
+        <option value="05">新北市</option>
+        <option value="06">桃園市</option>
+        <option value="03">臺中市</option>
+        <option value="04">臺南市</option>
+        <option value="02">高雄市</option>
+        <option value="20">基隆市</option>
+        <option value="07">新竹市</option>
+        <option value="14">嘉義市</option>
+        <option value="08">新竹縣</option>
+        <option value="09">苗栗縣</option>
+        <option value="10">彰化縣</option>
+        <option value="11">南投縣</option>
+        <option value="12">雲林縣</option>
+        <option value="13">嘉義縣</option>
+        <option value="15">屏東縣</option>
+        <option value="16">宜蘭縣</option>
+        <option value="17">花蓮縣</option>
+        <option value="18">臺東縣</option>
+        <option value="19">澎湖縣</option>
+        <option value="21">金門縣</option>
+        <option value="22">連江縣</option>
+      </select>
+    </div>
+    
+    <div class="form-group">
+      <label>院所名稱（選填，模糊搜尋）</label>
+      <input type="text" id="hospitalName" placeholder="例如：長庚、仁愛">
+    </div>
+    
+    <button class="btn" id="searchBtn">🔍 查詢</button>
+    
+    <div class="features">
+      <h3>已自動設定</h3>
+      <div class="feature-list">
+        <span class="feature-tag">✅ 型態別：中醫</span>
+        <span class="feature-tag">✅ 診療科別：中醫一般科</span>
+        <span class="feature-tag">✅ 服務時段：全部</span>
+      </div>
+    </div>
+    
+    <p class="direct-link">
+      <a href="https://info.nhi.gov.tw/INAE1000/INAE1000S01" target="_blank">直接前往健保署查詢頁面 →</a>
+    </p>
+  </div>
+
+  <script>
+    const citySelect = document.getElementById('citySelect');
+    const hospitalName = document.getElementById('hospitalName');
+    const searchBtn = document.getElementById('searchBtn');
+    
+    // 縣市代碼對照
+    const CITY_MAP = {
+      '01': '臺北市', '05': '新北市', '06': '桃園市', '03': '臺中市',
+      '04': '臺南市', '02': '高雄市', '20': '基隆市', '07': '新竹市',
+      '14': '嘉義市', '08': '新竹縣', '09': '苗栗縣', '10': '彰化縣',
+      '11': '南投縣', '12': '雲林縣', '13': '嘉義縣', '15': '屏東縣',
+      '16': '宜蘭縣', '17': '花蓮縣', '18': '臺東縣', '19': '澎湖縣',
+      '21': '金門縣', '22': '連江縣'
+    };
+    
+    function doSearch() {
+      const cityCode = citySelect.value;
+      if (!cityCode) {
+        alert('請先選擇縣市');
+        return;
+      }
+      
+      const name = hospitalName.value.trim();
+      
+      // 建立健保署 URL
+      // C_AreaCod: 縣市代碼
+      // C_FuncType=60: 中醫一般科
+      // ws_hosp_name: 院所名稱（模糊搜尋）
+      let url = 'https://info.nhi.gov.tw/INAE1000/INAE1000S01?C_AreaCod=' + cityCode + '&C_FuncType=60';
+      
+      if (name) {
+        url += '&ws_hosp_name=' + encodeURIComponent(name);
+      }
+      
+      // 開啟健保署頁面
+      window.open(url, '_blank');
+    }
+    
+    searchBtn.addEventListener('click', doSearch);
+    hospitalName.addEventListener('keypress', e => { if (e.key === 'Enter') doSearch(); });
+    
+    // 支援 URL 參數直接開啟
+    // 例如: nhi-tcm-fee-lookup.html?city=02&name=長庚
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('city')) {
+      citySelect.value = urlParams.get('city');
+      hospitalName.value = urlParams.get('name') || '';
+      // 延遲執行，確保頁面載入完成
+      setTimeout(doSearch, 500);
+    }
+  </script>
+</body>
+</html>
