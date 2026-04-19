@@ -65,7 +65,7 @@ document.getElementById('citySelect').addEventListener('change', function () {
 // 查詢按鈕
 document.getElementById('searchBtn').addEventListener('click', async () => {
   const city     = document.getElementById('citySelect').value;
-  const town     = document.getElementById('townSelect').value;
+  const town     = document.getElementById('townSelect').value;       // 如 "彰化市"
   const funcType = document.getElementById('funcTypeSelect').value;
   const name     = document.getElementById('hospitalName').value.trim();
 
@@ -75,22 +75,20 @@ document.getElementById('searchBtn').addEventListener('click', async () => {
   showStatus('正在開啟健保署頁面...', 'loading');
 
   try {
-    // 建 URL
+    // 建 URL（不依賴 C_Town 參數，純 DOM 操作）
     let url = NHI_QUERY + '?C_AreaCod=' + city + '&C_FuncType=' + funcType;
-    if (town) url += '&C_Town=' + encodeURIComponent(town);
-    if (name)  url += '&ws_hosp_name=' + encodeURIComponent(name);
-    url += '&PageSize=50';
+    if (name) url += '&ws_hosp_name=' + encodeURIComponent(name);
 
     const newTab = await chrome.tabs.create({ url, active: true });
 
     // 等頁面 DOM 載入
     await waitForDOM(newTab.id, 5000);
 
-    // 注入腳本：設定每頁 50 筆 + 點查詢
+    // 注入腳本：設定鄉鎮市 + 每頁 50 筆 + 點查詢
     await chrome.scripting.executeScript({
       target: { tabId: newTab.id },
       func: autoSetAndSearch,
-      args: [{ funcType, name }]
+      args: [{ town, funcType, name }]
     });
 
     setLoading(false);
@@ -117,20 +115,7 @@ function waitForDOM(tabId, timeout = 5000) {
 }
 
 // 在健保署頁面內執行的腳本
-function autoSetAndSearch({ funcType, name }) {
-
-  // === DOM ref ===
-  // ref=e10  縣市 combobox
-  // ref=e27  鄉鎮市 combobox
-  // ref=e74  院所層級 combobox
-  // ref=e89  已加入計畫 combobox
-  // ref=e168 一般服務項目 combobox
-  // ref=e197 預防保健 combobox
-  // ref=e210 型態別 combobox
-  // ref=e215 診療科別 combobox
-  // ref=e362 院所名稱 textbox
-  // ref=e382 每頁筆數 combobox
-  // ref=e386 查詢 button
+function autoSetAndSearch({ town, funcType, name }) {
 
   function selectByText(selectEl, text) {
     if (!selectEl) return false;
@@ -156,49 +141,56 @@ function autoSetAndSearch({ funcType, name }) {
     return false;
   }
 
+  function findSelect(labelContains) {
+    const allSelects = document.querySelectorAll('select');
+    for (const sel of allSelects) {
+      const lbl = sel.closest('.form-group')?.querySelector('label, .col-form-label');
+      if (lbl && lbl.textContent.includes(labelContains)) return sel;
+    }
+    return null;
+  }
+
   function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   async function run() {
-    // 1. 型態別（URL 已預填，此處確保一致）
+    // 0. 等縣市的連動完成（鄉鎮市要有完整選項）
+    //    觀察鄉鎮市 combobox 的 option 數量 > 1（表示已載入）
+    let tries = 0;
+    while (tries < 20) {
+      const townSel = findSelect('鄉鎮市');
+      if (townSel && townSel.options.length > 1) break;
+      await wait(200);
+      tries++;
+    }
+
+    // 1. 設定鄉鎮市（URL 參數 C_AreaCod 已觸發連動，DOM 操作直接選）
+    if (town) {
+      const townSel = findSelect('鄉鎮市');
+      if (townSel) selectByText(townSel, town);
+      await wait(400);
+    }
+
+    // 2. 型態別 → 中醫 / 西醫 / 牙醫
     if (funcType) {
       const funcTypeMap = { '60': '中醫', '01': '西醫', '02': '牙醫' };
-      const ftText = funcTypeMap[funcType] || funcType;
-      const allSelects = document.querySelectorAll('select');
-      for (const sel of allSelects) {
-        if (sel.closest('.form-group')?.querySelector('label, .col-form-label')?.textContent?.includes('型態別')) {
-          selectByText(sel, ftText);
-          break;
-        }
+      const ftText = funcTypeMap[funcType];
+      if (ftText) {
+        selectByText(findSelect('型態別'), ftText);
+        await wait(400);
       }
     }
 
-    await wait(400);
-
-    // 2. 診療科別 → 中醫一般科（URL 已預填，確保一致）
+    // 3. 診療科別 → 中醫一般科（型態別=中醫 時）
     if (funcType === '60') {
-      const allSelects2 = document.querySelectorAll('select');
-      for (const sel of allSelects2) {
-        const lbl = sel.closest('.form-group')?.querySelector('label, .col-form-label');
-        if (lbl && lbl.textContent.includes('診療科別')) {
-          selectByText(sel, '中醫一般科');
-          break;
-        }
-      }
+      selectByText(findSelect('診療科別'), '中醫一般科');
       await wait(300);
     }
 
-    // 3. 每頁筆數 → 50
-    const allSelects3 = document.querySelectorAll('select');
-    for (const sel of allSelects3) {
-      if (sel.closest('.form-group')?.querySelector('label, .col-form-label')?.textContent?.includes('每頁')) {
-        selectByValue(sel, '50');
-        break;
-      }
-    }
+    // 4. 每頁筆數 → 50
+    selectByValue(findSelect('每頁'), '50');
+    await wait(200);
 
-    await wait(300);
-
-    // 4. 院所名稱（URL 已預填，再次確保）
+    // 5. 院所名稱（URL 通常已預填，確保一致）
     if (name) {
       const allInputs = document.querySelectorAll('input[type="text"], input:not([type])');
       for (const inp of allInputs) {
@@ -209,17 +201,13 @@ function autoSetAndSearch({ funcType, name }) {
           break;
         }
       }
+      await wait(200);
     }
 
-    await wait(300);
-
-    // 5. 點查詢
+    // 6. 點查詢
     const btns = document.querySelectorAll('button');
     for (const btn of btns) {
-      if (btn.textContent.trim() === '查詢') {
-        btn.click();
-        break;
-      }
+      if (btn.textContent.trim() === '查詢') { btn.click(); break; }
     }
   }
 
