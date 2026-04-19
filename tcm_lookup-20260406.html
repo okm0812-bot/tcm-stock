@@ -787,11 +787,16 @@ function showAutocompleteSuggestions(query) {
 
     // 按匹配度排序，取前 12 個
     matches.sort((a, b) => {
-        // 優先顯示有貨的
+        // 1. 優先科中，後錠劑
+        if (a.dbType !== b.dbType) {
+            return a.dbType === '科中' ? -1 : 1;
+        }
+        // 2. 同類型中，優先有貨
         if (a.status !== b.status) {
             if (a.status === '有货') return -1;
             if (b.status === '有货') return 1;
         }
+        // 3. 同條件下按分數
         return b.score - a.score;
     });
 
