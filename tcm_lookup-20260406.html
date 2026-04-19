@@ -52,6 +52,59 @@
         .result-item { box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.2s; }
         .result-item:hover { transform: translateY(-1px); }
         .fuzzy-badge { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 10px; background: #fff3cd; color: #856404; margin-left: 6px; vertical-align: middle; }
+
+        /* 自動補全下拉選單樣式 */
+        .autocomplete-wrapper { position: relative; }
+        .autocomplete-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #667eea;
+            border-top: none;
+            border-radius: 0 0 12px 12px;
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .autocomplete-dropdown.show { display: block; }
+        .autocomplete-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+            font-size: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .autocomplete-item:last-child { border-bottom: none; }
+        .autocomplete-item:hover,
+        .autocomplete-item.selected {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .autocomplete-item .match-text { font-weight: bold; }
+        .autocomplete-item .stock-hint {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+        .autocomplete-item .stock-hint.in-stock { background: #d4edda; color: #155724; }
+        .autocomplete-item .stock-hint.out-stock { background: #f8d7da; color: #721c24; }
+        .autocomplete-item:hover .stock-hint,
+        .autocomplete-item.selected .stock-hint {
+            background: rgba(255,255,255,0.3);
+            color: white;
+        }
+        .autocomplete-empty {
+            padding: 15px;
+            text-align: center;
+            color: #999;
+            font-size: 13px;
+        }
     </style>
 </head>
 <body>
@@ -78,7 +131,10 @@
             <button class="btn-small" onclick="document.getElementById('imageInput').click()">📷 圖片辨識</button>
             <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleImage(event)">
         </div>
-        <textarea id="input" placeholder="每行輸入一個產品&#10;範例：&#10;羌活勝濕湯錠&#10;苦參2&#10;語音/圖片自動比對資料庫"></textarea>
+        <div class="autocomplete-wrapper">
+            <textarea id="input" placeholder="每行輸入一個產品&#10;範例：&#10;羌活勝濕湯錠&#10;苦參2&#10;語音/圖片自動比對資料庫"></textarea>
+            <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
+        </div>
         <button class="btn" id="searchBtn" onclick="search()">🔍 查詢庫存</button>
     </div>
 
@@ -588,6 +644,270 @@ const findBestMatchInTablet = query => {
     return null;
 };
 
+// ===== 自動補全功能（科中資料庫）=====
+let autocompleteIndex = -1;
+let autocompleteItems = [];
+let autocompleteVisible = false;
+
+// 初始化自動補全
+function initAutocomplete() {
+    const textarea = document.getElementById('input');
+    const dropdown = document.getElementById('autocompleteDropdown');
+
+    // 監聽輸入事件
+    textarea.addEventListener('input', handleAutocompleteInput);
+
+    // 監聽鍵盤事件
+    textarea.addEventListener('keydown', handleAutocompleteKeydown);
+
+    // 點擊其他地方關閉下拉選單
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.autocomplete-wrapper')) {
+            hideAutocomplete();
+        }
+    });
+}
+
+// 處理輸入事件
+function handleAutocompleteInput(e) {
+    const textarea = e.target;
+    const value = textarea.value;
+
+    // 取得當前行的文字
+    const cursorPos = textarea.selectionStart;
+    const lines = value.substring(0, cursorPos).split('\n');
+    const currentLine = lines[lines.length - 1].trim();
+
+    // 清理行文字（移除數量）
+    const cleanLine = currentLine.replace(/[\d瓶罐包盒顆粒]+$/, '').trim();
+
+    // 至少輸入 1 個字才觸發
+    if (cleanLine.length >= 1 && Object.keys(DB_KZ).length > 0) {
+        showAutocompleteSuggestions(cleanLine);
+    } else {
+        hideAutocomplete();
+    }
+}
+
+// 處理鍵盤事件
+function handleAutocompleteKeydown(e) {
+    const dropdown = document.getElementById('autocompleteDropdown');
+
+    if (!autocompleteVisible) return;
+
+    switch (e.key) {
+        case 'ArrowDown':
+            e.preventDefault();
+            autocompleteIndex = Math.min(autocompleteIndex + 1, autocompleteItems.length - 1);
+            updateAutocompleteSelection();
+            break;
+
+        case 'ArrowUp':
+            e.preventDefault();
+            autocompleteIndex = Math.max(autocompleteIndex - 1, 0);
+            updateAutocompleteSelection();
+            break;
+
+        case 'Enter':
+        case 'Tab':
+            if (autocompleteIndex >= 0) {
+                e.preventDefault();
+                selectAutocompleteItem(autocompleteItems[autocompleteIndex]);
+            }
+            break;
+
+        case 'Escape':
+            hideAutocomplete();
+            break;
+    }
+}
+
+// 顯示補全建議
+function showAutocompleteSuggestions(query) {
+    const dropdown = document.getElementById('autocompleteDropdown');
+
+    if (!query || query.length < 1) {
+        hideAutocomplete();
+        return;
+    }
+
+    // 從 DB_KZ 中搜尋匹配項
+    const matches = [];
+
+    for (const [name, data] of Object.entries(DB_KZ)) {
+        // 跳過錠劑（科中庫不應包含錠劑，但保險起見）
+        if (isTablet(name)) continue;
+
+        // 計算匹配度
+        const matchResult = calculateMatchScore(query, name);
+        if (matchResult.score > 0) {
+            matches.push({
+                name,
+                status: data[0],
+                price: data[1],
+                score: matchResult.score,
+                matchType: matchResult.type
+            });
+        }
+    }
+
+    // 按匹配度排序，取前 10 個
+    matches.sort((a, b) => {
+        // 優先顯示有貨的
+        if (a.status !== b.status) {
+            if (a.status === '有货') return -1;
+            if (b.status === '有货') return 1;
+        }
+        return b.score - a.score;
+    });
+
+    const topMatches = matches.slice(0, 10);
+
+    if (topMatches.length === 0) {
+        dropdown.innerHTML = '<div class="autocomplete-empty">無匹配項目</div>';
+        dropdown.classList.add('show');
+        autocompleteVisible = true;
+        autocompleteItems = [];
+        autocompleteIndex = -1;
+        return;
+    }
+
+    // 構建下拉選單
+    dropdown.innerHTML = topMatches.map((item, index) => {
+        const stockClass = item.status === '有货' ? 'in-stock' : 'out-stock';
+        const stockText = item.status === '有货' ? '✅ 有貨' : '⚠️ 缺貨';
+        return `
+            <div class="autocomplete-item" data-index="${index}" data-name="${item.name}">
+                <span class="match-text">${highlightMatch(item.name, query)}</span>
+                <span class="stock-hint ${stockClass}">${stockText}</span>
+            </div>
+        `;
+    }).join('');
+
+    // 綁定點擊事件
+    dropdown.querySelectorAll('.autocomplete-item').forEach(el => {
+        el.addEventListener('click', () => {
+            const index = parseInt(el.dataset.index);
+            selectAutocompleteItem(topMatches[index]);
+        });
+        el.addEventListener('mouseenter', () => {
+            autocompleteIndex = parseInt(el.dataset.index);
+            updateAutocompleteSelection();
+        });
+    });
+
+    dropdown.classList.add('show');
+    autocompleteVisible = true;
+    autocompleteItems = topMatches;
+    autocompleteIndex = -1;
+}
+
+// 計算匹配分數
+function calculateMatchScore(query, name) {
+    // 1. 完全匹配開頭（最高分）
+    if (name.startsWith(query)) {
+        return { score: 100 - name.length, type: 'prefix' };
+    }
+
+    // 2. 包含查詢字
+    if (name.includes(query)) {
+        return { score: 80 - name.length, type: 'contains' };
+    }
+
+    // 3. 從 TYPO_MAP 找對應
+    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
+        if (correct === name) continue;
+        if (typos && typos.includes(query) && name.includes(correct)) {
+            return { score: 60 - name.length, type: 'typo' };
+        }
+    }
+
+    // 4. 首字匹配（輸入"一"匹配"一貫煎"）
+    const queryFirstChar = query[0];
+    if (name[0] === queryFirstChar) {
+        return { score: 50 - name.length, type: 'firstChar' };
+    }
+
+    return { score: 0, type: 'none' };
+}
+
+// 高亮匹配部分
+function highlightMatch(name, query) {
+    if (name.startsWith(query)) {
+        return `<strong>${query}</strong>${name.slice(query.length)}`;
+    }
+    if (name.includes(query)) {
+        return name.replace(query, `<strong>${query}</strong>`);
+    }
+    // 首字匹配時高亮首字
+    if (name[0] === query[0]) {
+        return `<strong>${name[0]}</strong>${name.slice(1)}`;
+    }
+    return name;
+}
+
+// 更新選中狀態
+function updateAutocompleteSelection() {
+    const dropdown = document.getElementById('autocompleteDropdown');
+    const items = dropdown.querySelectorAll('.autocomplete-item');
+
+    items.forEach((el, index) => {
+        if (index === autocompleteIndex) {
+            el.classList.add('selected');
+            el.scrollIntoView({ block: 'nearest' });
+        } else {
+            el.classList.remove('selected');
+        }
+    });
+}
+
+// 選擇補全項目
+function selectAutocompleteItem(item) {
+    const textarea = document.getElementById('input');
+    const value = textarea.value;
+    const cursorPos = textarea.selectionStart;
+
+    // 找到當前行的開始和結束位置
+    const lines = value.split('\n');
+    let lineStart = 0;
+    let lineIndex = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+        if (lineStart + lines[i].length >= cursorPos) {
+            lineIndex = i;
+            break;
+        }
+        lineStart += lines[i].length + 1; // +1 for newline
+    }
+
+    // 保留原來的數量（如果有）
+    const currentLine = lines[lineIndex];
+    const numMatch = currentLine.match(/(\d+)$/);
+    const quantity = numMatch ? numMatch[1] : '';
+
+    // 替換當前行為選中的產品名（保留數量）
+    lines[lineIndex] = item.name + quantity;
+
+    // 更新 textarea 值
+    textarea.value = lines.join('\n');
+
+    // 將游標移到行尾
+    const newPos = lineStart + lines[lineIndex].length;
+    textarea.setSelectionRange(newPos, newPos);
+    textarea.focus();
+
+    hideAutocomplete();
+}
+
+// 隱藏補全選單
+function hideAutocomplete() {
+    const dropdown = document.getElementById('autocompleteDropdown');
+    dropdown.classList.remove('show');
+    autocompleteVisible = false;
+    autocompleteIndex = -1;
+    autocompleteItems = [];
+}
+
 // ===== 核心功能 =====
 async function loadData() {
     const btn = document.getElementById('refreshBtn');
@@ -634,7 +954,8 @@ async function loadData() {
 
 // ===== 页面加载时自动抓资料 =====
 window.addEventListener('load', function() {
-loadData();
+    loadData();
+    initAutocomplete();  // 初始化自動補全
 });
 
 // ===== 离开页面时自动关闭麦克风 =====
