@@ -840,30 +840,11 @@ function showAutocompleteSuggestions(query) {
     autocompleteIndex = -1;
 }
 
-// 計算匹配分數
+// 計算匹配分數（只匹配開頭）
 function calculateMatchScore(query, name) {
-    // 1. 完全匹配開頭（最高分）
+    // 只匹配開頭
     if (name.startsWith(query)) {
         return { score: 100 - name.length, type: 'prefix' };
-    }
-
-    // 2. 包含查詢字
-    if (name.includes(query)) {
-        return { score: 80 - name.length, type: 'contains' };
-    }
-
-    // 3. 從 TYPO_MAP 找對應
-    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
-        if (correct === name) continue;
-        if (typos && typos.includes(query) && name.includes(correct)) {
-            return { score: 60 - name.length, type: 'typo' };
-        }
-    }
-
-    // 4. 首字匹配（輸入"一"匹配"一貫煎"）
-    const queryFirstChar = query[0];
-    if (name[0] === queryFirstChar) {
-        return { score: 50 - name.length, type: 'firstChar' };
     }
 
     return { score: 0, type: 'none' };
