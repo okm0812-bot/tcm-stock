@@ -2,12 +2,9 @@
   "manifest_version": 3,
   "name": "健保中醫掛號費查詢",
   "version": "1.0",
-  "description": "快速查詢中醫一般科院所掛號費",
-  "permissions": [
-    "activeTab",
-    "scripting",
-    "storage"
-  ],
+  "description": "快速查詢中醫一般科院所掛號費，繁中介面，自動導向健保署頁面",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["https://info.nhi.gov.tw/*"],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -16,9 +13,6 @@
       "128": "icon128.png"
     }
   },
-  "host_permissions": [
-    "https://info.nhi.gov.tw/*"
-  ],
   "icons": {
     "16": "icon16.png",
     "48": "icon48.png",
