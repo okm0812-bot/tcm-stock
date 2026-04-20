@@ -682,6 +682,11 @@ function initAutocomplete() {
     // 監聽鍵盤事件
     textarea.addEventListener('keydown', handleAutocompleteKeydown);
 
+    // 點擊 textarea 關閉下拉選單（貼上後點擊輸入欄可收起選單）
+    textarea.addEventListener('click', () => {
+        hideAutocomplete();
+    });
+
     // 點擊其他地方關閉下拉選單
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.autocomplete-wrapper')) {
@@ -1130,8 +1135,8 @@ function search() {
                 stats.outStock += qty;
             }
 
-            // 输出时组合：产品名 + 数量（qty > 1 时永远显示，去掉分隔符）
-            const outputName = displayName + (qty > 1 ? qty : '');
+            // 输出时组合：产品名 + 数量（qty > 1 或用户明确输入数量时显示）
+            const outputName = displayName + ((qty > 1 || hasUserQty) ? qty : '');
 
             // 复制文本 - 只保留有货和预订品项
             if (isInStock) {
@@ -1144,7 +1149,7 @@ function search() {
             // 保存结果
             results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source, fuzzy, hasUserQty });
         } else {
-            const outputNameForNotFound = originalProductName + (qty > 1 ? qty : '');
+            const outputNameForNotFound = originalProductName + ((qty > 1 || hasUserQty) ? qty : '');
             copyText += outputNameForNotFound + '\t找不到\n';
             results.push({ displayName: originalProductName, outputName: outputNameForNotFound, qty: qty, status: 'not_found', source: 'none' });
         }
