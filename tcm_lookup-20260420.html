@@ -94,6 +94,7 @@
         }
         .autocomplete-item .stock-hint.in-stock { background: #d4edda; color: #155724; }
         .autocomplete-item .stock-hint.out-stock { background: #f8d7da; color: #721c24; }
+        .autocomplete-item .stock-hint.booking { background: #fff3cd; color: #856404; }
         .autocomplete-item:hover .stock-hint,
         .autocomplete-item.selected .stock-hint {
             background: rgba(255,255,255,0.3);
@@ -636,12 +637,20 @@ const findBestMatchInTablet = query => {
         }
     }
 
-    // 3. 移除"錠"后精确匹配（顯示有疑問）
+    // 3. 移除末尾常見後綴後加上「錠」比對（處理用戶輸入「羌活勝濕湯」查不到「羌活勝濕湯錠」的問題）
+    for (const suffix of ['湯', '散', '丸', '飲', '膏', '丹', '煎', '劑', '露']) {
+        if (query.endsWith(suffix)) {
+            const tryTablet = query.slice(0, -suffix.length) + TABLET_SUFFIX[0];
+            if (DB_TABLET[tryTablet]) return { name: tryTablet, status: DB_TABLET[tryTablet][0], price: DB_TABLET[tryTablet][1], corrected: true, fuzzy: true };
+        }
+    }
+
+    // 4. 移除"錠"后精确匹配（顯示有疑問）
     const queryWithoutDing = query.replace(new RegExp(`[${TABLET_SUFFIX.join('')}]$`), '').trim();
     const tabletName = queryWithoutDing + TABLET_SUFFIX[0];
     if (DB_TABLET[tabletName]) return { name: tabletName, status: DB_TABLET[tabletName][0], price: DB_TABLET[tabletName][1], corrected: true, fuzzy: true };
 
-    // 4. 包含匹配（锭劑库中按长度降序，模糊）
+    // 5. 包含匹配（锭劑库中按长度降序，模糊）
     const allTabletNames = Object.keys(DB_TABLET).sort((a, b) => b.length - a.length);
     for (const name of allTabletNames) {
         if (name === query || name.includes(query)) {
@@ -649,7 +658,7 @@ const findBestMatchInTablet = query => {
         }
     }
 
-    // 5. 模糊匹配（仅3字以上，门槛50%，顯示有疑問）
+    // 6. 模糊匹配（仅3字以上，门槛50%，顯示有疑問）
     if (query.length >= 3) {
         let best = null, bestScore = 0.5;
         for (const [name, data] of Object.entries(DB_TABLET)) {
@@ -759,50 +768,98 @@ function showAutocompleteSuggestions(query) {
     }
 
     // 從 DB_KZ 和 DB_TABLET 中搜尋匹配項
+    // 策略：與 main query 完全一致的匹配邏輯
+    // 1. 先用 typo map + 精確匹配（最高分）
+    // 2. 再用包含匹配（高分）
+    // 3. 最後 fuzzy 匹配（門檻 50%）
     const matches = [];
+    const isTabletInput = TABLET_SUFFIX.some(c => query.includes(c));
 
-    // 搜尋科中資料庫
+    // 步驟A：Typo map 精確匹配（兩庫都查，取最高分）
+    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
+        const allNames = [correct, ...(Array.isArray(typos) ? typos : [])];
+        if (!allNames.includes(query)) continue;
+        // KZ 精確匹配
+        if (DB_KZ[correct]) {
+            matches.push({ name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], score: 100, matchType: 'typo-exact', dbType: '科中' });
+        }
+        // Tablet 精確匹配
+        if (DB_TABLET[correct]) {
+            matches.push({ name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1], score: 100, matchType: 'typo-exact', dbType: '錠劑' });
+        }
+    }
+
+    // 步驟B：直接精確匹配
+    if (DB_KZ[query]) matches.push({ name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], score: 100, matchType: 'exact', dbType: '科中' });
+    if (DB_TABLET[query]) matches.push({ name: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1], score: 100, matchType: 'exact', dbType: '錠劑' });
+
+    // 步驟C：移除後綴 + 加「錠」匹配（Tablet suffix 時使用，與 main query 一致）
+    if (isTabletInput) {
+        for (const suffix of ['湯','散','丸','飲','膏','丹','煎','劑','露']) {
+            if (query.endsWith(suffix)) {
+                const tryTablet = query.slice(0, -suffix.length) + '錠';
+                if (DB_TABLET[tryTablet] && !matches.some(m => m.name === tryTablet)) {
+                    matches.push({ name: tryTablet, status: DB_TABLET[tryTablet][0], price: DB_TABLET[tryTablet][1], score: 95, matchType: 'suffix-convert', dbType: '錠劑' });
+                }
+                break;
+            }
+        }
+    }
+
+    // 步驟D：包含匹配（key 包含 query 或 query 包含 key）
     for (const [name, data] of Object.entries(DB_KZ)) {
-        const matchResult = calculateMatchScore(query, name);
-        if (matchResult.score > 0) {
-            matches.push({
-                name,
-                status: data[0],
-                price: data[1],
-                score: matchResult.score,
-                matchType: matchResult.type,
-                dbType: '科中'
-            });
+        if (matches.some(m => m.name === name)) continue;
+        if (name.includes(query) || query.includes(name)) {
+            matches.push({ name, status: data[0], price: data[1], score: 80, matchType: 'contains', dbType: '科中' });
+        }
+    }
+    for (const [name, data] of Object.entries(DB_TABLET)) {
+        if (matches.some(m => m.name === name)) continue;
+        if (name.includes(query) || query.includes(name)) {
+            matches.push({ name, status: data[0], price: data[1], score: 80, matchType: 'contains', dbType: '錠劑' });
         }
     }
 
-    // 搜尋錠劑資料庫
-    for (const [name, data] of Object.entries(DB_TABLET)) {
-        const matchResult = calculateMatchScore(query, name);
-        if (matchResult.score > 0) {
-            matches.push({
-                name,
-                status: data[0],
-                price: data[1],
-                score: matchResult.score,
-                matchType: matchResult.type,
-                dbType: '錠劑'
-            });
+    // 步驟E：模糊匹配（門檻 50%，query ≥ 3 字）
+    if (query.length >= 3) {
+        const allKZ = Object.entries(DB_KZ);
+        const allTab = Object.entries(DB_TABLET);
+        for (const [name, data] of allKZ) {
+            if (matches.some(m => m.name === name)) continue;
+            const matchedChars = [...query].filter(c => name.includes(c));
+            const score = Math.round((matchedChars.length / query.length) * 80);
+            if (score >= 40) matches.push({ name, status: data[0], price: data[1], score, matchType: 'fuzzy', dbType: '科中' });
+        }
+        for (const [name, data] of allTab) {
+            if (matches.some(m => m.name === name)) continue;
+            const matchedChars = [...query].filter(c => name.includes(c));
+            const score = Math.round((matchedChars.length / query.length) * 80);
+            if (score >= 40) matches.push({ name, status: data[0], price: data[1], score, matchType: 'fuzzy', dbType: '錠劑' });
         }
     }
+
+    // 去重：同名只保留最高分
+    const deduped = [];
+    for (const m of matches) {
+        const existing = deduped.find(d => d.name === m.name);
+        if (!existing || m.score > existing.score) {
+            if (existing) deduped.splice(deduped.indexOf(existing), 1);
+            deduped.push(m);
+        }
+    }
+
+    // 用 deduped 替換 matches 後面的排序
+    matches.length = 0;
+    matches.push(...deduped);
 
     // 按匹配度排序，取前 12 個
     matches.sort((a, b) => {
-        // 1. 優先科中，後錠劑
-        if (a.dbType !== b.dbType) {
-            return a.dbType === '科中' ? -1 : 1;
-        }
-        // 2. 同類型中，優先有貨
-        if (a.status !== b.status) {
-            if (a.status === '有货') return -1;
-            if (b.status === '有货') return 1;
-        }
-        // 3. 同條件下按分數
+        // 1. 優先：有貨 > 預訂 > 其他 > 無貨
+        const stockRank = (s) => s === '有货' ? 0 : s === '預訂' ? 1 : s === '無' ? 3 : 2;
+        const rankA = stockRank(a.status);
+        const rankB = stockRank(b.status);
+        if (rankA !== rankB) return rankA - rankB;
+        // 2. 同狀態，優先分數高
         return b.score - a.score;
     });
 
@@ -819,8 +876,8 @@ function showAutocompleteSuggestions(query) {
 
     // 構建下拉選單
     dropdown.innerHTML = topMatches.map((item, index) => {
-        const stockClass = item.status === '有货' ? 'in-stock' : 'out-stock';
-        const stockText = item.status === '有货' ? '✅ 有貨' : '⚠️ 缺貨';
+        const stockClass = item.status === '有货' ? 'in-stock' : item.status === '預訂' ? 'booking' : 'out-stock';
+        const stockText = item.status === '有货' ? '✅ 有貨' : item.status === '預訂' ? '⏳ 預訂' : '⚠️ 缺貨';
         const dbClass = item.dbType === '科中' ? 'db-kz' : 'db-tablet';
         return `
             <div class="autocomplete-item" data-index="${index}" data-name="${item.name}">
@@ -927,6 +984,9 @@ function selectAutocompleteItem(item) {
     textarea.focus();
 
     hideAutocomplete();
+
+    // 立即觸發查詢（與使用者按按鈕等效）
+    search();
 }
 
 // 隱藏補全選單
