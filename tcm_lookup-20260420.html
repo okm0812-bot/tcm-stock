@@ -1485,6 +1485,7 @@ function startVoiceInput() {
 
     let voiceDebounceTimer = null;
     let lastVoiceText = '';   // 防重：擋同一段文字被寫入兩次
+    let finalConfirmed = false; // 標記：final 已確認，停止 interim 直到下一個 final
 
     recognition.onresult = event => {
         const textarea = document.getElementById('input');
@@ -1496,10 +1497,12 @@ function startVoiceInput() {
             // 【語音直送模式】每收到一個最終結果就寫入 textarea
             // =========================================================
             if (event.results[i].isFinal) {
+                finalConfirmed = true;
                 if (text.length < 1) continue;
                 // 防重：若最終結果與上次相同（interim+final 同時發），跳過
                 if (text === lastVoiceText) continue;
                 lastVoiceText = text;
+
 
                 // ===== 自動比對資料庫校正 =====
                 const rawText = text.replace(/[，。、！？\s]/g, '');
@@ -1523,9 +1526,9 @@ function startVoiceInput() {
                 continue;
             }
 
-            // =========================================================
-            // 【即時中間模式】每幀中間結果都更新 textarea 並顯示下拉
-            // =========================================================
+            // 👈 final 確認後，跳過 interim，直到下一個 final 重新開始
+            if (finalConfirmed) continue;
+
             if (!event.results[i].isFinal && text.length >= 2) {
                 // 防抖：每次中間結果進來都重設計時器，300ms 後才處理
                 if (voiceDebounceTimer) clearTimeout(voiceDebounceTimer);
