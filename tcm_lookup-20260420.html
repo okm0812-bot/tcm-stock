@@ -1140,18 +1140,18 @@ function selectAutocompleteItem(item) {
     // 替換當前行為選中的產品名（保留數量）
     lines[lineIndex] = item.name + quantity;
 
+    // 在選取行後加一空行，方便連續輸入
+    lines.splice(lineIndex + 1, 0, '');
+
     // 更新 textarea 值
     textarea.value = lines.join('\n');
 
-    // 將游標移到行尾
-    const newPos = lineStart + lines[lineIndex].length;
+    // 將游標移到下一行開頭
+    const newPos = lineStart + lines[lineIndex].length + 1; // +1 for newline
     textarea.setSelectionRange(newPos, newPos);
     textarea.focus();
 
     hideAutocomplete();
-
-    // 立即觸發查詢（與使用者按按鈕等效）
-    search();
 }
 
 // 隱藏補全選單
