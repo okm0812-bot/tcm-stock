@@ -1499,9 +1499,6 @@ function startVoiceInput() {
             if (event.results[i].isFinal) {
                 finalConfirmed = true;
                 if (text.length < 1) continue;
-                // 防重：若最終結果與上次相同（interim+final 同時發），跳過
-                if (text === lastVoiceText) continue;
-                lastVoiceText = text;
                 // ✅ final 到達，立刻殺掉排隊中的 interim debounce
                 if (voiceDebounceTimer) { clearTimeout(voiceDebounceTimer); voiceDebounceTimer = null; }
 
@@ -1509,8 +1506,21 @@ function startVoiceInput() {
                 const rawText = text.replace(/[，。、！？\s]/g, '');
                 const matched = smartMatchProduct(rawText);
                 const finalText = matched || rawText;
-                const currentText = textarea.value.trim();
+
+                // ✅ 移除 interim 可能已寫入的臨時行（最後一行若為 interim 遺留），再寫入 final
+                let currentText = textarea.value.trim();
+                if (currentText) {
+                    const lines = currentText.split('\n');
+                    const lastLine = lines[lines.length - 1];
+                    // 如果最後一行跟 rawText 相似（interim 遺留），移除它
+                    const cleanLast = lastLine.replace(/[，。、！？\s]/g, '');
+                    if (cleanLast && rawText.includes(cleanLast) || cleanLast.includes(rawText)) {
+                        lines.pop();
+                        currentText = lines.join('\n');
+                    }
+                }
                 textarea.value = currentText + (currentText ? '\n' : '') + finalText;
+                lastVoiceText = rawText;
 
                 // 若有校正，console 提示
                 if (matched && matched !== rawText) {
