@@ -869,18 +869,22 @@ function showAutocompleteSuggestions(query) {
     matches.length = 0;
     matches.push(...deduped);
 
-    // 按匹配度排序，取前 12 個
+    // 按匹配度排序
     matches.sort((a, b) => {
-        // 1. 優先：有貨 > 預訂 > 其他 > 無貨
-        const stockRank = (s) => s === '有货' ? 0 : s === '預訂' ? 1 : s === '無' ? 3 : 2;
+        // 1. 最高優先：名稱開頭匹配 query（用戶最可能要找的）
+        const aStartsWith = a.name.startsWith(query) ? 0 : 1;
+        const bStartsWith = b.name.startsWith(query) ? 0 : 1;
+        if (aStartsWith !== bStartsWith) return aStartsWith - bStartsWith;
+        // 2. 次優先：有貨 > 預訂 > 其他 > 缺貨
+        const stockRank = (s) => s === '有货' ? 0 : s === '預訂' ? 1 : s === '缺货' ? 3 : 2;
         const rankA = stockRank(a.status);
         const rankB = stockRank(b.status);
         if (rankA !== rankB) return rankA - rankB;
-        // 2. 同狀態，優先分數高
+        // 3. 同狀態，優先分數高
         return b.score - a.score;
     });
 
-    const topMatches = matches.slice(0, 24);
+    const topMatches = matches.slice(0, 48);
     console.log('[autocomplete] Final matches:', topMatches.length, 'items. Names:', topMatches.map(m => m.name).join(', '));
     if (isDebug) {
         debugPanel.innerHTML += `<div>✅ Final: ${topMatches.length} items → ${topMatches.slice(0,5).map(m=>m.name).join(', ')}${topMatches.length>5?'...':''}</div>`;
