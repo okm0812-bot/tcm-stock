@@ -407,7 +407,7 @@ const TYPO_MAP = {
     // === 16劃 ===
     '蘇子降氣湯': ['蘇子降氣'],
     '藿香正氣散': ['藿香正氣', '藿香正气'],
-    '蠲痹湯': ['蠲痹', '蠲痹湯'],
+    '蠲痹湯': ['蠲痹', '蠲痹湯', '蠲痺', '蠲痺湯'],
     '響聲破笛丸': ['響聲破笛'],
 
     // === 17-19劃 ===
@@ -607,8 +607,8 @@ const findBestMatchInKZ = query => {
         }
     }
 
-    // 4c. 模糊匹配（3+字，门槛50%，顯示有疑問）
-    let best = null, bestScore = 0.5;
+    // 4c. 模糊匹配（3+字，门槛70%，防止短名稱錯配到長名稱）
+    let best = null, bestScore = 0.7;
     for (const [name, data] of Object.entries(DB_KZ)) {
         const chars = [...query].filter(c => name.includes(c));
         const score = chars.length / query.length;
@@ -658,9 +658,9 @@ const findBestMatchInTablet = query => {
         }
     }
 
-    // 6. 模糊匹配（仅3字以上，门槛50%，顯示有疑問）
+    // 6. 模糊匹配（仅3字以上，门槛70%，防止短名稱錯配到長名稱）
     if (query.length >= 3) {
-        let best = null, bestScore = 0.5;
+        let best = null, bestScore = 0.7;
         for (const [name, data] of Object.entries(DB_TABLET)) {
             const matchedChars = [...query].filter(c => name.includes(c));
             const score = matchedChars.length / query.length;
