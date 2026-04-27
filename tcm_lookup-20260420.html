@@ -1357,6 +1357,7 @@ function startVoiceInput() {
         btn.textContent = '🎤 語音輸入';
         btn.style.background = '#667eea';
         if (voiceDebounceTimer) clearTimeout(voiceDebounceTimer);
+        lastVoiceText = '';
         return;
     }
 
@@ -1370,6 +1371,7 @@ function startVoiceInput() {
     recognition.maxAlternatives = 1;     // 只返回最佳结果，减少计算
 
     let voiceDebounceTimer = null;
+    let lastVoiceText = '';   // 防重：擋同一段文字被寫入兩次
 
     recognition.onresult = event => {
         const textarea = document.getElementById('input');
@@ -1381,8 +1383,10 @@ function startVoiceInput() {
             // 【語音直送模式】每收到一個最終結果就寫入 textarea
             // =========================================================
             if (event.results[i].isFinal) {
-                console.log('語音最終結果:', text);
                 if (text.length < 1) continue;
+                // 防重：若最終結果與上次相同（interim+final 同時發），跳過
+                if (text === lastVoiceText) continue;
+                lastVoiceText = text;
 
                 const cleanedText = text.replace(/[，。、！？\s]/g, '');
                 const currentText = textarea.value.trim();
