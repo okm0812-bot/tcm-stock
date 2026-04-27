@@ -1517,9 +1517,13 @@ function startVoiceInput() {
                     console.log(`[語音校正] "${rawText}" → "${matched}"`);
                 }
 
-                // ❌ 語音寫入後不自動顯示 autocomplete，避免任何自動查詢可能
-                // 用戶看到文字後，手動點「查詢庫存」按鈕即可
-                hideAutocomplete();
+                // ✅ 語音寫入後顯示候選單，讓用戶選擇（不自動查詢）
+                const lines = textarea.value.split('\n');
+                const currentLine = lines[lines.length - 1].trim();
+                const cleanLine = currentLine.replace(/[\d瓶罐包盒顆粒]+$/, '').trim();
+                if (cleanLine.length >= 2 && Object.keys(DB_KZ).length > 0) {
+                    showAutocompleteSuggestions(cleanLine, false);
+                }
                 continue;
             }
 
@@ -1542,10 +1546,10 @@ function startVoiceInput() {
                     const lines = textarea.value.split('\n');
                     const currentLine = lines[lines.length - 1].trim();
                     const cleanLine = currentLine.replace(/[\d瓶罐包盒顆粒]+$/, '').trim();
-                    // ❌ 移除 interim autocomplete 調用，語音只寫文字不觸發任何 UI
-                    // if (cleanLine.length >= 2 && Object.keys(DB_KZ).length > 0) {
-                    //     showAutocompleteSuggestions(cleanLine, false);
-                    // }
+                    // ✅ interim 也顯示候選單（autoSelect=false 不會自動查詢）
+                    if (cleanLine.length >= 2 && Object.keys(DB_KZ).length > 0) {
+                        showAutocompleteSuggestions(cleanLine, false);
+                    }
                 }, 300);
             }
         }
