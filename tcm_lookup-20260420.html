@@ -127,6 +127,102 @@
         .autocomplete-item.selected .db-tag {
             background: rgba(255,255,255,0.25) !important;
         }
+
+        /* ===== OCR 圖片辨識結果面板 ===== */
+        .ocr-panel {
+            background: white;
+            border-radius: 15px;
+            padding: 15px;
+            margin-top: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .ocr-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .ocr-panel-title {
+            font-weight: bold;
+            font-size: 15px;
+            color: #333;
+        }
+        .ocr-panel-count {
+            font-size: 12px;
+            color: #666;
+        }
+        .ocr-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            background: #f8f9fa;
+            cursor: pointer;
+        }
+        .ocr-item:hover { background: #e9ecef; }
+        .ocr-item input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; cursor: pointer; }
+        .ocr-item-name {
+            flex: 1;
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+        }
+        .ocr-item-tag {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 8px;
+            white-space: nowrap;
+        }
+        .ocr-item-tag.tablet-tag { background: #fce4ec; color: #c2185b; }
+        .ocr-item-tag.kz-tag { background: #ede7f6; color: #7b1fa2; }
+        .ocr-item-tag.unmatched-tag { background: #fff3cd; color: #856404; }
+        .ocr-confirm-bar {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .ocr-confirm-bar .btn {
+            height: 42px;
+            font-size: 14px;
+            border-radius: 21px;
+            flex: 1;
+        }
+        .ocr-cancel-btn {
+            background: #6c757d !important;
+        }
+        .ocr-progress {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 14px;
+        }
+        .ocr-progress-bar {
+            height: 4px;
+            background: #e9ecef;
+            border-radius: 2px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        .ocr-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+        .ocr-result-item {
+            background: white;
+            border-radius: 10px;
+            padding: 12px;
+            margin-top: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
     </style>
 </head>
 <body>
@@ -162,6 +258,7 @@
     </div>
 
     <div id="result"></div>
+    <div id="ocrPanel"></div>
 
     <div class="tip">
         <strong>💡 使用提示：</strong>
@@ -2077,23 +2174,119 @@ async function handleImage(e) {
             output += '200g\n' + matched200g.join('\n');
         }
 
-        // 填入输入框
-        const textarea = document.getElementById('input');
-        if (output) {
-            textarea.value = output;
-            console.log('图片辨识完成，匹配到:', matchedTablet.length + matched100g.length + matched200g.length, '项');
-        } else {
+        // 顯示勾選面板（不直接填入 textarea）
+        if (matchedTablet.length === 0 && matched100g.length === 0 && matched200g.length === 0 && unmatchedLines.length === 0) {
             alert('無法辨識圖片中的產品，請確認圖片清晰度或手動輸入');
+            btn.textContent = originalText;
+            btn.disabled = false;
+            e.target.value = '';
+            return;
         }
 
+        // 組合所有項目（用 category 標記來源）
+        const allItems = [
+            ...matchedTablet.map(n => ({ name: n, category: 'tablet' })),
+            ...matched100g.map(n  => ({ name: n, category: 'kz100' })),
+            ...matched200g.map(n  => ({ name: n, category: 'kz200' })),
+            ...unmatchedLines.map(n => ({ name: n, category: 'unmatched' }))
+        ];
+
+        // 建立麵板 HTML
+        let html = `<div class="ocr-panel">
+            <div class="ocr-panel-header">
+                <span class="ocr-panel-title">📷 圖片辨識結果</span>
+                <span class="ocr-panel-count">共 ${allItems.length} 項</span>
+            </div>`;
+
+        // 全選/取消
+        html += `<div style="margin-bottom:10px; font-size:13px; color:#555;">
+            <label style="cursor:pointer;"><input type="checkbox" id="ocrSelectAll" onchange="toggleOCRAll(this.checked)" checked> 全選</label>
+        </div>`;
+
+        for (let i = 0; i < allItems.length; i++) {
+            const item = allItems[i];
+            const tagClass  = item.category === 'tablet'    ? 'tablet-tag'
+                            : item.category === 'unmatched' ? 'unmatched-tag'
+                            : 'kz-tag';
+            const tagLabel  = item.category === 'tablet'    ? '錠劑'
+                            : item.category === 'kz100'     ? '科中100g'
+                            : item.category === 'kz200'     ? '科中200g'
+                            : '未匹配';
+            html += `<div class="ocr-item">
+                <input type="checkbox" class="ocr-cb" data-name="${escHtml(item.name)}" checked>
+                <span class="ocr-item-name">${escHtml(item.name)}</span>
+                <span class="ocr-item-tag ${tagClass}">${tagLabel}</span>
+            </div>`;
+        }
+
+        html += `<div class="ocr-confirm-bar">
+            <button class="btn ocr-cancel-btn" onclick="closeOCRPanel()">取消</button>
+            <button class="btn" onclick="confirmOCRSearch()">✅ 查詢所選 (${allItems.length})</button>
+        </div></div>`;
+
+        document.getElementById('ocrPanel').innerHTML = html;
+        btn.textContent = originalText;
+        btn.disabled = false;
+        e.target.value = '';
+
     } catch (err) {
-        console.error('图片辨识错误:', err);
+        console.error('圖片辨識錯誤:', err);
         alert('圖片辨識失敗，請嘗試其他圖片');
+        btn.textContent = originalText;
+        btn.disabled = false;
+        e.target.value = '';
+    }
+}
+
+// ===== OCR 勾選 → 批次查詢 =====
+function closeOCRPanel() {
+    document.getElementById('ocrPanel').innerHTML = '';
+}
+
+function toggleOCRAll(checked) {
+    document.querySelectorAll('.ocr-cb').forEach(cb => cb.checked = checked);
+    updateOCRCount();
+}
+
+function updateOCRCount() {
+    const checked = document.querySelectorAll('.ocr-cb:checked').length;
+    const btn = document.querySelector('.ocr-confirm-bar .btn:last-child');
+    if (btn) btn.textContent = `✅ 查詢所選 (${checked})`;
+}
+
+// 簡單 HTML 跳脫，防止 injection
+function escHtml(s) {
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// 點擊勾選項時立刻更新計數（delegate，掛在 document 上）
+document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('ocr-cb')) updateOCRCount();
+});
+
+async function confirmOCRSearch() {
+    const cbs = document.querySelectorAll('.ocr-cb:checked');
+    if (cbs.length === 0) {
+        alert('請至少選擇一項');
+        return;
     }
 
-    btn.textContent = originalText;
-    btn.disabled = false;
-    e.target.value = '';
+    // 讀取勾選的品項名稱
+    const selected = Array.from(cbs).map(cb => cb.dataset.name);
+
+    // 關閉面板，填入 textarea 並執行查詢
+    closeOCRPanel();
+
+    const textarea = document.getElementById('input');
+    textarea.value = selected.join('\n');
+
+    // 點「查詢庫存」按鈕
+    document.getElementById('searchBtn').click();
 }
 
 // ============================================================
