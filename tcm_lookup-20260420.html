@@ -1502,6 +1502,8 @@ function startVoiceInput() {
                 // 防重：若最終結果與上次相同（interim+final 同時發），跳過
                 if (text === lastVoiceText) continue;
                 lastVoiceText = text;
+                // ✅ final 到達，立刻殺掉排隊中的 interim debounce
+                if (voiceDebounceTimer) { clearTimeout(voiceDebounceTimer); voiceDebounceTimer = null; }
 
                 // ===== 自動比對資料庫校正 =====
                 const rawText = text.replace(/[，。、！？\s]/g, '');
@@ -1528,7 +1530,11 @@ function startVoiceInput() {
                 // 防抖：每次中間結果進來都重設計時器，300ms 後才處理
                 if (voiceDebounceTimer) clearTimeout(voiceDebounceTimer);
                 voiceDebounceTimer = setTimeout(() => {
+                    // ✅ 防重：若 final 已到達，放棄此 interim debounce
+                    if (finalConfirmed) return;
                     const cleanedText = text.replace(/[，。、！？\s]/g, '');
+                    // 防重：若與 lastVoiceText 相同，跳過
+                    if (cleanedText === lastVoiceText) return;
                     // 寫入最後一行
                     const currentText = textarea.value.split('\n').slice(0, -1).join('\n');
                     textarea.value = currentText + (currentText ? '\n' : '') + cleanedText;
