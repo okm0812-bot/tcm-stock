@@ -790,7 +790,8 @@ function handleAutocompleteKeydown(e) {
 }
 
 // 顯示補全建議
-function showAutocompleteSuggestions(query) {
+// autoSelect=true: 若第一個結果分數 100，自動選取並執行查詢
+function showAutocompleteSuggestions(query, autoSelect = false) {
     const dropdown = document.getElementById('autocompleteDropdown');
 
 
@@ -947,6 +948,16 @@ function showAutocompleteSuggestions(query) {
     autocompleteVisible = true;
     autocompleteItems = topMatches;
     autocompleteIndex = -1;
+
+    // =========================================================
+    // 【自動選取】autoSelect=true 且第一個結果分數=100 時直接執行
+    // =========================================================
+    if (autoSelect && topMatches.length > 0 && topMatches[0].score === 100) {
+        // 延後一幀執行，確保 DOM 已渲染完成
+        setTimeout(() => {
+            selectAutocompleteItem(topMatches[0]);
+        }, 50);
+    }
 }
 
 // 計算匹配分數（只匹配開頭）
@@ -1345,6 +1356,7 @@ function startVoiceInput() {
         isListening = false;
         btn.textContent = '🎤 語音輸入';
         btn.style.background = '#667eea';
+        if (voiceDebounceTimer) clearTimeout(voiceDebounceTimer);
         return;
     }
 
@@ -1354,8 +1366,10 @@ function startVoiceInput() {
     recognition.lang = 'zh-TW';
     recognition.model = 'phone_call';     // 電話錄音模式，對咬字/專業術語辨識較佳
     recognition.continuous = true;
-    recognition.interimResults = true;  // 开启实时结果，加快响应
-    recognition.maxAlternatives = 1;    // 只返回最佳结果，减少计算
+    recognition.interimResults = true;    // 开启实时结果，加快响应
+    recognition.maxAlternatives = 1;     // 只返回最佳结果，减少计算
+
+    let voiceDebounceTimer = null;
 
     recognition.onresult = event => {
         const textarea = document.getElementById('input');
@@ -1363,25 +1377,49 @@ function startVoiceInput() {
         for (let i = event.resultIndex; i < event.results.length; i++) {
             const text = event.results[i][0].transcript.trim();
 
-            // 只处理最终结果（isFinal=true），忽略实时识别中的临时结果
-            if (!event.results[i].isFinal) continue;
+            // =========================================================
+            // 【語音直送模式】每收到一個最終結果就寫入 textarea
+            // =========================================================
+            if (event.results[i].isFinal) {
+                console.log('語音最終結果:', text);
+                if (text.length < 1) continue;
 
-            console.log('语音最终结果:', text);
-
-            if (text.length < 2) continue;
-
-            // 清理文本
-            const cleanedText = text.replace(/[，。、！？\s]/g, '');
-
-            // 智能匹配数据库产品
-            const match = smartMatchProduct(cleanedText);
-
-            if (match) {
+                const cleanedText = text.replace(/[，。、！？\s]/g, '');
                 const currentText = textarea.value.trim();
-                textarea.value = currentText + (currentText ? '\n' : '') + match;
-                console.log('已添加产品:', match);
+                // 自動換行寫入一行（每唸完一個品項就產生一行）
+                textarea.value = currentText + (currentText ? '\n' : '') + cleanedText;
+
+                // 立即觸發 autocomplete（autoSelect=true，高分直接自動查詢）
+                const cursorPos = textarea.value.length;
+                const lines = textarea.value.split('\n');
+                const currentLine = lines[lines.length - 1].trim();
+                const cleanLine = currentLine.replace(/[\d瓶罐包盒顆粒]+$/, '').trim();
+                if (cleanLine.length >= 1 && Object.keys(DB_KZ).length > 0) {
+                    showAutocompleteSuggestions(cleanLine, true); // autoSelect=true
+                }
+                continue;
             }
-            // 如果没匹配到，不添加（避免无效输入）
+
+            // =========================================================
+            // 【即時中間模式】每幀中間結果都更新 textarea 並顯示下拉
+            // =========================================================
+            if (!event.results[i].isFinal && text.length >= 2) {
+                // 防抖：每次中間結果進來都重設計時器，300ms 後才處理
+                if (voiceDebounceTimer) clearTimeout(voiceDebounceTimer);
+                voiceDebounceTimer = setTimeout(() => {
+                    const cleanedText = text.replace(/[，。、！？\s]/g, '');
+                    // 寫入最後一行
+                    const currentText = textarea.value.split('\n').slice(0, -1).join('\n');
+                    textarea.value = currentText + (currentText ? '\n' : '') + cleanedText;
+                    // 馬上顯示下拉選單（autoSelect=false，純顯示）
+                    const lines = textarea.value.split('\n');
+                    const currentLine = lines[lines.length - 1].trim();
+                    const cleanLine = currentLine.replace(/[\d瓶罐包盒顆粒]+$/, '').trim();
+                    if (cleanLine.length >= 1 && Object.keys(DB_KZ).length > 0) {
+                        showAutocompleteSuggestions(cleanLine, false); // autoSelect=false，純顯示
+                    }
+                }, 300);
+            }
         }
     };
 
