@@ -178,6 +178,22 @@
         .ocr-item-tag.tablet-tag { background: #fce4ec; color: #c2185b; }
         .ocr-item-tag.kz-tag { background: #ede7f6; color: #7b1fa2; }
         .ocr-item-tag.unmatched-tag { background: #fff3cd; color: #856404; }
+        /* OCR 校正對照樣式 */
+        .ocr-original {
+            font-size: 13px;
+            color: #888;
+            text-decoration: line-through;
+        }
+        .ocr-arrow {
+            margin: 0 6px;
+            color: #999;
+            font-size: 12px;
+        }
+        .ocr-matched {
+            font-size: 14px;
+            font-weight: 500;
+            color: #2e7d32;
+        }
         .ocr-confirm-bar {
             display: flex;
             gap: 10px;
@@ -1485,13 +1501,19 @@ function startVoiceInput() {
                 if (text === lastVoiceText) continue;
                 lastVoiceText = text;
 
-                const cleanedText = text.replace(/[，。、！？\s]/g, '');
+                // ===== 自動比對資料庫校正 =====
+                const rawText = text.replace(/[，。、！？\s]/g, '');
+                const matched = smartMatchProduct(rawText);
+                const finalText = matched || rawText;
                 const currentText = textarea.value.trim();
-                // 自動換行寫入一行（每唸完一個品項就產生一行）
-                textarea.value = currentText + (currentText ? '\n' : '') + cleanedText;
+                textarea.value = currentText + (currentText ? '\n' : '') + finalText;
+
+                // 若有校正，console 提示
+                if (matched && matched !== rawText) {
+                    console.log(`[語音校正] "${rawText}" → "${matched}"`);
+                }
 
                 // 立即觸發 autocomplete（autoSelect=true，高分直接自動查詢）
-                const cursorPos = textarea.value.length;
                 const lines = textarea.value.split('\n');
                 const currentLine = lines[lines.length - 1].trim();
                 const cleanLine = currentLine.replace(/[\d瓶罐包盒顆粒]+$/, '').trim();
@@ -2095,7 +2117,7 @@ async function handleImage(e) {
         console.log(`[图片辨识] 处理后共 ${processedLines.length} 行:`);
         processedLines.forEach((line, i) => console.log(`  处理${i+1}: "${line}"`));
 
-        // 分类存储
+        // 分类存储（存對象：{ original, matched, category }）
         const matchedTablet = [];
         const matched100g = [];
         const matched200g = [];
@@ -2131,18 +2153,21 @@ async function handleImage(e) {
             if (match) {
                 // 组合产品名和数量（用于显示）
                 const finalMatch = match + qty;
+                const originalName = productName + qty;
 
                 // 判断是单方、复方还是锭劑
                 const matchProductName = match.replace(/\d+$/, '');
                 const isSingle = isSingleHerb(matchProductName);
                 const isTab = isTablet(matchProductName);
 
+                const item = { original: originalName, matched: finalMatch };
+
                 if (isTab) {
-                    if (!matchedTablet.includes(finalMatch)) matchedTablet.push(finalMatch);
+                    if (!matchedTablet.some(m => m.matched === finalMatch)) matchedTablet.push(item);
                 } else if (isSingle) {
-                    if (!matched100g.includes(finalMatch)) matched100g.push(finalMatch);
+                    if (!matched100g.some(m => m.matched === finalMatch)) matched100g.push(item);
                 } else {
-                    if (!matched200g.includes(finalMatch)) matched200g.push(finalMatch);
+                    if (!matched200g.some(m => m.matched === finalMatch)) matched200g.push(item);
                 }
 
                 console.log(`[图片辨识] 匹配: "${productName}" → "${finalMatch}" (${isTab ? '錠劑' : isSingle ? '100g' : '200g'})`);
@@ -2154,24 +2179,24 @@ async function handleImage(e) {
 
         console.log('[图片辨识] 结果:', matchedTablet.length, '个錠劑', matched100g.length, '个100g', matched200g.length, '个200g', unmatchedLines.length, '个未匹配');
 
-        // 组装输出结果
+        // 组装输出结果（從對象取出 matched）
         let output = '';
 
         // 先输出锭劑
         if (matchedTablet.length > 0) {
-            output += '錠劑\n' + matchedTablet.join('\n');
+            output += '錠劑\n' + matchedTablet.map(m => m.matched).join('\n');
         }
 
         // 再输出单方（100g）
         if (matched100g.length > 0) {
             if (output) output += '\n';
-            output += '100g\n' + matched100g.join('\n');
+            output += '100g\n' + matched100g.map(m => m.matched).join('\n');
         }
 
         // 再输出复方（200g）
         if (matched200g.length > 0) {
             if (output) output += '\n';
-            output += '200g\n' + matched200g.join('\n');
+            output += '200g\n' + matched200g.map(m => m.matched).join('\n');
         }
 
         // 顯示勾選面板（不直接填入 textarea）
@@ -2183,12 +2208,12 @@ async function handleImage(e) {
             return;
         }
 
-        // 組合所有項目（用 category 標記來源）
+        // 組合所有項目（用 category 標記來源，original/matched 顯示對照）
         const allItems = [
-            ...matchedTablet.map(n => ({ name: n, category: 'tablet' })),
-            ...matched100g.map(n  => ({ name: n, category: 'kz100' })),
-            ...matched200g.map(n  => ({ name: n, category: 'kz200' })),
-            ...unmatchedLines.map(n => ({ name: n, category: 'unmatched' }))
+            ...matchedTablet.map(item => ({ original: item.original, matched: item.matched, category: 'tablet' })),
+            ...matched100g.map(item  => ({ original: item.original, matched: item.matched, category: 'kz100' })),
+            ...matched200g.map(item  => ({ original: item.original, matched: item.matched, category: 'kz200' })),
+            ...unmatchedLines.map(n => ({ original: n, matched: null, category: 'unmatched' }))
         ];
 
         // 建立麵板 HTML
@@ -2205,6 +2230,8 @@ async function handleImage(e) {
 
         for (let i = 0; i < allItems.length; i++) {
             const item = allItems[i];
+            const isMatched = item.matched !== null;
+            const displayName = isMatched ? item.matched : item.original;
             const tagClass  = item.category === 'tablet'    ? 'tablet-tag'
                             : item.category === 'unmatched' ? 'unmatched-tag'
                             : 'kz-tag';
@@ -2212,9 +2239,15 @@ async function handleImage(e) {
                             : item.category === 'kz100'     ? '科中100g'
                             : item.category === 'kz200'     ? '科中200g'
                             : '未匹配';
+            // 若有校正，顯示「原→校」對照；未匹配顯示⚠️
+            const showOriginal = isMatched && item.original !== item.matched;
+            const nameHtml = showOriginal
+                ? `<span class="ocr-original">${escHtml(item.original)}</span><span class="ocr-arrow">→</span><span class="ocr-matched">${escHtml(item.matched)}</span>`
+                : `<span class="ocr-item-name">${escHtml(displayName)}</span>`;
+            
             html += `<div class="ocr-item">
-                <input type="checkbox" class="ocr-cb" data-name="${escHtml(item.name)}" checked>
-                <span class="ocr-item-name">${escHtml(item.name)}</span>
+                <input type="checkbox" class="ocr-cb" data-name="${escHtml(displayName)}" checked>
+                ${nameHtml}
                 <span class="ocr-item-tag ${tagClass}">${tagLabel}</span>
             </div>`;
         }
