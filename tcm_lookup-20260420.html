@@ -718,6 +718,7 @@ function handleAutocompleteInput(e) {
     const cleanLine = currentLine.replace(/[\d瓶罐包盒顆粒]+$/, '').trim();
 
     // 至少輸入 1 個字才觸發
+    console.log('[autocomplete-input] cleanLine:', JSON.stringify(cleanLine), 'len:', cleanLine.length, 'DB_KZ loaded:', Object.keys(DB_KZ).length > 0);
     if (cleanLine.length >= 1 && Object.keys(DB_KZ).length > 0) {
         showAutocompleteSuggestions(cleanLine);
     } else {
@@ -761,6 +762,7 @@ function handleAutocompleteKeydown(e) {
 // 顯示補全建議
 function showAutocompleteSuggestions(query) {
     const dropdown = document.getElementById('autocompleteDropdown');
+    console.log('[autocomplete] query:', JSON.stringify(query), 'len:', query?.length, 'DB_KZ keys:', Object.keys(DB_KZ).length);
 
     if (!query || query.length < 1) {
         hideAutocomplete();
@@ -807,12 +809,16 @@ function showAutocompleteSuggestions(query) {
     }
 
     // 步驟D：包含匹配（key 包含 query 或 query 包含 key）
+    console.log('[autocomplete] Step D: scanning DB_KZ', Object.keys(DB_KZ).length, 'entries for query:', JSON.stringify(query));
+    let stepDCount = 0;
     for (const [name, data] of Object.entries(DB_KZ)) {
         if (matches.some(m => m.name === name)) continue;
         if (name.includes(query) || query.includes(name)) {
             matches.push({ name, status: data[0], price: data[1], score: 80, matchType: 'contains', dbType: '科中' });
+            stepDCount++;
         }
     }
+    console.log('[autocomplete] Step D KZ matches:', stepDCount);
     for (const [name, data] of Object.entries(DB_TABLET)) {
         if (matches.some(m => m.name === name)) continue;
         if (name.includes(query) || query.includes(name)) {
@@ -864,6 +870,7 @@ function showAutocompleteSuggestions(query) {
     });
 
     const topMatches = matches.slice(0, 24);
+    console.log('[autocomplete] Final matches:', topMatches.length, 'items. Names:', topMatches.map(m => m.name).join(', '));
 
     if (topMatches.length === 0) {
         dropdown.innerHTML = '<div class="autocomplete-empty">無匹配項目</div>';
