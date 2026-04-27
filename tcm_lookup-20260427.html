@@ -1909,11 +1909,11 @@ async function googleVisionOCR(file) {
     console.log('[Google Vision] 开始辨识图片...');
 
     try {
-        // 压缩大图（Vision API 单张限 20MB）
+        // 压缩大图（Vision API 单张限 20MB），保留 PNG 不失真
         let imgFile = file;
-        if (file.size > 4 * 1024 * 1024) {
-            console.log('[Google Vision] 图片 > 4MB，压缩中...');
-            imgFile = await compressImage(file, 2048);
+        if (file.size > 8 * 1024 * 1024) {
+            console.log('[Google Vision] 图片 > 8MB，压缩中...');
+            imgFile = await compressImage(file, 4096);
         }
 
         const base64 = await fileToBase64(imgFile);
@@ -1922,7 +1922,8 @@ async function googleVisionOCR(file) {
             requests: [{
                 image: { content: base64 },
                 features: [
-                    { type: 'DOCUMENT_TEXT_DETECTION', model: 'builtin/latest' }
+                    { type: 'DOCUMENT_TEXT_DETECTION', model: 'builtin/latest' },
+                    { type: 'TEXT_DETECTION' }
                 ],
                 imageContext: {
                     languageHints: ['zh-Hant', 'zh-TW', 'zh-CN']
@@ -1972,16 +1973,16 @@ async function ocrSpaceOCR(file) {
     console.log('[OCR.space] 开始辨识图片...');
 
     const formData = new FormData();
-    formData.append('language', 'cht'); // 繁体中文
+    formData.append('language', 'cht'); // 繁体中文（OCR.space 不支援 cht+eng 語法， Engine 2 自帶英文辨識）
     formData.append('isOverlayRequired', 'false');
     formData.append('detectOrientation', 'true');
     formData.append('scale', 'true');
     formData.append('OCREngine', '2'); // Engine 2 准确度更高
 
-    // 如果文件大于 1MB，先压缩
+    // 如果文件大于 1MB，先压缩（保留 PNG 不失真，放寬到 2048px）
     if (file.size > 1024 * 1024) {
         console.log('[OCR.space] 图片太大，需要压缩...');
-        file = await compressImage(file, 1024);
+        file = await compressImage(file, 2048);
     }
     formData.append('file', file);
 
@@ -2029,8 +2030,8 @@ async function compressImage(file, maxWidth) {
             ctx.drawImage(img, 0, 0, width, height);
 
             canvas.toBlob(blob => {
-                resolve(new File([blob], file.name, { type: 'image/jpeg' }));
-            }, 'image/jpeg', 0.8);
+                resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.png'), { type: 'image/png' }));
+            }, 'image/png');
         };
         img.src = URL.createObjectURL(file);
     });
@@ -2042,7 +2043,7 @@ async function tesseractOCR(file) {
 
     if (!window.Tesseract) {
         const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js';
+        script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
         document.head.appendChild(script);
         await new Promise(r => script.onload = r);
     }
