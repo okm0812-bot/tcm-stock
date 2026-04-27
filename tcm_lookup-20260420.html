@@ -142,6 +142,8 @@
         </div>
     </div>
 
+    <div id="debugPanel" style="display:none; background:#f0f0f0; border:1px solid #999; padding:8px; margin:4px 0; font-size:12px; font-family:monospace; max-height:150px; overflow-y:auto; border-radius:4px;"></div>
+
     <div class="search-box">
         <div class="btn-group">
             <button class="btn-small" id="refreshBtn" onclick="loadData()">🔄 更新資料</button>
@@ -763,6 +765,12 @@ function handleAutocompleteKeydown(e) {
 function showAutocompleteSuggestions(query) {
     const dropdown = document.getElementById('autocompleteDropdown');
     console.log('[autocomplete] query:', JSON.stringify(query), 'len:', query?.length, 'DB_KZ keys:', Object.keys(DB_KZ).length);
+    const debugPanel = document.getElementById('debugPanel');
+    const isDebug = new URLSearchParams(window.location.search).get('debug') === '1';
+    if (isDebug) {
+        debugPanel.style.display = 'block';
+        debugPanel.innerHTML += `<div>🔍 query="${query}" len=${query?.length} DB_KZ=${Object.keys(DB_KZ).length}</div>`;
+    }
 
     if (!query || query.length < 1) {
         hideAutocomplete();
@@ -819,6 +827,9 @@ function showAutocompleteSuggestions(query) {
         }
     }
     console.log('[autocomplete] Step D KZ matches:', stepDCount);
+    if (isDebug) {
+        debugPanel.innerHTML += `<div>📋 Step D: ${stepDCount} KZ matches for "${query}"</div>`;
+    }
     for (const [name, data] of Object.entries(DB_TABLET)) {
         if (matches.some(m => m.name === name)) continue;
         if (name.includes(query) || query.includes(name)) {
@@ -871,6 +882,10 @@ function showAutocompleteSuggestions(query) {
 
     const topMatches = matches.slice(0, 24);
     console.log('[autocomplete] Final matches:', topMatches.length, 'items. Names:', topMatches.map(m => m.name).join(', '));
+    if (isDebug) {
+        debugPanel.innerHTML += `<div>✅ Final: ${topMatches.length} items → ${topMatches.slice(0,5).map(m=>m.name).join(', ')}${topMatches.length>5?'...':''}</div>`;
+        debugPanel.scrollTop = debugPanel.scrollHeight;
+    }
 
     if (topMatches.length === 0) {
         dropdown.innerHTML = '<div class="autocomplete-empty">無匹配項目</div>';
