@@ -257,9 +257,7 @@
     <div class="search-box">
         <div class="btn-group">
             <button class="btn-small" id="refreshBtn" onclick="loadData()">🔄 更新資料</button>
-            <button class="btn-small" onclick="document.getElementById('imageInput').click()">📷 圖片辨識</button>
             <button class="btn-small" id="voiceBtn" onclick="startVoiceInput()">🎤 語音輸入</button>
-            <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleImage(event)">
         </div>
         <div class="btn-group">
             <button class="btn-small" id="priceBtn" onclick="togglePrice()">💰 顯示價格</button>
@@ -274,14 +272,13 @@
     </div>
 
     <div id="result"></div>
-    <div id="ocrPanel"></div>
 
     <div class="tip">
         <strong>💡 使用提示：</strong>
         <ul>
             <li>✅ 有貨 = 可出貨 | ⚠️ 缺貨 = 無庫存（缺）| ⏳ 預訂 = 需等待（預）</li>
             <li>數量輸入：生脈飲2 = 2罐</li>
-            <li>語音/圖片：自動比對資料庫（繁簡體）</li>
+            <li>語音輸入：自動比對資料庫（繁簡體）</li>
             <li>點「顯示價格」查看詳細報價</li>
         </ul>
     </div>
@@ -2289,77 +2286,11 @@ async function handleImage(e) {
     }
 }
 
-// ===== OCR 勾選 → 批次查詢 =====
-function closeOCRPanel() {
-    document.getElementById('ocrPanel').innerHTML = '';
-}
-
-function toggleOCRAll(checked) {
-    document.querySelectorAll('.ocr-cb').forEach(cb => cb.checked = checked);
-    updateOCRCount();
-}
-
-function updateOCRCount() {
-    const checked = document.querySelectorAll('.ocr-cb:checked').length;
-    const btn = document.querySelector('.ocr-confirm-bar .btn:last-child');
-    if (btn) btn.textContent = `✅ 查詢所選 (${checked})`;
-}
-
-// 簡單 HTML 跳脫，防止 injection
-function escHtml(s) {
-    return String(s)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-// 點擊勾選項時立刻更新計數（delegate，掛在 document 上）
-document.addEventListener('change', function(e) {
-    if (e.target.classList.contains('ocr-cb')) updateOCRCount();
-});
-
-async function confirmOCRSearch() {
-    const cbs = document.querySelectorAll('.ocr-cb:checked');
-    if (cbs.length === 0) {
-        alert('請至少選擇一項');
-        return;
-    }
-
-    // 讀取勾選的品項名稱
-    const selected = Array.from(cbs).map(cb => cb.dataset.name);
-
-    // 關閉面板，填入 textarea 並執行查詢
-    closeOCRPanel();
-
-    const textarea = document.getElementById('input');
-    textarea.value = selected.join('\n');
-
-    // 點「查詢庫存」按鈕
-    document.getElementById('searchBtn').click();
-}
-
 // ============================================================
 // 初始化
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', function() {
-    // 绑定图片输入事件
-    const imageInput = document.getElementById('imageInput');
-    const imageBtn = document.getElementById('imageBtn');
-
-    if (imageBtn && imageInput) {
-        imageBtn.addEventListener('click', function() {
-            imageInput.click();
-        });
-
-        imageInput.addEventListener('change', function(event) {
-            handleImage(event);
-        });
-    }
-
-    // 页面加载时自动加载数据
     loadData();
 });
 </script>
