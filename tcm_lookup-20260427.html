@@ -1,0 +1,2367 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BI庫存查詢系統</title>
+    <style>
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 15px; margin: 0; }
+        .container { max-width: 500px; margin: 0 auto; }
+        .header { text-align: center; color: white; margin-bottom: 20px; }
+        .header h1 { font-size: 24px; margin: 0; }
+        .header .status { font-size: 12px; opacity: 0.8; margin-top: 5px; }
+        .search-box { background: white; border-radius: 20px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .btn-group { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+        .btn-small { background: #667eea; color: white; border: none; padding: 10px 12px; font-size: 14px; border-radius: 20px; cursor: pointer; flex: 1; min-width: 90px; height: 44px; }
+        .btn-small:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-clear { background: #dc3545; }
+        textarea { width: 100%; padding: 14px; font-size: 16px; border: 2px solid #ddd; border-radius: 12px; outline: none; height: 120px; resize: none; margin-bottom: 12px; }
+        textarea:focus { border-color: #667eea; }
+        .btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 14px; font-size: 16px; border-radius: 25px; cursor: pointer; width: 100%; font-weight: bold; height: 50px; }
+        .btn:disabled { background: #ccc; }
+        .result-item { background: white; border-radius: 10px; padding: 12px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .name { font-weight: bold; font-size: 15px; flex: 1; min-width: 120px; }
+        .original { font-size: 12px; color: #666; width: 100%; }
+        .badge { font-size: 12px; padding: 4px 10px; border-radius: 15px; white-space: nowrap; }
+        .in-stock { background: #d4edda; color: #155724; }
+        .out-stock { background: #f8d7da; color: #721c24; }
+        .booking { background: #fff3cd; color: #856404; }
+        .not-found { background: #e2e3e5; color: #383d41; }
+        .corrected { background: #fff3cd; color: #856404; }
+        .category { margin-top: 12px; }
+        .category h3 { background: rgba(255,255,255,0.3); color: white; padding: 8px 15px; border-radius: 10px; margin: 0 0 8px 0; font-size: 14px; }
+        .price { font-size: 15px; font-weight: bold; }
+        .summary { background: white; border-radius: 15px; padding: 15px; margin-top: 12px; text-align: center; }
+        .summary .total { font-size: 26px; font-weight: bold; color: #28a745; }
+        .summary .count { color: #666; font-size: 13px; margin-top: 4px; }
+        .copy-box { background: white; border-radius: 15px; padding: 15px; margin-top: 12px; }
+        .copy-box h4 { margin: 0 0 10px 0; font-size: 14px; color: #333; }
+        .copy-content { background: #f5f5f5; border-radius: 10px; padding: 12px; font-size: 14px; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+        .copy-btn { background: #28a745; color: white; border: none; padding: 8px 15px; font-size: 13px; border-radius: 20px; cursor: pointer; margin-top: 10px; }
+        .copy-btn:hover { background: #218838; }
+        .copied { background: #17a2b8 !important; }
+        .tip { background: rgba(255,255,255,0.2); border-radius: 15px; padding: 12px; margin-top: 15px; color: white; font-size: 12px; }
+        .tip li { margin: 3px 0; }
+        .error { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 10px; text-align: center; font-size: 13px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+        .stat-item { background: rgba(255,255,255,0.2); padding: 8px 4px; border-radius: 8px; text-align: center; color: white; font-size: 11px; }
+        .stat-number { font-size: 18px; font-weight: bold; display: block; }
+        .btn-small:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: all 0.2s; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); transition: all 0.2s; }
+        .result-item { box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.2s; }
+        .result-item:hover { transform: translateY(-1px); }
+        .fuzzy-badge { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 10px; background: #fff3cd; color: #856404; margin-left: 6px; vertical-align: middle; }
+
+        /* 自動補全下拉選單樣式 */
+        .autocomplete-wrapper { position: relative; }
+        .autocomplete-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #667eea;
+            border-top: none;
+            border-radius: 0 0 12px 12px;
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .autocomplete-dropdown.show { display: block; }
+        .autocomplete-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+            font-size: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .autocomplete-item:last-child { border-bottom: none; }
+        .autocomplete-item:hover,
+        .autocomplete-item.selected {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .autocomplete-item .match-text { font-weight: bold; }
+        .autocomplete-item .stock-hint {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+        .autocomplete-item .stock-hint.in-stock { background: #d4edda; color: #155724; }
+        .autocomplete-item .stock-hint.out-stock { background: #f8d7da; color: #721c24; }
+        .autocomplete-item .stock-hint.booking { background: #fff3cd; color: #856404; }
+        .autocomplete-item:hover .stock-hint,
+        .autocomplete-item.selected .stock-hint {
+            background: rgba(255,255,255,0.3);
+            color: white;
+        }
+        .autocomplete-empty {
+            padding: 15px;
+            text-align: center;
+            color: #999;
+            font-size: 13px;
+        }
+        /* 資料庫類型標籤 */
+        .db-tag {
+            display: inline-block;
+            font-size: 10px;
+            padding: 1px 5px;
+            border-radius: 3px;
+            margin-right: 6px;
+            font-weight: bold;
+        }
+        .db-tag.db-kz {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .db-tag.db-tablet {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        .autocomplete-item:hover .db-tag,
+        .autocomplete-item.selected .db-tag {
+            background: rgba(255,255,255,0.25) !important;
+        }
+
+        /* ===== OCR 圖片辨識結果面板 ===== */
+        .ocr-panel {
+            background: white;
+            border-radius: 15px;
+            padding: 15px;
+            margin-top: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .ocr-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .ocr-panel-title {
+            font-weight: bold;
+            font-size: 15px;
+            color: #333;
+        }
+        .ocr-panel-count {
+            font-size: 12px;
+            color: #666;
+        }
+        .ocr-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            background: #f8f9fa;
+            cursor: pointer;
+        }
+        .ocr-item:hover { background: #e9ecef; }
+        .ocr-item input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; cursor: pointer; }
+        .ocr-item-name {
+            flex: 1;
+            font-size: 14px;
+            font-weight: 500;
+            color: #333;
+        }
+        .ocr-item-tag {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 8px;
+            white-space: nowrap;
+        }
+        .ocr-item-tag.tablet-tag { background: #fce4ec; color: #c2185b; }
+        .ocr-item-tag.kz-tag { background: #ede7f6; color: #7b1fa2; }
+        .ocr-item-tag.unmatched-tag { background: #fff3cd; color: #856404; }
+        /* OCR 校正對照樣式 */
+        .ocr-original {
+            font-size: 13px;
+            color: #888;
+            text-decoration: line-through;
+        }
+        .ocr-arrow {
+            margin: 0 6px;
+            color: #999;
+            font-size: 12px;
+        }
+        .ocr-matched {
+            font-size: 14px;
+            font-weight: 500;
+            color: #2e7d32;
+        }
+        .ocr-confirm-bar {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .ocr-confirm-bar .btn {
+            height: 42px;
+            font-size: 14px;
+            border-radius: 21px;
+            flex: 1;
+        }
+        .ocr-cancel-btn {
+            background: #6c757d !important;
+        }
+        .ocr-progress {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 14px;
+        }
+        .ocr-progress-bar {
+            height: 4px;
+            background: #e9ecef;
+            border-radius: 2px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        .ocr-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+        .ocr-result-item {
+            background: white;
+            border-radius: 10px;
+            padding: 12px;
+            margin-top: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🏥 BI庫存查詢系統</h1>
+        <div class="status" id="status">載入中...</div>
+        <div class="stats-grid" id="quickStats" style="display:none;">
+            <div class="stat-item"><span class="stat-number" id="totalItems">0</span>總項</div>
+            <div class="stat-item"><span class="stat-number" id="inStockItems">0</span>有貨</div>
+            <div class="stat-item"><span class="stat-number" id="outStockItems">0</span>缺貨</div>
+            <div class="stat-item"><span class="stat-number" id="bookingItems">0</span>預訂</div>
+        </div>
+    </div>
+
+    <div class="search-box">
+        <div class="btn-group">
+            <button class="btn-small" id="refreshBtn" onclick="loadData()">🔄 更新資料</button>
+            <button class="btn-small" onclick="document.getElementById('imageInput').click()">📷 圖片辨識</button>
+            <button class="btn-small" id="voiceBtn" onclick="startVoiceInput()">🎤 語音輸入</button>
+            <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleImage(event)">
+        </div>
+        <div class="btn-group">
+            <button class="btn-small" id="priceBtn" onclick="togglePrice()">💰 顯示價格</button>
+            <button class="btn-small btn-clear" onclick="clearInput()">🗑️ 清除</button>
+        </div>
+        </div>
+        <div class="autocomplete-wrapper">
+            <textarea id="input" placeholder="每行輸入一個產品&#10;範例：&#10;羌活勝濕湯錠&#10;苦參2&#10;語音/圖片自動比對資料庫"></textarea>
+            <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
+        </div>
+        <button class="btn" id="searchBtn" onclick="search()">🔍 查詢庫存</button>
+    </div>
+
+    <div id="result"></div>
+    <div id="ocrPanel"></div>
+
+    <div class="tip">
+        <strong>💡 使用提示：</strong>
+        <ul>
+            <li>✅ 有貨 = 可出貨 | ⚠️ 缺貨 = 無庫存（缺）| ⏳ 預訂 = 需等待（預）</li>
+            <li>數量輸入：生脈飲2 = 2罐</li>
+            <li>語音/圖片：自動比對資料庫（繁簡體）</li>
+            <li>點「顯示價格」查看詳細報價</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+// ===== 配置 =====
+// ===== Google Sheet 链接 =====
+const SHEET_URL_KEZHONG = 'https://docs.google.com/spreadsheets/d/1ekYUBtuQNjLB0RpWGCPJN7409sL74tqT36NfzUIM6o4/gviz/tq?tqx=out:csv';
+const SHEET_URL_TABLET = 'https://docs.google.com/spreadsheets/d/1e4EjRPC43YBAoPl4UyjZeEnS3XH7oKltgAG7k8wtfcc/gviz/tq?tqx=out:csv';
+
+// ===== 状态 =====
+let DB_KZ = {};      // 科中数据库
+let DB_TABLET = {};  // 锭劑数据库
+let showPrice = false;
+let lastLoadTime = null;  // 上次加载时间（毫秒）
+const STALE_MS = 5 * 60 * 1000;  // 5分钟后自动刷新
+
+// ===== 簡轉繁對照表 =====
+// 用於自動轉換用戶輸入的簡體字
+const S2T_MAP = {
+    '汤': '湯', '术': '朮', '参': '參', '黄': '黃', '当': '當',
+    '归': '歸', '泻': '瀉', '鸡': '雞', '痹': '痺', '风': '風',
+    '师': '師', '钟': '鐘', '别': '別', '颗': '顆', '丝': '絲',
+    '络': '絡', '经': '經', '结': '結', '练': '練', '约': '約',
+    '红': '紅', '级': '級', '纯': '純', '纱': '紗', '纳': '納',
+    '纸': '紙', '线': '線', '组': '組', '细': '細', '织': '織',
+    '终': '終', '绝': '絕', '统': '統', '继': '繼', '绩': '績',
+    '绪': '緒', '续': '續', '鱼': '魚', '龟': '龜', '麦': '麥',
+    '盐': '鹽', '药': '藥', '芦': '蘆', '苍': '蒼', '苏': '蘇',
+    '莱': '萊', '莲': '蓮', '营': '營', '萧': '蕭', '萨': '薩',
+    '虚': '虛', '虫': '蟲', '单': '單', '传': '傳', '伤': '傷',
+    '仪': '儀', '优': '優', '侠': '俠', '侨': '僑', '俩': '倆',
+    '俭': '儉', '债': '債', '偿': '償', '备': '備', '复': '復',
+    '壶': '壺', '处': '處', '夸': '誇', '夺': '奪', '奋': '奮',
+    '妇': '婦', '孙': '孫', '学': '學', '宝': '寶', '实': '實',
+    '宽': '寬', '对': '對', '导': '導', '尽': '盡', '层': '層',
+    '届': '屆', '属': '屬', '屡': '屢', '岁': '歲', '尧': '堯',
+    '巩': '鞏', '帘': '簾', '币': '幣', '帅': '帥', '帧': '幀',
+    '帮': '幫', '带': '帶', '坛': '壇', '坏': '壞', '坠': '墜',
+    '头': '頭', '坛': '壇', '坏': '壞', '坠': '墜'
+};
+
+// 簡轉繁函數
+const toTraditional = text => {
+    if (!text) return text;
+    return [...text].map(c => S2T_MAP[c] || c).join('');
+};
+
+// ===== 常见错别字对照表 =====
+// 格式：'正确名称': ['语音/OCR常见错误']
+// 根据库存表产品定制
+const TYPO_MAP = {
+    // === 1劃 ===
+    '一貫煎': ['一貫煎', '一罐煎', '一貫間', '一罐間', '一貫建', '一貫堅', '一貫碇', '一貫腚'],
+    '一貫煎錠': ['一貫煎錠', '一貫煎腚'],
+    '乙字湯': ['乙字湯', '以致湯', '一直湯', '一字湯', '已知湯'],
+
+    // === 2劃 ===
+    '二陳湯': ['二陳湯', '二沉湯', '二成湯'],
+    '八味地黃丸': ['八味地黃丸', '八味'],
+    '七寶美髯丹': ['七寶美髯丹', '七寶', '七寶美男丹'],
+    '九味羌活湯': ['九味羌活湯', '九味'],
+    '二朮湯': ['二朮湯', '二術湯'],
+    '人參養榮湯': ['人參養榮湯', '人參養榮', '人參營養湯'],
+    '十全大補湯': ['十全大補湯', '十全', '十全大補'],
+    '十味敗毒湯': ['十味敗毒湯', '十味'],
+    '十神湯': ['十神湯', '十神'],
+    '八正散': ['八正散', '八正'],
+    '八味帶下方': ['八味帶下方', '八味帶下'],
+    '八珍湯': ['八珍湯', '八珍'],
+
+    // === 3劃 ===
+    '大柴胡湯': ['大柴胡湯', '大柴胡'],
+    '小青龍湯': ['小青龍湯', '小青龍'],
+    '小柴胡湯': ['小柴胡湯', '小柴胡'],
+    '川芎茶調散': ['川芎茶調散', '川芎茶調', '川芎茶调散'],
+    '大黃蟅蟲丸': ['大黃蟅蟲丸', '大黃蟅蟲', '大黃庶蟲丸', '大黄蟅虫丸', '大王哲蟲丸', '大黃蟲丸', '大黃蟲丸', '大黃蟅蟲', '大黃之蟲丸'],
+    '小活絡丹': ['小活絡丹', '小活絡'],
+    '小陷胸湯': ['小陷胸湯', '小陷胸'],
+    '大承氣湯': ['大承氣湯', '大承氣'],
+    '小承氣湯': ['小承氣湯', '小承氣'],
+    '女科柏子仁丸': ['女科柏子仁丸', '女科柏子仁'],
+    '小建中湯': ['小建中湯', '小建中'],
+    '三黃瀉心湯': ['三黃瀉心湯', '三黃瀉心'],
+    '三痹湯': ['三痹湯', '三痺湯', '三必湯'],
+    '三痹湯錠': ['三痹湯錠', '三痺湯錠', '三必湯錠', '三婢湯錠', '三痹汤錠', '三痺汤錠', '三婢汤錠'],
+    '大秦艽湯': ['大秦艽湯', '大秦芨湯'],
+
+    // === 4劃 ===
+    '五苓散': ['五苓'],
+    '六君子湯': ['六君子'],
+    '六味地黃丸': ['六味'],
+    '天王補心丹': ['天王補心'],
+    '止嗽散': ['止嗽'],
+    '少腹逐瘀湯': ['少腹逐瘀'],
+    '天麻鉤藤飲': ['天麻鉤藤', '天麻钩藤', '天麻勾藤飲', '天麻鈎藤飲'],
+    '五淋散': ['五淋'],
+    '五積散': ['五積'],
+    '木香檳榔丸': ['木香檳榔'],
+
+    // === 5劃 ===
+    '加味逍遙散': ['加味逍遙散', '加味逍遙', '加味逍遥'],
+    '半夏天麻白朮湯': ['半夏天麻白朮湯', '半夏天麻', '半夏天麻白術'],
+    '半夏瀉心湯': ['半夏瀉心湯', '半夏瀉心'],
+    '右歸丸': ['右歸丸', '右歸'],
+    '四物湯': ['四物湯', '四物'],
+    '左歸丸': ['左歸丸', '左歸'],
+    '甘露飲': ['甘露飲', '甘露'],
+    '甘露消毒丹': ['甘露消毒丹', '甘露消毒', '甘露消毒單', '甘露消毒丸'],
+    '生脈飲': ['生脈飲', '生脈'],
+    '仙方活命飲': ['仙方活命飲', '仙方活命'],
+    '四君子湯': ['四君子湯', '四君子'],
+    '四逆散': ['四逆散', '四逆'],
+    '平胃散': ['平胃散', '平胃'],
+    '正骨紫金丹': ['正骨紫金丹', '正骨紫金'],
+    '玉泉丸': ['玉泉丸', '玉泉'],
+    '瓜蔞枳實湯': ['瓜蔞枳實湯', '瓜蔞枳實', '瓜蒌枳实汤'],
+    '甘麥大棗湯': ['甘麥大棗湯', '甘麥大棗', '甘脈大棗湯'],
+    '白虎湯': ['白虎湯', '白虎'],
+    '四逆湯': ['四逆湯', '四逆'],
+    '半夏厚朴湯': ['半夏厚朴湯', '半夏厚朴'],
+    '玉女煎': ['玉女煎', '玉女'],
+
+    // === 6劃 ===
+    '血府逐瘀湯': ['血府逐瘀湯', '血府逐瘀'],
+    '地黃飲子': ['地黃飲子', '地黃飲'],
+    '安中散': ['安中散', '安中'],
+    '百合固金湯': ['百合固金湯', '百合固金'],
+    '炙甘草湯': ['炙甘草湯', '炙甘草', '灸甘草湯', '加工草湯'],
+
+    // === 7劃 ===
+    '杏蘇散': ['杏蘇散', '杏蘇'],
+    '杞菊地黃丸': ['杞菊地黃丸', '杞菊', '杞菊地黃', '杞菊丸', '桂菊地黃丸', '起菊地黃丸'],
+    '身痛逐瘀湯': ['身痛逐瘀湯', '身痛逐瘀'],
+    '辛夷清肺湯': ['辛夷清肺湯', '辛夷清肺'],
+    '辛夷散': ['辛夷散', '辛夷'],
+    '防風通聖散': ['防風通聖散', '防風通聖', '防风通圣'],
+    '利鼻湯': ['利鼻湯', '利鼻'],
+    '完帶湯': ['完帶湯', '完帶'],
+    '抑肝散': ['抑肝散', '抑肝'],
+    '沙參麥冬湯': ['沙參麥冬湯', '沙參麥冬'],
+    '芍藥甘草湯': ['芍藥甘草湯', '芍藥甘草', '芍药甘草', '勺藥甘草', '灼藥甘草', '芍尤甘草'],
+    '芎歸膠艾湯': ['芎歸膠艾湯', '芎歸膠艾'],
+    '折衝飲': ['折衝飲', '折衝'],
+    '防己黃耆湯': ['防己黃耆湯', '防己黃耆', '防己黄芪'],
+    '延胡索': ['延胡索', '延胡所', '延湖索'],
+    '虎潛丸': ['虎潛丸', '虎潛', '虎前丸'],
+
+    // === 8劃 ===
+    '定喘湯': ['定喘湯', '定喘'],
+    '知柏地黃丸': ['知柏地黃丸', '知柏', '知柏地黃'],
+    '兒科杏蘇散': ['兒科杏蘇散', '兒科杏蘇'],
+    '羌活勝濕湯': ['羌活勝濕湯', '羌活勝濕'],
+    '附子理中湯': ['附子理中湯', '附子理中'],
+    '金鎖固精丸': ['金鎖固精丸', '金鎖固精'],
+
+    // === 9劃 ===
+    '苓桂朮甘湯': ['苓桂朮甘湯', '苓桂朮甘', '苓桂术甘'],
+    '香砂六君子湯': ['香砂六君子湯', '香砂六君子'],
+    '苓甘五味薑辛半夏杏仁湯': ['苓甘五味薑辛半夏杏仁湯', '苓甘五味'],
+    '保和丸': ['保和丸', '保和'],
+    '胃苓湯': ['胃苓湯', '胃苓'],
+    '洗肝明目散': ['洗肝明目散', '洗肝明目'],
+
+    // === 10劃 ===
+    '桂枝茯苓丸': ['桂枝茯苓丸', '桂枝茯苓'],
+    '柴胡加龍骨牡蠣湯': ['柴胡加龍骨牡蠣湯', '柴龍牡', '柴胡加龍骨', '柴胡加龙骨牡蛎'],
+    '柴胡清肝湯': ['柴胡清肝湯', '柴胡清肝'],
+    '桃紅四物湯': ['桃紅四物湯', '桃紅四物'],
+    '消風散': ['消風散', '消風', '消风'],
+    '真武湯': ['真武湯', '真武'],
+    '荊防敗毒散': ['荊防敗毒散', '荊防敗毒', '荊防敗德散'],
+    '荊芥連翹湯': ['荊芥連翹湯', '荊芥連翹', '荊芥連俏湯'],
+    '桂枝芍藥知母湯': ['桂枝芍藥知母湯', '桂枝芍藥知母'],
+    '桂枝湯': ['桂枝湯', '桂枝'],
+    '桑菊飲': ['桑菊飲', '桑菊', '桑鞠飲'],
+    '柴胡桂枝湯': ['柴胡桂枝湯', '柴胡桂枝'],
+    '柴胡疏肝湯': ['柴胡疏肝湯', '柴胡疏肝'],
+    '柴陷湯': ['柴陷湯', '柴陷', '柴鋥'],
+    '柴葛解肌湯': ['柴葛解肌湯', '柴葛解肌'],
+    '桃仁承氣湯': ['桃仁承氣湯', '桃仁承氣', '桃仁承記'],
+    '茵陳五苓散': ['茵陳五苓散', '茵陳五苓'],
+    '栝樓薤白半夏湯': ['栝樓薤白半夏湯', '栝樓薤白', '瓜蒌薤白半夏', '葛樓薤白'],
+    '桂枝加龍骨牡蠣湯': ['桂枝加龍骨牡蠣湯', '桂枝加龍骨牡蠣', '桂枝加龍骨牡力'],
+    '桔梗湯': ['桔梗湯', '桔梗', '吉梗'],
+    '桑螵蛸散': ['桑螵蛸散', '桑螵蛸'],
+    '烏藥順氣散': ['烏藥順氣散', '烏藥順氣'],
+    '益氣聰明湯': ['益氣聰明湯', '益氣聰明', '益志聰明'],
+
+    // === 11劃 ===
+    '清上防風湯': ['清上防風湯', '清上防風'],
+    '清心蓮子飲': ['清心蓮子飲', '清心蓮子'],
+    '理中湯': ['理中湯', '理中', '梨中'],
+    '疏經活血湯': ['疏經活血湯', '疏經活血'],
+    '逍遙散': ['逍遙散', '逍遙', '逍遥', '消遙'],
+    '麥門冬湯': ['麥門冬湯', '麥門冬', '麥門東', '賣門冬'],
+    '麻子仁丸': ['麻子仁丸', '麻子仁', '麻紫仁'],
+    '麻杏甘石湯': ['麻杏甘石湯', '麻杏甘石'],
+    '參苓白朮散': ['參苓白朮散', '參苓白朮', '参苓白术', '參靈白朮散', '參零白朮散', '身靈白朮散', '深苓白朮散', '參林白朮散', '身苓白朮散', '森苓白朮散', '蔘苓白朮湯', '蔘苓白朮散', '參苓白朮湯', '參苓白術散'],
+    '涼膈散': ['涼膈散', '涼膈', '凉膈', '良膈'],
+    '清上蠲痛湯': ['清上蠲痛', '清上蠲痛湯'],
+
+    // === 12劃 ===
+    '清心利膈湯': ['清心利膈湯', '清心利膈'],
+    '清肺湯': ['清肺湯', '清肺'],
+    '清胃散': ['清胃散', '清胃'],
+    '清氣化痰丸': ['清氣化痰丸', '清氣化痰'],
+    '清燥救肺湯': ['清燥救肺湯', '清燥救肺'],
+    '麻杏薏甘湯': ['麻杏薏甘湯', '麻杏薏甘'],
+    '麻黃附子細辛湯': ['麻黃附子細辛湯', '麻黃附子細辛'],
+    '清肺飲': ['清肺飲'],
+    '參蘇飲': ['參蘇飲', '參蘇'],
+    '旋覆代赭石湯': ['旋覆代赭石湯', '旋覆代赭', '旋复代赭石'],
+    '清空膏': ['清空膏', '清空'],
+    '清暑益氣湯': ['清暑益氣湯', '清暑益氣', '青屬意氣湯', '青樹益氣湯', '清數益氣湯', '清暑一氣湯'],
+    '麻黃湯': ['麻黃湯', '麻黃'],
+    '清鼻湯': ['清鼻湯', '清鼻'],
+    '散腫潰堅湯': ['散腫潰堅湯', '散腫潰堅'],
+    '普濟消毒飲': ['普濟消毒飲', '普濟消毒'],
+    '紫菀湯': ['紫菀湯', '紫菀'],
+    '越婢加朮湯': ['越婢加朮湯', '越婢加朮', '越婢加术'],
+    '黃耆五物湯': ['黃耆五物湯', '黃耆五物', '黄芪五物'],
+    '鈎藤散': ['鈎藤散', '鈎藤', '钩藤'],
+    '黃耆建中湯': ['黃耆建中湯', '黃耆建中', '黄芪建中'],
+    '復元活血湯': ['復元活血湯', '復元活血'],
+    '黃連解毒湯': ['黃連解毒湯', '黃連解毒'],
+
+    // === 13劃 ===
+    '溫經湯': ['溫經湯', '溫經'],
+    '當歸芍藥散': ['當歸芍藥散', '當歸芍藥', '當龜勺藥散', '當歸勺藥'],
+    '葛根湯': ['葛根湯', '葛根', '葛庚'],
+    '葛根黃芩黃連湯': ['葛根黃芩黃連湯', '葛根黃芩黃連', '葛根黃連湯'],
+    '補中益氣湯': ['補中益氣湯', '補中益氣', '补中益气', '不중益氣'],
+    '溫清飲': ['溫清飲', '溫清', '温清', '溫親'],
+    '當歸拈痛湯': ['當歸拈痛湯', '當歸拈痛', '当归拈痛', '當龜年痛'],
+    '當歸飲子': ['當歸飲子', '當歸飲'],
+    '補陽還五湯': ['補陽還五湯', '補陽還五', '不陽還五'],
+    '過期飲': ['過期飲', '過期'],
+    '溫膽湯': ['溫膽湯', '溫膽'],
+    '聖愈湯': ['聖愈湯', '聖愈', '聖喻'],
+    '當歸四逆湯': ['當歸四逆湯', '當歸四逆', '當龜四逆'],
+    '蒼耳散': ['蒼耳散', '蒼耳', '苍耳', '倉耳'],
+    '銀翹散': ['銀翹散', '銀翹', '银翘', '銀橋'],
+
+    '寧嗽丸': ['寧嗽丸', '寧嗽'],
+    '膈下逐瘀湯': ['膈下逐瘀湯', '膈下逐瘀'],
+
+    // === 14劃 ===
+    '潤腸湯': ['潤腸湯', '潤腸'],
+    '養心湯': ['養心湯', '養心'],
+    '養陰清肺湯': ['養陰清肺湯', '養陰清肺'],
+    '獨活寄生湯': ['獨活寄生湯', '獨活寄生', '毒活寄生', '獨活紀生'],
+    '龍膽瀉肝湯': ['龍膽瀉肝湯', '龍膽瀉肝', '龙胆泻肝', '膿淡瀉肝'],
+    '豬苓湯': ['豬苓湯', '豬苓', '朱苓'],
+    '龜鹿二仙膏': ['龜鹿二仙膏', '龜鹿二仙', '歸祿二仙'],
+    '導水茯苓湯': ['導水茯苓湯', '導水茯苓'],
+
+    // === 15劃 ===
+    '濟生腎氣丸': ['濟生腎氣丸', '濟生腎氣'],
+    '還少丹': ['還少丹', '還少'],
+    '薏苡仁湯': ['薏苡仁湯', '薏苡仁'],
+    '歸脾湯': ['歸脾湯', '歸脾'],
+    '瀉白散': ['瀉白散', '瀉白', '泻白'],
+    '瀉黃散': ['瀉黃散', '瀉黃', '泻黄'],
+
+    // === 16劃 ===
+    '蘇子降氣湯': ['蘇子降氣'],
+    '藿香正氣散': ['藿香正氣', '藿香正气'],
+    '蠲痹湯': ['蠲痹', '蠲痹湯', '蠲痺', '蠲痺湯'],
+    '響聲破笛丸': ['響聲破笛'],
+
+    // === 17-19劃 ===
+    // （重複條目已移除）
+
+    // === 單方 100g ===
+    '大黃': ['大黃', '大黄'],
+    '大棗': ['大棗'],
+    '山藥': ['山藥', '山药'],
+    '川芎': ['川芎'],
+    '川牛膝': ['川牛膝'],
+    '三七': ['三七'],
+    '丹參': ['丹參', '丹参'],
+    '木香': ['木香'],
+    '生地黃': ['生地黃', '生地黄'],
+    '玉米鬚': ['玉米鬚', '玉米须'],
+    '甘草': ['甘草'],
+    '白朮': ['白朮', '白术'],
+    '白芍': ['白芍'],
+    '白芷': ['白芷'],
+    '北板藍根': ['北板藍根', '北板蓝根', '板藍根', '板蓝根'],
+    '石菖蒲': ['石菖蒲'],
+    '何首烏': ['何首烏', '何首乌'],
+    '赤芍': ['赤芍'],
+    '辛夷': ['辛夷'],
+    '防風': ['防風', '防风'],
+    '牡丹皮': ['牡丹皮'],
+    '金銀花': ['金銀花', '金银花'],
+    '羌活': ['羌活'],
+    '知母': ['知母'],
+    '香附': ['香附'],
+    '厚朴': ['厚朴'],
+    '枳實': ['枳實', '枳实'],
+    '紅花': ['紅花', '红花'],
+    '枳殼': ['枳殼', '枳壳'],
+    '苦參': ['苦參', '苦参', '苦參根', '苦参根'],
+    '柏子仁': ['柏子仁'],
+    '炮附子': ['炮附子'],
+    '穿心蓮': ['穿心蓮', '穿心莲'],
+    '威靈仙': ['威靈仙', '威灵仙'],
+    '益母草': ['益母草'],
+    '桔梗': ['桔梗'],
+    '柴胡': ['柴胡'],
+    '秦艽': ['秦艽'],
+    '茯苓': ['茯苓'],
+    '荊芥': ['荊芥', '荆芥'],
+    '桂枝': ['桂枝'],
+    '桑葉': ['桑葉', '桑叶'],
+    '桑白皮': ['桑白皮'],
+    '浙貝母': ['浙貝母', '浙贝母'],
+    '茵陳蒿': ['茵陳蒿', '茵陈蒿'],
+    '夏枯草': ['夏枯草'],
+    '栝樓實': ['栝樓實', '瓜蒌实'],
+    '魚腥草': ['魚腥草', '鱼腥草'],
+    '乾薑': ['乾薑', '干姜'],
+    '淫羊藿': ['淫羊藿'],
+    '陳皮': ['陳皮', '陈皮'],
+    '荷葉': ['荷葉', '荷叶'],
+    '連翹': ['連翹', '连翘'],
+    '梔子': ['梔子', '栀子', '槴子'],
+    '槴': ['槴', '梔'],
+    '槴子': ['槴子', '梔子'],
+    '菊花': ['菊花'],
+    '黃耆': ['黃耆', '黄芪'],
+    '黃芩': ['黃芩', '黄芩'],
+    '黃柏': ['黃柏', '黄柏'],
+    '黃連': ['黃連', '黄连'],
+    '紫蘇葉': ['紫蘇葉', '紫苏叶'],
+    '番瀉葉': ['番瀉葉', '番泻叶'],
+    '當歸': ['當歸', '当归'],
+    '葛根': ['葛根'],
+    '蒼朮': ['蒼朮', '苍术'],
+    '蒼耳子': ['蒼耳子', '苍耳子'],
+    '綿茵陳': ['綿茵陳', '绵茵陈'],
+    '蒲黃': ['蒲黃', '蒲黄'],
+    '蒲公英': ['蒲公英'],
+    '廣藿香': ['廣藿香', '广藿香'],
+    '熟地黃': ['熟地黃', '熟地黄'],
+    '澤瀉': ['澤瀉', '泽泻'],
+    '獨活': ['獨活', '独活'],
+    '龍膽': ['龍膽', '龙胆'],
+    '薑黃': ['薑黃', '姜黄'],
+    '鎖陽': ['鎖陽', '锁阳'],
+    '懷牛膝': ['懷牛膝'],
+    '黨參': ['黨參', '党参'],
+    '續斷': ['續斷', '续断'],
+    '鬱金': ['鬱金', '郁金'],
+
+    // === 單方 200g ===
+    '麻黃': ['麻黃', '麻黄'],
+};
+
+// ===== 工具函数 =====
+// 判断是否为锭劑（包含"锭"或同音字）
+const TABLET_SUFFIX = ['錠', '锭', '碇', '碙'];
+const isTablet = name => TABLET_SUFFIX.some(c => name.includes(c));
+
+// 判断是否为单方（不是复方制剂）
+// 复方特征：湯、散、丸、飲、煎、膏 + 明確的複方關鍵字
+// 注意：锭劑单独分类
+const isSingleHerb = name => {
+    if (isTablet(name)) return false;  // 锭劑单独分类
+    if (name.includes('複方')) return false;
+    const isComplex = ['湯','散','丸','飲','煎','膏'].some(c => name.includes(c));
+    if (isComplex) return false;
+    return true;
+};
+
+const parseCSVLine = line => {
+    const result = [];
+    let current = '', inQuotes = false;
+    for (const c of line) {
+        if (c === '"') inQuotes = !inQuotes;
+        else if (c === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
+        else current += c;
+    }
+    result.push(current.trim());
+    return result;
+};
+
+const parseCSV = (csvText, source = 'kezhong') => {
+    const data = {};
+    const skipWords = ['劃', '品名', '單方', '目前', '每日', '實際', '以上'];
+
+    csvText.split('\n').slice(1).forEach(line => {
+        const row = parseCSVLine(line);
+        for (let j = 0; j < row.length; j += 4) {
+            const [name, status, price] = [row[j], row[j+1], row[j+2]];
+            if (name && !skipWords.some(w => name.includes(w))) {
+                // ===== 庫存狀態轉換規則 =====
+                // 科中庫（source='kezhong'）：
+                //   低 → 有貨，無 → 缺貨，缺 → 有貨（目前無預訂品項）
+                // 錠劑庫（source='tablet'）：
+                //   低 → 有貨，無 → 缺貨，預 → 預訂（目前無「缺」狀態）
+                let stockStatus;
+                if (status === '低') {
+                    stockStatus = '有货';
+                } else if (status === '無') {
+                    stockStatus = '缺货';
+                } else if (status === '缺') {
+                    if (source === 'kezhong') {
+                        stockStatus = '有货';
+                    } else {
+                        const isSingle = isSingleHerb(name);
+                        stockStatus = isSingle ? '有货' : '缺货';
+                    }
+                } else if (status && (status.includes('預') || status.includes('订') || status.includes('定'))) {
+                    stockStatus = '預訂';
+                } else {
+                    stockStatus = '有货';
+                }
+                data[name] = [stockStatus, price?.replace(/,/g, '') || '時價'];
+            }
+        }
+    });
+    return data;
+};
+
+// ===== 科中专用匹配函数 =====
+// 匹配规则：
+// - 2字查询：只做精确比对，找不到显示「找不到」
+// - 3+字查询：允许模糊匹配，匹配结果与输入不同显示「有疑问」
+const findBestMatchInKZ = query => {
+    if (!query || !Object.keys(DB_KZ).length) return null;
+
+    // 1. 精确匹配（所有长度都执行）
+    if (DB_KZ[query]) return { name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], corrected: false, fuzzy: false };
+
+    // 2. 错别字匹配
+    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
+        if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
+            if (DB_KZ[correct]) return { name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], corrected: true, fuzzy: true, original: query };
+        }
+    }
+
+    // 3. 2字查询只做精确比对，找不到就返回null
+    if (query.length === 2) {
+        return null;
+    }
+
+    // 4. 3+字查询：包含匹配 + 模糊匹配
+    const allNames = Object.keys(DB_KZ).sort((a, b) => b.length - a.length);
+
+    // 4a. 單方包含匹配
+    for (const name of allNames) {
+        if (isSingleHerb(name) && name.includes(query)) {
+            return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: name !== query, fuzzy: name !== query, original: query };
+        }
+    }
+
+    // 4b. 复方包含匹配（按名称长度降序，优先匹配最长的）
+    for (const name of allNames) {
+        if (!isSingleHerb(name)) {
+            if (name.includes(query)) {
+                return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: name !== query, fuzzy: name !== query, original: query };
+            }
+        }
+    }
+
+    // 4c. 模糊匹配（3+字，门槛70%，防止短名稱錯配到長名稱）
+    let best = null, bestScore = 0.7;
+    for (const [name, data] of Object.entries(DB_KZ)) {
+        const chars = [...query].filter(c => name.includes(c));
+        const score = chars.length / query.length;
+        if (score > bestScore) {
+            bestScore = score;
+            best = { name, status: data[0], price: data[1], corrected: true, fuzzy: true, original: query };
+        }
+    }
+    if (best) return best;
+
+    return null;
+};
+
+// ===== 锭劑专用匹配函数 =====
+// 规则：与科中相同的匹配规则，但只在锭劑库中匹配
+const findBestMatchInTablet = query => {
+    if (!query || !Object.keys(DB_TABLET).length) return null;
+
+    // 1. 精确匹配
+    if (DB_TABLET[query]) return { name: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1], corrected: false, fuzzy: false };
+
+    // 2. 错别字匹配（锭劑专用，顯示有疑問讓客戶確認）
+    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
+        if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
+            if (DB_TABLET[correct]) return { name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1], corrected: true, fuzzy: true };
+        }
+    }
+
+    // 3. 移除末尾常見後綴後加上「錠」比對（處理用戶輸入「羌活勝濕湯」查不到「羌活勝濕湯錠」的問題）
+    for (const suffix of ['湯', '散', '丸', '飲', '膏', '丹', '煎', '劑', '露']) {
+        if (query.endsWith(suffix)) {
+            const tryTablet = query.slice(0, -suffix.length) + TABLET_SUFFIX[0];
+            if (DB_TABLET[tryTablet]) return { name: tryTablet, status: DB_TABLET[tryTablet][0], price: DB_TABLET[tryTablet][1], corrected: true, fuzzy: true };
+        }
+    }
+
+    // 4. 移除"錠"后精确匹配（顯示有疑問）
+    const queryWithoutDing = query.replace(new RegExp(`[${TABLET_SUFFIX.join('')}]$`), '').trim();
+    const tabletName = queryWithoutDing + TABLET_SUFFIX[0];
+    if (DB_TABLET[tabletName]) return { name: tabletName, status: DB_TABLET[tabletName][0], price: DB_TABLET[tabletName][1], corrected: true, fuzzy: true };
+
+    // 5. 包含匹配（锭劑库中按长度降序，模糊）
+    const allTabletNames = Object.keys(DB_TABLET).sort((a, b) => b.length - a.length);
+    for (const name of allTabletNames) {
+        if (name === query || name.includes(query)) {
+            return { name, status: DB_TABLET[name][0], price: DB_TABLET[name][1], corrected: name !== query, fuzzy: name !== query };
+        }
+    }
+
+    // 6. 模糊匹配（仅3字以上，门槛70%，防止短名稱錯配到長名稱）
+    if (query.length >= 3) {
+        let best = null, bestScore = 0.7;
+        for (const [name, data] of Object.entries(DB_TABLET)) {
+            const matchedChars = [...query].filter(c => name.includes(c));
+            const score = matchedChars.length / query.length;
+            if (score > bestScore) {
+                bestScore = score;
+                best = { name, status: data[0], price: data[1], corrected: true, fuzzy: true };
+            }
+        }
+        if (best) return best;
+    }
+
+    return null;
+};
+
+// ===== 自動補全功能（科中資料庫）=====
+let autocompleteIndex = -1;
+let autocompleteItems = [];
+let autocompleteVisible = false;
+
+// 初始化自動補全
+function initAutocomplete() {
+    const textarea = document.getElementById('input');
+    const dropdown = document.getElementById('autocompleteDropdown');
+
+    // 監聽輸入事件
+    textarea.addEventListener('input', handleAutocompleteInput);
+
+    // 監聽鍵盤事件
+    textarea.addEventListener('keydown', handleAutocompleteKeydown);
+
+    // 點擊 textarea 關閉下拉選單（貼上後點擊輸入欄可收起選單）
+    textarea.addEventListener('click', () => {
+        hideAutocomplete();
+    });
+
+    // 點擊其他地方關閉下拉選單
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.autocomplete-wrapper')) {
+            hideAutocomplete();
+        }
+    });
+}
+
+// 處理輸入事件
+function handleAutocompleteInput(e) {
+    const textarea = e.target;
+    const value = textarea.value;
+
+    // 取得當前行的文字
+    const cursorPos = textarea.selectionStart;
+    const lines = value.substring(0, cursorPos).split('\n');
+    const currentLine = lines[lines.length - 1].trim();
+
+    // 清理行文字（移除數量）
+    const cleanLine = currentLine.replace(/[\d瓶罐包盒顆粒]+$/, '').trim();
+
+    // 至少輸入 1 個字才觸發
+    if (cleanLine.length >= 1 && Object.keys(DB_KZ).length > 0) {
+        showAutocompleteSuggestions(cleanLine);
+    } else {
+        hideAutocomplete();
+    }
+}
+
+// 處理鍵盤事件
+function handleAutocompleteKeydown(e) {
+    const dropdown = document.getElementById('autocompleteDropdown');
+
+    if (!autocompleteVisible) return;
+
+    switch (e.key) {
+        case 'ArrowDown':
+            e.preventDefault();
+            autocompleteIndex = Math.min(autocompleteIndex + 1, autocompleteItems.length - 1);
+            updateAutocompleteSelection();
+            break;
+
+        case 'ArrowUp':
+            e.preventDefault();
+            autocompleteIndex = Math.max(autocompleteIndex - 1, 0);
+            updateAutocompleteSelection();
+            break;
+
+        case 'Enter':
+        case 'Tab':
+            if (autocompleteIndex >= 0) {
+                e.preventDefault();
+                selectAutocompleteItem(autocompleteItems[autocompleteIndex]);
+            }
+            break;
+
+        case 'Escape':
+            hideAutocomplete();
+            break;
+    }
+}
+
+// 顯示補全建議
+// autoSelect=true: 若第一個結果分數 100，自動選取並執行查詢
+function showAutocompleteSuggestions(query, autoSelect = false) {
+    const dropdown = document.getElementById('autocompleteDropdown');
+
+
+    if (!query || query.length < 1) {
+        hideAutocomplete();
+        return;
+    }
+
+    // 從 DB_KZ 和 DB_TABLET 中搜尋匹配項
+    // 策略：與 main query 完全一致的匹配邏輯
+    // 1. 先用 typo map + 精確匹配（最高分）
+    // 2. 再用包含匹配（高分）
+    // 3. 最後 fuzzy 匹配（門檻 50%）
+    const matches = [];
+    const isTabletInput = TABLET_SUFFIX.some(c => query.includes(c));
+
+    // 步驟A：Typo map 精確匹配（兩庫都查，取最高分）
+    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
+        const allNames = [correct, ...(Array.isArray(typos) ? typos : [])];
+        if (!allNames.includes(query)) continue;
+        // KZ 精確匹配
+        if (DB_KZ[correct]) {
+            matches.push({ name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], score: 100, matchType: 'typo-exact', dbType: '科中' });
+        }
+        // Tablet 精確匹配
+        if (DB_TABLET[correct]) {
+            matches.push({ name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1], score: 100, matchType: 'typo-exact', dbType: '錠劑' });
+        }
+    }
+
+    // 步驟B：直接精確匹配
+    if (DB_KZ[query]) matches.push({ name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], score: 100, matchType: 'exact', dbType: '科中' });
+    if (DB_TABLET[query]) matches.push({ name: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1], score: 100, matchType: 'exact', dbType: '錠劑' });
+
+    // 步驟C：移除後綴 + 加「錠」匹配（Tablet suffix 時使用，與 main query 一致）
+    if (isTabletInput) {
+        for (const suffix of ['湯','散','丸','飲','膏','丹','煎','劑','露']) {
+            if (query.endsWith(suffix)) {
+                const tryTablet = query.slice(0, -suffix.length) + '錠';
+                if (DB_TABLET[tryTablet] && !matches.some(m => m.name === tryTablet)) {
+                    matches.push({ name: tryTablet, status: DB_TABLET[tryTablet][0], price: DB_TABLET[tryTablet][1], score: 95, matchType: 'suffix-convert', dbType: '錠劑' });
+                }
+                break;
+            }
+        }
+    }
+
+    // 步驟D：包含匹配（key 包含 query 或 query 包含 key）
+    console.log('[autocomplete] Step D: scanning DB_KZ', Object.keys(DB_KZ).length, 'entries for query:', JSON.stringify(query));
+    let stepDCount = 0;
+    for (const [name, data] of Object.entries(DB_KZ)) {
+        if (matches.some(m => m.name === name)) continue;
+        if (name.includes(query) || query.includes(name)) {
+            matches.push({ name, status: data[0], price: data[1], score: 80, matchType: 'contains', dbType: '科中' });
+            stepDCount++;
+        }
+    }
+
+    for (const [name, data] of Object.entries(DB_TABLET)) {
+        if (matches.some(m => m.name === name)) continue;
+        if (name.includes(query) || query.includes(name)) {
+            matches.push({ name, status: data[0], price: data[1], score: 80, matchType: 'contains', dbType: '錠劑' });
+        }
+    }
+
+    // 步驟E：模糊匹配（門檻 50%，query ≥ 3 字）
+    if (query.length >= 3) {
+        const allKZ = Object.entries(DB_KZ);
+        const allTab = Object.entries(DB_TABLET);
+        for (const [name, data] of allKZ) {
+            if (matches.some(m => m.name === name)) continue;
+            const matchedChars = [...query].filter(c => name.includes(c));
+            const score = Math.round((matchedChars.length / query.length) * 80);
+            if (score >= 40) matches.push({ name, status: data[0], price: data[1], score, matchType: 'fuzzy', dbType: '科中' });
+        }
+        for (const [name, data] of allTab) {
+            if (matches.some(m => m.name === name)) continue;
+            const matchedChars = [...query].filter(c => name.includes(c));
+            const score = Math.round((matchedChars.length / query.length) * 80);
+            if (score >= 40) matches.push({ name, status: data[0], price: data[1], score, matchType: 'fuzzy', dbType: '錠劑' });
+        }
+    }
+
+    // 去重：同名只保留最高分
+    const deduped = [];
+    for (const m of matches) {
+        const existing = deduped.find(d => d.name === m.name);
+        if (!existing || m.score > existing.score) {
+            if (existing) deduped.splice(deduped.indexOf(existing), 1);
+            deduped.push(m);
+        }
+    }
+
+    // 用 deduped 替換 matches 後面的排序
+    matches.length = 0;
+    matches.push(...deduped);
+
+    // 按匹配度排序
+    matches.sort((a, b) => {
+        // 1. 最高優先：名稱開頭匹配 query（用戶最可能要找的）
+        const aStartsWith = a.name.startsWith(query) ? 0 : 1;
+        const bStartsWith = b.name.startsWith(query) ? 0 : 1;
+        if (aStartsWith !== bStartsWith) return aStartsWith - bStartsWith;
+        // 2. 次優先：有貨 > 預訂 > 其他 > 缺貨
+        const stockRank = (s) => s === '有货' ? 0 : s === '預訂' ? 1 : s === '缺货' ? 3 : 2;
+        const rankA = stockRank(a.status);
+        const rankB = stockRank(b.status);
+        if (rankA !== rankB) return rankA - rankB;
+        // 3. 同狀態，優先分數高
+        return b.score - a.score;
+    });
+
+    const topMatches = matches.slice(0, 48);
+
+
+    if (topMatches.length === 0) {
+        dropdown.innerHTML = '<div class="autocomplete-empty">無匹配項目</div>';
+        dropdown.classList.add('show');
+        autocompleteVisible = true;
+        autocompleteItems = [];
+        autocompleteIndex = -1;
+        return;
+    }
+
+    // 構建下拉選單
+    dropdown.innerHTML = topMatches.map((item, index) => {
+        const stockClass = item.status === '有货' ? 'in-stock' : item.status === '預訂' ? 'booking' : 'out-stock';
+        const stockText = item.status === '有货' ? '✅ 有貨' : item.status === '預訂' ? '⏳ 預訂' : '⚠️ 缺貨';
+        const dbClass = item.dbType === '科中' ? 'db-kz' : 'db-tablet';
+        return `
+            <div class="autocomplete-item" data-index="${index}" data-name="${item.name}">
+                <span class="match-text">
+                    <span class="db-tag ${dbClass}">${item.dbType}</span>
+                    ${highlightMatch(item.name, query)}
+                </span>
+                <span class="stock-hint ${stockClass}">${stockText}</span>
+            </div>
+        `;
+    }).join('');
+
+    // 綁定點擊事件
+    dropdown.querySelectorAll('.autocomplete-item').forEach(el => {
+        el.addEventListener('click', () => {
+            const index = parseInt(el.dataset.index);
+            selectAutocompleteItem(topMatches[index]);
+        });
+        el.addEventListener('mouseenter', () => {
+            autocompleteIndex = parseInt(el.dataset.index);
+            updateAutocompleteSelection();
+        });
+    });
+
+    dropdown.classList.add('show');
+    autocompleteVisible = true;
+    autocompleteItems = topMatches;
+    autocompleteIndex = -1;
+
+    // =========================================================
+    // 【自動選取】autoSelect=true 且第一個結果分數=100 時直接執行
+    // =========================================================
+    if (autoSelect && topMatches.length > 0 && topMatches[0].score === 100) {
+        // 延後一幀執行，確保 DOM 已渲染完成
+        setTimeout(() => {
+            selectAutocompleteItem(topMatches[0]);
+        }, 50);
+    }
+}
+
+// 計算匹配分數（只匹配開頭）
+function calculateMatchScore(query, name) {
+    // 只匹配開頭
+    if (name.startsWith(query)) {
+        return { score: 100 - name.length, type: 'prefix' };
+    }
+
+    return { score: 0, type: 'none' };
+}
+
+// 高亮匹配部分
+function highlightMatch(name, query) {
+    if (name.startsWith(query)) {
+        return `<strong>${query}</strong>${name.slice(query.length)}`;
+    }
+    if (name.includes(query)) {
+        return name.replace(query, `<strong>${query}</strong>`);
+    }
+    // 首字匹配時高亮首字
+    if (name[0] === query[0]) {
+        return `<strong>${name[0]}</strong>${name.slice(1)}`;
+    }
+    return name;
+}
+
+// 更新選中狀態
+function updateAutocompleteSelection() {
+    const dropdown = document.getElementById('autocompleteDropdown');
+    const items = dropdown.querySelectorAll('.autocomplete-item');
+
+    items.forEach((el, index) => {
+        if (index === autocompleteIndex) {
+            el.classList.add('selected');
+            el.scrollIntoView({ block: 'nearest' });
+        } else {
+            el.classList.remove('selected');
+        }
+    });
+}
+
+// 選擇補全項目
+function selectAutocompleteItem(item) {
+    const textarea = document.getElementById('input');
+    const value = textarea.value;
+    const cursorPos = textarea.selectionStart;
+
+    // 找到當前行的開始和結束位置
+    const lines = value.split('\n');
+    let lineStart = 0;
+    let lineIndex = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+        if (lineStart + lines[i].length >= cursorPos) {
+            lineIndex = i;
+            break;
+        }
+        lineStart += lines[i].length + 1; // +1 for newline
+    }
+
+    // 保留原來的數量（如果有）
+    const currentLine = lines[lineIndex];
+    const numMatch = currentLine.match(/(\d+)$/);
+    const quantity = numMatch ? numMatch[1] : '';
+
+    // 替換當前行為選中的產品名（保留數量）
+    lines[lineIndex] = item.name + quantity;
+
+    // 在選取行後加一空行，方便連續輸入
+    lines.splice(lineIndex + 1, 0, '');
+
+    // 更新 textarea 值
+    textarea.value = lines.join('\n');
+
+    // 將游標移到下一行開頭
+    const newPos = lineStart + lines[lineIndex].length + 1; // +1 for newline
+    textarea.setSelectionRange(newPos, newPos);
+    textarea.focus();
+
+    hideAutocomplete();
+}
+
+// 隱藏補全選單
+function hideAutocomplete() {
+    const dropdown = document.getElementById('autocompleteDropdown');
+    dropdown.classList.remove('show');
+    autocompleteVisible = false;
+    autocompleteIndex = -1;
+    autocompleteItems = [];
+}
+
+// ===== 核心功能 =====
+async function loadData() {
+    const btn = document.getElementById('refreshBtn');
+    const status = document.getElementById('status');
+    const searchBtn = document.getElementById('searchBtn');
+
+    btn.disabled = true;
+    btn.textContent = '載入中...';
+    searchBtn.disabled = true;
+
+    try {
+        // 同时加载两个 Sheet
+        const [res1, res2] = await Promise.all([
+            fetch(SHEET_URL_KEZHONG),
+            fetch(SHEET_URL_TABLET)
+        ]);
+
+        if (!res1.ok || !res2.ok) throw new Error('網路錯誤');
+
+        // 解析两个 Sheet
+        DB_KZ = parseCSV(await res1.text(), 'kezhong');
+        DB_TABLET = parseCSV(await res2.text(), 'tablet');
+
+        const kzCount = Object.keys(DB_KZ).length;
+        const tabletCount = Object.keys(DB_TABLET).length;
+        lastLoadTime = Date.now();  // 记录加载时间
+        status.textContent = `✅ 資料已更新: ${new Date().toLocaleTimeString()} (${kzCount + tabletCount}項)`;
+        
+        // 更新快速統計
+        document.getElementById('totalItems').textContent = kzCount + tabletCount;
+        document.getElementById('quickStats').style.display = 'grid';
+        
+        searchBtn.disabled = false;
+
+    } catch (e) {
+        console.error('載入失敗:', e);
+        status.textContent = '❌ 載入失敗，請重新整理';
+        document.getElementById('result').innerHTML = '<div class="error">無法連線 Google Sheet<br>請檢查網路後點「更新資料」</div>';
+    }
+
+    btn.textContent = '更新資料';
+    btn.disabled = false;
+}
+
+// ===== 页面加载时自动抓资料 =====
+window.addEventListener('load', function() {
+    loadData();
+    initAutocomplete();  // 初始化自動補全
+});
+
+// ===== 离开页面时自动关闭麦克风 =====
+window.addEventListener('beforeunload', function() {
+    if (isListening && recognition) {
+        recognition.stop();
+        recognition = null;
+        isListening = false;
+    }
+});
+
+// 當頁面不可見時自動停止錄音（切換標籤頁或最小化視窗）
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden && isListening && recognition) {
+        recognition.stop();
+        recognition = null;
+        isListening = false;
+        const voiceBtn = document.getElementById('voiceBtn');
+        if (voiceBtn) {
+            voiceBtn.textContent = '🎤 語音輸入';
+            voiceBtn.style.background = '#667eea';
+        }
+    }
+});
+
+function search() {
+    // 关闭麦克风（如果在录音中）
+    if (isListening && recognition) {
+        recognition.stop();
+        recognition = null;
+        isListening = false;
+        const voiceBtn = document.getElementById('voiceBtn');
+        voiceBtn.textContent = '🎤 語音輸入';
+        voiceBtn.style.background = '#667eea';
+    }
+
+    // 检查数据——首次查询或超过5分钟未刷新时自动更新
+    const isStale = !lastLoadTime || (Date.now() - lastLoadTime > STALE_MS);
+    const needsLoad = !Object.keys(DB_KZ).length || !Object.keys(DB_TABLET).length;
+
+    if (needsLoad) {
+        // 没有资料：显示提示，让用户点更新按钮
+        document.getElementById('result').innerHTML = '<div class="error">請先點「🔄 更新資料」載入庫存資料</div>';
+        return;
+    }
+    if (isStale) {
+        // 数据过期：后台静默刷新
+        lastLoadTime = Date.now();
+        loadData();  // 异步后台刷新，不阻塞查询
+    }
+
+    const inputEl = document.getElementById('input');
+    const lines = inputEl.value.trim().split('\n').map(l => l.trim()).filter(Boolean);
+
+    if (!lines.length) {
+        inputEl.focus();
+        return;
+    }
+
+    const skipKeywords = ['100g', '200g', '錠劑', '錠', '謝謝', '谢谢'];
+    let results = [];  // 保存结果，保持顺序
+    let copyText = '';
+    let stats = { inStock: 0, outStock: 0, booking: 0, total: 0 };
+    let firstLine = true;
+
+    for (const line of lines) {
+        // 跳过规格行
+        if (skipKeywords.includes(line.toLowerCase())) {
+            copyText += line + '\n';
+            continue;
+        }
+
+        // 跳过客户名逻辑已删除
+        // 原因：如果客户输入的是公司没有的产品应该显示"找不到"，才对客户有帮助
+        if (firstLine) {
+            firstLine = false;
+        }
+
+        // 检查是否为规格关键词（100G, 200G, 單方, 複方, 錠劑）
+
+        // 白名单：包含这些关键词的行不当作规格关键词，直接匹配库存
+
+        const SPEC_KW_REG = /^(100G|200G|單方|複方|錠劑|科中)\s*(?:\+?\d{1,2})?\s*$/;
+        const isSpecification = SPEC_KW_REG.test(line.trim());
+        
+        if (isSpecification) {
+            // 规格关键词直接输出，不进行产品匹配
+            copyText += line + '\n';
+            const specQtyMatch = line.match(/\+?(\d{1,2})$/);
+            const specQty = specQtyMatch ? parseInt(specQtyMatch[1]) : 1;
+            results.push({ displayName: line.trim(), outputName: line.trim(), qty: specQty, status: 'specification', source: 'spec' });
+            continue;
+        }
+
+        // 解析产品名和数量
+        // 1. 先從原始行抓出結尾的「符號+數量」（如 /3、*3、-3、x12、x 12）允許數字後接瓶/罐等單位字
+        const trailingMatch = line.match(/[\s\*\-\+\/xX]*(\d{1,2})(?:[瓶罐包盒顆粒]|\s|$)/i);
+        const qty = trailingMatch ? parseInt(trailingMatch[1]) : 1;
+        const hasUserQty = !!trailingMatch;
+
+        // 2. 清除：移除常見單位詞、前綴 x/×/∗、結尾的 符號（只留數字）
+        let cleanLine = line
+            .replace(/[x×∗]/gi, '')                                    // 前綴 x/×/∗
+            .replace(/[瓶罐包盒顆粒]/g, '')                             // 單位
+            .replace(/^\+/, '')                                         // 前置 +
+            .replace(/[\s\*\-+xX/\s]+(\d{1,2})(\s*)$/i, '$1$2').trim(); // 結尾 符號+數字 → 只留數字
+
+        // 3. 移除末尾殘留的數字得到產品名
+        const originalProductName = cleanLine.replace(/\d{1,2}$/, '').trim();
+        const query = toTraditional(originalProductName);  // 簡轉繁再匹配
+
+        if (!query) continue;
+
+        // 判断是锭劑还是科中
+        const isTabletInput = TABLET_SUFFIX.some(c => query.includes(c));
+
+        let result = null;
+
+        if (isTabletInput) {
+            // 锭劑：3个字以上进行模糊匹配锭劑库
+            const tabletResult = findBestMatchInTablet(query);
+            if (tabletResult) {
+                result = { displayName: tabletResult.name, status: tabletResult.status, price: tabletResult.price, source: 'tablet', corrected: tabletResult.corrected, fuzzy: tabletResult.fuzzy };
+            }
+        } else {
+            // 科中：使用完整匹配逻辑
+            const kzResult = findBestMatchInKZ(query);
+            if (kzResult) {
+                result = { displayName: kzResult.name, status: kzResult.status, price: kzResult.price, source: 'kz', corrected: kzResult.corrected, fuzzy: kzResult.fuzzy };
+            }
+        }
+
+        if (result) {
+            const { displayName, status, price, source, fuzzy } = result;
+            const unitPrice = price === '時價' ? 0 : parseInt(price) || 0;
+            const totalPrice = unitPrice * qty;
+            const isInStock = status === '有货';
+            const isBooking = status === '預訂';
+
+            // 更新统计
+            if (isBooking) {
+                stats.booking += qty;
+            } else if (isInStock) {
+                stats.inStock += qty;
+                stats.total += totalPrice;
+            } else {
+                stats.outStock += qty;
+            }
+
+            // 输出时组合：产品名 + 数量（qty > 1 或用户明确输入数量时显示）
+            const outputName = displayName + ((qty > 1 || hasUserQty) ? qty : '');
+
+            // 复制文本 - 只保留有货和预订品项
+            if (isInStock) {
+                copyText += outputName + '\n';
+            } else if (isBooking) {
+                copyText += outputName + '（預）\n';
+            }
+            // 缺货品项不输出到复制文本
+
+            // 保存结果
+            results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source, fuzzy, hasUserQty });
+        } else {
+            const outputNameForNotFound = originalProductName + ((qty > 1 || hasUserQty) ? qty : '');
+            copyText += outputNameForNotFound + '\t找不到\n';
+            results.push({ displayName: originalProductName, outputName: outputNameForNotFound, qty: qty, status: 'not_found', source: 'none' });
+        }
+    }
+
+    // 构建HTML（保持输入顺序）
+    let html = '';
+
+    for (const item of results) {
+        if (item.status === 'not_found') {
+            html += `<div class="result-item">
+                <div class="name">${item.outputName}</div>
+                <div class="badge not-found">找不到</div>
+            </div>`;
+        } else if (item.status === 'specification') {
+            // 规格关键词：直接显示，不加状态
+            html += `<div class="result-item">
+                <div class="name">${item.outputName}</div>
+                <div class="badge spec">規格</div>
+            </div>`;
+        } else {
+            const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
+            const statusClass = item.isBooking ? 'booking' : item.isInStock ? 'in-stock' : 'out-stock';
+            const badgeContent = item.isBooking ? '⏳ 預訂' : item.isInStock ? '✅ 有貨' : '⚠️ 缺貨';
+            const fuzzyBadge = (item.fuzzy && !item.hasUserQty) ? '<span class="fuzzy-badge">❓ 有疑問</span>' : '';
+            const nameWithStatus = item.outputName + (item.isBooking ? '（預）' : item.isInStock ? '✅' : '（缺）');
+            html += `<div class="result-item">
+                <div class="name">${nameWithStatus}${fuzzyBadge}</div>
+                <div class="badge ${statusClass}">${badgeContent}</div>
+                <div class="price">${priceStr}</div>
+            </div>`;
+        }
+    }
+
+    // 汇总统计
+    html += `<div class="summary">
+        <div class="total">${showPrice && stats.total > 0 ? stats.total + ' 元' : '查詢完成'}</div>
+        <div class="count">✅ 有貨 ${stats.inStock} 項 | ⚠️ 缺貨 ${stats.outStock} 項 | ⏳ 預訂 ${stats.booking} 項</div>
+    </div>`;
+    
+    // 更新快速統計
+    document.getElementById('inStockItems').textContent = stats.inStock;
+    document.getElementById('outStockItems').textContent = stats.outStock;
+    document.getElementById('bookingItems').textContent = stats.booking;
+
+    // 复制框
+    html += `<div class="copy-box">
+        <h4>📋 查詢結果（可複製）</h4>
+        <div class="copy-content" id="copyContent">${copyText}</div>
+        <button class="copy-btn" id="copyBtn">複製結果</button>
+    </div>`;
+
+    // 更新DOM
+    document.getElementById('result').innerHTML = html;
+
+    // 绑定复制按钮
+    document.getElementById('copyBtn').addEventListener('click', function() {
+        navigator.clipboard.writeText(copyText).then(() => {
+            this.textContent = '✅ 已複製！';
+            this.classList.add('copied');
+            setTimeout(() => {
+                this.textContent = '複製結果';
+                this.classList.remove('copied');
+            }, 1500);
+        }).catch(err => {
+            console.error('複製失敗:', err);
+            alert('複製失敗，請手動複製');
+        });
+    });
+}
+
+function clearInput() { document.getElementById('input').value = ''; document.getElementById('result').innerHTML = ''; }
+function togglePrice() { showPrice = !showPrice; document.getElementById('priceBtn').textContent = showPrice ? '🙈 隱藏價格' : '💰 顯示價格'; if (document.getElementById('input').value) search(); }
+
+// ===== 语音输入 =====
+let recognition = null;
+let isListening = false;
+
+function startVoiceInput() {
+    const btn = document.getElementById('voiceBtn');
+
+    // 检查浏览器支持
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        alert('您的瀏覽器不支援語音輸入，請使用 Chrome 或 Safari');
+        return;
+    }
+
+    // 停止录音
+    if (isListening && recognition) {
+        recognition.stop();
+        recognition = null;
+        isListening = false;
+        btn.textContent = '🎤 語音輸入';
+        btn.style.background = '#667eea';
+        if (voiceDebounceTimer) clearTimeout(voiceDebounceTimer);
+        lastVoiceText = '';
+        return;
+    }
+
+    // 开始录音
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognition = new SpeechRecognition();
+    recognition.lang = 'zh-TW';
+    recognition.model = 'phone_call';     // 電話錄音模式，對咬字/專業術語辨識較佳
+    recognition.continuous = false;      // ❌ 關閉連續聆聽：一句話說完自動停麥，用戶要查下一個時手動再按
+    recognition.interimResults = true;    // 开启实时结果，加快响应
+    recognition.maxAlternatives = 1;     // 只返回最佳结果，减少计算
+
+    let voiceDebounceTimer = null;
+    let lastVoiceText = '';   // 防重：擋同一段文字被寫入兩次
+    let finalConfirmed = false; // 標記：final 已確認，停止 interim 直到下一個 final
+
+    recognition.onresult = event => {
+        const textarea = document.getElementById('input');
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            const text = event.results[i][0].transcript.trim();
+
+            // =========================================================
+            // 【語音直送模式】每收到一個最終結果就寫入 textarea
+            // =========================================================
+            if (event.results[i].isFinal) {
+                finalConfirmed = true;
+                if (text.length < 1) continue;
+                // ✅ final 到達，立刻殺掉排隊中的 interim debounce
+                if (voiceDebounceTimer) { clearTimeout(voiceDebounceTimer); voiceDebounceTimer = null; }
+
+                // ===== 自動比對資料庫校正 =====
+                const rawText = text.replace(/[，。、！？\s]/g, '');
+                const matched = smartMatchProduct(rawText);
+                const finalText = matched || rawText;
+
+                // ✅ 移除 interim 可能已寫入的臨時行（最後一行若為 interim 遺留），再寫入 final
+                let currentText = textarea.value.trim();
+                if (currentText) {
+                    const lines = currentText.split('\n');
+                    const lastLine = lines[lines.length - 1];
+                    // 如果最後一行跟 rawText 相似（interim 遺留），移除它
+                    const cleanLast = lastLine.replace(/[，。、！？\s]/g, '');
+                    if (cleanLast && rawText.includes(cleanLast) || cleanLast.includes(rawText)) {
+                        lines.pop();
+                        currentText = lines.join('\n');
+                    }
+                }
+                textarea.value = currentText + (currentText ? '\n' : '') + finalText;
+                lastVoiceText = rawText;
+
+                // 若有校正，console 提示
+                if (matched && matched !== rawText) {
+                    console.log(`[語音校正] "${rawText}" → "${matched}"`);
+                }
+
+                // ✅ 語音寫入後顯示候選單，讓用戶選擇（不自動查詢）
+                const lines = textarea.value.split('\n');
+                const currentLine = lines[lines.length - 1].trim();
+                const cleanLine = currentLine.replace(/[\d瓶罐包盒顆粒]+$/, '').trim();
+                if (cleanLine.length >= 2 && Object.keys(DB_KZ).length > 0) {
+                    showAutocompleteSuggestions(cleanLine, false);
+                }
+                continue;
+            }
+
+            // 👈 final 確認後，跳過 interim，直到下一個 final 重新開始
+            if (finalConfirmed) continue;
+
+            if (!event.results[i].isFinal && text.length >= 2) {
+                // 防抖：每次中間結果進來都重設計時器，300ms 後才處理
+                if (voiceDebounceTimer) clearTimeout(voiceDebounceTimer);
+                voiceDebounceTimer = setTimeout(() => {
+                    // ✅ 防重：若 final 已到達，放棄此 interim debounce
+                    if (finalConfirmed) return;
+                    const cleanedText = text.replace(/[，。、！？\s]/g, '');
+                    // 防重：若與 lastVoiceText 相同，跳過
+                    if (cleanedText === lastVoiceText) return;
+                    // 寫入最後一行
+                    const currentText = textarea.value.split('\n').slice(0, -1).join('\n');
+                    textarea.value = currentText + (currentText ? '\n' : '') + cleanedText;
+                    // ❌ interim 也不顯示 autocomplete，避免任何自動查詢可能
+                    const lines = textarea.value.split('\n');
+                    const currentLine = lines[lines.length - 1].trim();
+                    const cleanLine = currentLine.replace(/[\d瓶罐包盒顆粒]+$/, '').trim();
+                    // ✅ interim 也顯示候選單（autoSelect=false 不會自動查詢）
+                    if (cleanLine.length >= 2 && Object.keys(DB_KZ).length > 0) {
+                        showAutocompleteSuggestions(cleanLine, false);
+                    }
+                }, 300);
+            }
+        }
+    };
+
+    recognition.onerror = event => {
+        console.error('语音识别错误:', event.error);
+        if (event.error === 'not-allowed') {
+            alert('請允許麥克風權限');
+        }
+    };
+
+    recognition.onend = () => {
+        // ❌ continuous=false：一句話說完自動停麥，不自動重啟
+        // 狀態重置，下次要查時用戶手動再按按鈕
+        isListening = false;
+        finalConfirmed = false;
+        if (voiceDebounceTimer) clearTimeout(voiceDebounceTimer);
+        btn.textContent = '🎤 語音輸入';
+        btn.style.background = '#667eea';
+    };
+
+    recognition.start();
+    isListening = true;
+    btn.textContent = '🔴 停止聆聽';
+    btn.style.background = '#dc3545';
+}
+
+// 智能匹配产品（用于语音和图片输入）
+function smartMatchProduct(text) {
+    if (!text || text.length < 2) return null;
+    
+    console.log('[智能匹配] 输入:', text);
+    
+    // 清理文本
+    const cleanedText = text.replace(/[^\u4e00-\u9fa50-9]/g, '');
+    if (!cleanedText) return null;
+    
+    console.log('[智能匹配] 清理后:', cleanedText);
+    
+    // 提取数量
+    const numMatch = cleanedText.match(/(\d+)$/);
+    const qty = numMatch ? numMatch[1] : '';
+    const productName = numMatch ? cleanedText.slice(0, -numMatch[1].length) : cleanedText;
+    
+    console.log('[智能匹配] 产品名:', productName, '数量:', qty);
+    
+    // 0. 检测是否可能是锭劑（包含「錠」的同音字：罐、堅、定、訂、碇、腚、䦺）
+        const isLikelyTablet = TABLET_SUFFIX.some(c => productName.includes(c));
+    // 1. 如果可能是锭劑（包含同音字），优先在锭劑库匹配
+    if (isLikelyTablet) {
+        console.log('[智能匹配] 检测到锭劑关键字，检查锭劑库...');
+        console.log('[智能匹配] 锭劑库产品数:', Object.keys(DB_TABLET).length);
+        
+        const tabletResult = findBestMatchInTablet(productName);
+        if (tabletResult) {
+            console.log(`[智能匹配] 锭劑匹配成功: "${productName}" → "${tabletResult.name}"`);
+            return tabletResult.name + qty;
+        }
+        console.log('[智能匹配] 锭劑库没找到，返回null（不查科中库）');
+        return null;  // 锭劑库没找到就返回null，不到科中库
+    }
+    
+    // 2. 不包含「錠」，在科中库匹配
+    // 先尝试精确匹配
+    const directMatch = findBestMatchInKZ(productName);
+    if (directMatch) {
+        console.log(`[智能匹配] 科中精确: "${productName}" → "${directMatch.name}"`);
+        return directMatch.name + qty;
+    }
+    
+    // 科中库模糊匹配
+    let bestMatch = null;
+    let maxScore = 0.5;
+    
+    for (const name of Object.keys(DB_KZ)) {
+        const chars = [...productName];
+        const nameChars = [...name];
+        
+        // 计算精确匹配字符数
+        let exactCount = 0;
+        for (const c of chars) {
+            if (nameChars.includes(c)) exactCount++;
+        }
+        
+        // 计算相似字符匹配数
+        let similarCount = 0;
+        for (const c of chars) {
+            if (!nameChars.includes(c)) {
+                const similarChars = getSimilarChars(c);
+                for (const sc of similarChars) {
+                    if (nameChars.includes(sc)) {
+                        similarCount += 0.7;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // 相似度
+        const charScore = (exactCount + similarCount) / Math.max(chars.length, nameChars.length);
+        
+        // 【5字3匹配规则】
+        let bonus = 0;
+        if (chars.length >= 5 && exactCount >= 3) {
+            bonus = 0.15 + (exactCount - 3) * 0.05;
+        }
+        
+        // 发音相似度
+        const pronScore = getPronunciationSimilarity(productName, name);
+        
+        const finalScore = Math.max(charScore, pronScore) + bonus;
+        
+        if (finalScore > maxScore) {
+            maxScore = finalScore;
+            bestMatch = name;
+        }
+    }
+    
+    if (bestMatch) {
+        console.log(`[智能匹配] 科中模糊: "${productName}" → "${bestMatch}" (${(maxScore * 100).toFixed(0)}%)`);
+        return bestMatch + qty;
+    }
+    
+    return null;
+}
+
+// 获取相似字符列表
+function getSimilarChars(char) {
+    const similarMap = {
+        // === 锭/定 同音异字 ===
+        '錠': ['定', '訂', '锭', '郑', '正', '症'],
+        '定': ['定', '訂', '錠', '郑'],
+        '訂': ['定', '訂', '錠'],
+
+        // === 异体字（同音同义不同写法）===
+        '參': ['参', '身', '深', '森', '蔘'], '蔘': ['參', '参', '身'],
+        '朮': ['术', '竹', '熟', '述'],  // 朮≠術，但容易混淆
+        '龜': ['龟'],
+        '黃': ['黄', '王', '皇'],
+        '耆': ['芪', '奇'],
+        '當': ['当', '黨', '檔'],
+        '歸': ['归', '龜', '規'],
+        '瀉': ['泻', '写', '謝'],
+        '散': ['傘', '三'],
+        '苓': ['零', '靈', '鈴', '林', '臨'],
+
+        // === 容易识别错误的字（字形相似）===
+        '蟅': ['蟲', '虫', '哲', '者'],  // 大黃蟅蟲丸
+        '蠔': ['蛎', '豪'],              // 牡蠣
+        '鉤': ['鈎', '勾', '溝'],        // 鉤藤
+        '薤': ['韭', '菲'],              // 栝樓薤白
+        '橘': ['局', '橘', '桔'],        // 橘皮
+
+        // === 同音异字（语音识别容易混淆）===
+        '芍': ['勺', '灼', '卓'],        // 芍藥
+        '麥': ['脈', '賣', '麥', '麥'],  // 麥門冬
+        '梔': ['枝', '之', '知', '支'],  // 梔子
+        '貝': ['背', '輩', '被'],        // 浙貝母
+        '葛': ['格', '閣', '隔'],        // 葛根
+        '芩': ['琴', '勤', '芹', '秦'],  // 黃芩
+        '柴': ['才', '材', '財'],        // 柴胡
+        '胡': ['湖', '乎', '糊'],        // 柴胡
+        '清': ['青', '輕', '傾'],        // 清心利膈湯
+        '藥': ['药', '約', '月'],        // 芍藥
+        '活': ['火', '夥', '或'],        // 羌活、獨活
+        '防': ['房', '訪', '仿'],        // 防風
+        '風': ['风', '封', '豐'],        // 防風
+        '杏': ['幸', '姓', '性'],        // 杏仁
+        '蘇': ['苏', '舒', '書'],        // 紫蘇葉、參蘇飲
+        '羌': ['強', '牆', '槍'],        // 羌活
+        '辛': ['新', '心', '欣'],        // 辛夷
+        '夷': ['姨', '移', '宜'],        // 辛夷
+        '蠣': ['蛎', '力', '立'],        // 牡蠣
+        '牡': ['母', '木', '目'],        // 牡丹皮、牡蠣
+        '丸': ['玩', '完', '園'],
+        '湯': ['汤', '糖', '堂'],
+        '乙': ['一', '已', '致'],
+        '字': ['自', '致'],
+        '貫': ['贯', '罐', '關'],
+        '煎': ['間', '簡', '建'],
+        '暑': ['屬', '數', '書'],
+        '益': ['意', '義', '易'],
+        '氣': ['气', '器', '期'],
+
+        // === 单方药材常见识别错误 ===
+        '藍': ['兰', '籃', '藍'],
+        '板': ['판', '半'],
+        '藍根': ['蘭根', '藍根'],
+        '北': ['比', '杯', '北'],
+        '厚': ['後', '候', '侯'],
+        '朴': ['普', '浦', '撲'],
+
+        // === 常见OCR识别错误 ===
+
+        // === 更多药材 ===
+        '吳茱萸': ['吴茱萸', '吳朱萸'],
+        '吳茱': ['吳茱', '吴朱']
+    };
+    return similarMap[char] || [];
+}
+
+// 发音相似度（常见语音/OCR识别错误）
+function getPronunciationSimilarity(text, name) {
+    // ============================================================
+    // 发音相似字符对照表
+    // 包含：破音字、同音异字、语音识别常见错误
+    // 根据库存表中所有产品定制
+    // ============================================================
+    const similarChars = {
+        // === 破音字（多音字）===
+        // 「白」：bái（白色）/ bó（白术）
+        '白': ['白', '伯', '柏'],
+        // 「朴」：pò（厚朴）/ pǔ（朴素）
+        // 「术」：zhú（白术）/ shù（技术）
+        // 「参」：shēn（人参）/ cān（参加）
+        // 「泻」：xiè（泻白散）/ xiě（写作）
+        // 「乾」：qián（乾坤）/ gān（干燥）
+        '乾': ['乾', '干', '甘', '肝'],
+        // 「行」：xíng（行为）/ háng（行业）
+        '行': ['行', '形', '刑', '航'],
+        // 「差」：chā（差别）/ chà（差不多）
+        '差': ['差', '插', '茶'],
+
+        // === 同音异字 ===
+        // 易混淆的同音字
+        '蟲': ['蟲', '虫', '重', '衝', '充'],
+        '四': ['四', '似', '寺', '嗣', '肆'],
+        '物': ['物', '誤', '務', '霧', '戊'],
+        '甘': ['甘', '肝', '趕', '桿', '竿'],
+        '草': ['草', '操', '早', '澡', '藻'],
+        '虎': ['虎', '戶', '湖', '互', '護'],
+
+        // === 语音识别常见错误 ===
+        '逍': ['逍', '消', '銷', '蕭', '蕭'],
+        '遙': ['遙', '遥', '搖', '瑤', '謠', '姚'],
+        '桂': ['桂', '貴', '跪', '櫃', '鬼'],
+        '附': ['附', '付', '富', '副', '父', '負'],
+        '子': ['子', '紫', '梓', '只', '紙', '旨'],
+        '濕': ['濕', '湿', '失', '師', '詩', '獅'],
+        '聖': ['聖', '圣', '勝', '剩', '盛', '聲'],
+        '愈': ['愈', '愈', '育', '遇', '預', '御'],
+        '溫': ['溫', '温', '瘟', '文', '聞', '穩'],
+        '膽': ['膽', '胆', '擔', '丹', '單', '耽'],
+        '龍': ['龍', '龙', '隆', '籠', '聾'],
+        '骨': ['骨', '古', '谷', '鼓', '股'],
+        '藤': ['藤', '騰', '藤', '疼', '謄'],
+        '門': ['門', '门', '悶', '問', '聞'],
+        '冬': ['冬', '東', '動', '凍', '洞'],
+        '桔': ['桔', '結', '潔', '傑', '節'],
+        '梗': ['梗', '更', '耕', '庚', '羹'],
+        '芷': ['芷', '止', '只', '紙', '指', '址'],
+        '藁': ['藁', '稿', '搞', '高', '糕'],
+        '本': ['本', '奔', '笨', '盆'],
+        '根': ['根', '跟', '耕', '更'],
+        '連': ['連', '连', '聯', '蓮', '憐', '廉'],
+        '翹': ['翹', '翘', '橋', '瞧', '僑', '蕎'],
+        '桑': ['桑', '喪', '嗓', '搡'],
+        '菊': ['菊', '局', '橘', '鞠', '拘'],
+        '飲': ['飲', '饮', '引', '隱', '印', '尹'],
+        '蒼': ['蒼', '苍', '倉', '滄', '艙'],
+        '耳': ['耳', '而', '爾', '兒', '二'],
+        '藿': ['藿', '霍', '獲', '或', '惑'],
+        '香': ['香', '鄉', '響', '想', '享', '相'],
+        '正': ['正', '政', '證', '症', '徵', '爭'],
+        '敗': ['敗', '败', '拜', '佰', '稗'],
+        '毒': ['毒', '獨', '讀', '度', '渡', '肚'],
+        '荊': ['荊', '荆', '精', '經', '晶', '京'],
+        '芥': ['芥', '借', '界', '介', '屆', '戒'],
+        '茯': ['茯', '服', '福', '幅', '府', '輔'],
+        '神': ['神', '身', '深', '申', '伸', '紳'],
+        '柏': ['柏', '伯', '百', '白', '博'],
+        '仁': ['仁', '人', '任', '認', '刃'],
+        '樸': ['樸', '朴', '普', '譜', '埔'],
+        '枳': ['枳', '指', '止', '只', '紙'],
+        '實': ['實', '实', '食', '時', '史', '石'],
+        '殼': ['殼', '壳', '可', '渴', '克', '客'],
+        '紅': ['紅', '红', '洪', '宏', '鴻', '虹'],
+        '花': ['花', '華', '化', '畫', '話'],
+        '金': ['金', '今', '津', '筋', '巾'],
+        '銀': ['銀', '银', '吟', '寅', '殷'],
+        '條': ['條', '条', '調', '跳', '挑', '帖'],
+        '紫': ['紫', '子', '梓', '只', '紙'],
+        '葉': ['葉', '叶', '業', '頁', '夜', '爺'],
+        '番': ['番', '翻', '凡', '煩', '繁', '帆'],
+        '熟': ['熟', '熟', '淑', '叔', '束', '屬'],
+        '地': ['地', '弟', '第', '帝', '遞'],
+        '澤': ['澤', '泽', '擇', '責', '則', '側'],
+        '獨': ['獨', '独', '毒', '讀', '度', '渡'],
+        '薑': ['薑', '姜', '將', '江', '漿', '僵'],
+        '鎖': ['鎖', '锁', '所', '索', '縮'],
+        '陽': ['陽', '阳', '洋', '羊', '揚', '楊'],
+        '懷': ['懷', '怀', '壞', '槐', '淮'],
+        '牛': ['牛', '扭', '紐', '鈕', '鈕'],
+        '膝': ['膝', '西', '息', '席', '惜', '悉'],
+        '黨': ['黨', '党', '檔', '當', '擋'],
+        '續': ['續', '续', '緒', '蓄', '旭', '序'],
+        '斷': ['斷', '断', '段', '鍛', '緞'],
+        '鬱': ['鬱', '郁', '玉', '育', '獄', '欲'],
+    };
+
+    let matchScore = 0;
+    let totalChars = 0;
+    const textChars = [...text];
+    const nameChars = [...name];
+    const maxLen = Math.max(textChars.length, nameChars.length);
+
+    for (let i = 0; i < Math.min(textChars.length, nameChars.length); i++) {
+        const t = textChars[i];
+        const n = nameChars[i];
+
+        totalChars++;
+
+        if (t === n) {
+            matchScore += 1;
+        } else {
+            // 检查是否为相似字符
+            const tSimilar = similarChars[t] || [];
+            const nSimilar = similarChars[n] || [];
+
+            if (tSimilar.includes(n) || nSimilar.includes(t)) {
+                matchScore += 0.7;  // 相似字符给 0.7 分
+            }
+        }
+    }
+
+    return totalChars > 0 ? matchScore / maxLen : 0;
+}
+
+// ===== 图片辨识（Google Vision API + OCR.space + Tesseract 备援）=====
+
+// === Google Cloud Vision API（主引擎）===
+const GOOGLE_VISION_API_KEY = 'AIzaSyBHTxS2BM9jyq6r5mpHIrKkImtdGut-t_w'; // 你的 Google Cloud Vision API Key
+
+// 图片转 base64
+function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+// Google Cloud Vision OCR
+async function googleVisionOCR(file) {
+    console.log('[Google Vision] 开始辨识图片...');
+
+    try {
+        // 压缩大图（Vision API 单张限 20MB）
+        let imgFile = file;
+        if (file.size > 4 * 1024 * 1024) {
+            console.log('[Google Vision] 图片 > 4MB，压缩中...');
+            imgFile = await compressImage(file, 2048);
+        }
+
+        const base64 = await fileToBase64(imgFile);
+
+        const request = {
+            requests: [{
+                image: { content: base64 },
+                features: [
+                    { type: 'DOCUMENT_TEXT_DETECTION', model: 'builtin/latest' }
+                ],
+                imageContext: {
+                    languageHints: ['zh-Hant', 'zh-TW', 'zh-CN']
+                }
+            }]
+        };
+
+        const res = await fetch(
+            `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_VISION_API_KEY}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(request)
+            }
+        );
+
+        const data = await res.json();
+
+        if (data.error) {
+            console.error('[Google Vision] API 错误:', data.error.message);
+            return null;
+        }
+
+        if (data.responses && data.responses[0] && data.responses[0].textAnnotations && data.responses[0].textAnnotations.length > 0) {
+            // textAnnotations[0] 是完整合并文本；用後面個別的以行為單位
+            const texts = data.responses[0].textAnnotations;
+            // 第一筆是全體文字，其餘逐個單字/單詞，取有意義的行
+            // 改用 DOCUMENT_TEXT_DETECTION 更好，但 TEXT_DETECTION 也能用
+            const fullText = texts[0].description;
+            console.log('[Google Vision] 辨识成功');
+            return fullText;
+        } else {
+            console.log('[Google Vision] 无文字识别结果');
+            return null;
+        }
+    } catch (e) {
+        console.error('[Google Vision] 网络错误:', e.message);
+        return null;
+    }
+}
+
+// === OCR.space API（第一备援）===
+const OCR_SPACE_API_KEY = 'helloworld'; // 免费 API Key，每天 500 次
+
+// OCR.space 图片辨识
+async function ocrSpaceOCR(file) {
+    console.log('[OCR.space] 开始辨识图片...');
+
+    const formData = new FormData();
+    formData.append('language', 'cht'); // 繁体中文
+    formData.append('isOverlayRequired', 'false');
+    formData.append('detectOrientation', 'true');
+    formData.append('scale', 'true');
+    formData.append('OCREngine', '2'); // Engine 2 准确度更高
+
+    // 如果文件大于 1MB，先压缩
+    if (file.size > 1024 * 1024) {
+        console.log('[OCR.space] 图片太大，需要压缩...');
+        file = await compressImage(file, 1024);
+    }
+    formData.append('file', file);
+
+    try {
+        const res = await fetch(`https://api.ocr.space/parse/image`, {
+            method: 'POST',
+            headers: { 'apikey': OCR_SPACE_API_KEY },
+            body: formData
+        });
+
+        const data = await res.json();
+
+        if (data.ParsedResults && data.ParsedResults.length > 0) {
+            const text = data.ParsedResults.map(r => r.ParsedText).join('\n');
+            console.log('[OCR.space] 辨识成功');
+            return text;
+        } else {
+            console.error('[OCR.space] 辨识结果为空:', data);
+            return null;
+        }
+    } catch (e) {
+        console.error('[OCR.space] 网络错误:', e.message);
+        return null;
+    }
+}
+
+// 图片压缩函数
+async function compressImage(file, maxWidth) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxWidth) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob(blob => {
+                resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+            }, 'image/jpeg', 0.8);
+        };
+        img.src = URL.createObjectURL(file);
+    });
+}
+
+// 备用 Tesseract.js 辨识
+async function tesseractOCR(file) {
+    console.log('[备用OCR] 正在加载 Tesseract.js...');
+
+    if (!window.Tesseract) {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js';
+        document.head.appendChild(script);
+        await new Promise(r => script.onload = r);
+    }
+
+    const result = await Tesseract.recognize(file, 'chi_tra', {
+        logger: m => console.log('[备用OCR] 进度:', Math.round((m.progress || 0) * 100) + '%')
+    });
+
+    return result.data.text;
+}
+
+// ===== 图片辨识 =====
+async function handleImage(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const btn = document.querySelector('[onclick*="imageInput"]');
+    const originalText = btn.textContent;
+    btn.textContent = '辨識中...';
+    btn.disabled = true;
+
+    try {
+        // 优先级：Google Vision → OCR.space → Tesseract.js
+        let text = await googleVisionOCR(file);
+
+        if (!text) {
+            console.log('[图片辨识] Google Vision 失败，尝试 OCR.space...');
+            text = await ocrSpaceOCR(file);
+        }
+
+        if (!text) {
+            console.log('[图片辨识] OCR.space 失败，尝试 Tesseract.js...');
+            text = await tesseractOCR(file);
+        }
+
+        if (!text) {
+            alert('圖片辨識失敗，請確認網路連線或稍後再試');
+            btn.textContent = originalText;
+            btn.disabled = false;
+            return;
+        }
+
+        console.log('[图片辨识] 原始结果:', text);
+
+        // 提取所有行
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length >= 1);
+        console.log(`[图片辨识] 共 ${lines.length} 行原始数据:`);
+        lines.forEach((line, i) => console.log(`  行${i+1}: "${line}"`));
+
+        // 预处理：分离产品名和数量，然后一对一配对
+        const productLines = [];
+        const numberLines = [];
+
+        // 第一步：分离产品名行和数量行
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const cleaned = line.replace(/[^\u4e00-\u9fa50-9]/g, '');
+
+            // 如果是纯数字（1-99），记录到数量列表
+            if (/^\d{1,2}$/.test(cleaned)) {
+                const num = parseInt(cleaned);
+                if (num >= 1 && num <= 99) {
+                    numberLines.push(num);
+                    console.log(`[图片辨识] 数量: ${num}`);
+                }
+            } else {
+                // 非数字行视为产品名
+                productLines.push(cleaned);
+                console.log(`[图片辨识] 产品: "${cleaned}"`);
+            }
+        }
+
+        // 第二步：一对一配对（产品 + 对应位置的数量）
+        const processedLines = [];
+        const minLen = Math.min(productLines.length, numberLines.length);
+        for (let i = 0; i < productLines.length; i++) {
+            if (i < minLen) {
+                processedLines.push(productLines[i] + numberLines[i]);
+                console.log(`[图片辨识] 配对: "${productLines[i]}" + ${numberLines[i]} = "${processedLines[processedLines.length - 1]}"`);
+            } else if (i === productLines.length - 1 && numberLines.length === productLines.length - 1) {
+                // 如果数量比产品少1个，把最后一个数量给最后一个产品
+                processedLines.push(productLines[i] + numberLines[numberLines.length - 1]);
+                console.log(`[图片辨识] 补足: "${productLines[i]}" + ${numberLines[numberLines.length - 1]} = "${processedLines[processedLines.length - 1]}"`);
+            } else {
+                processedLines.push(productLines[i]);
+            }
+        }
+
+        console.log(`[图片辨识] 处理后共 ${processedLines.length} 行:`);
+        processedLines.forEach((line, i) => console.log(`  处理${i+1}: "${line}"`));
+
+        // 分类存储（存對象：{ original, matched, category }）
+        const matchedTablet = [];
+        const matched100g = [];
+        const matched200g = [];
+        const unmatchedLines = [];
+
+        for (const cleaned of processedLines) {
+            if (cleaned.length < 2) continue;
+
+            // 移除开头的数字（如序号 1. 2. 等）
+            let productName = cleaned.replace(/^\d+/, '');
+            if (productName.length < 2) continue;
+
+            // 移除末尾的大数字（价格）
+            productName = productName.replace(/\d{3,}$/, '');
+            if (productName.length < 2) continue;
+
+            // 提取产品名和数量（末尾1-2位数字）
+            const numMatch = productName.match(/^(.+?)(\d{1,2})$/);
+            let qty = '';
+
+            if (numMatch) {
+                productName = numMatch[1];
+                qty = numMatch[2];
+                // 如果数字大于99，可能是误识别
+                if (parseInt(qty) > 99) qty = '';
+            }
+
+            if (productName.length < 2) continue;
+
+            // 智能匹配
+            const match = smartMatchProduct(productName);
+
+            if (match) {
+                // 组合产品名和数量（用于显示）
+                const finalMatch = match + qty;
+                const originalName = productName + qty;
+
+                // 判断是单方、复方还是锭劑
+                const matchProductName = match.replace(/\d+$/, '');
+                const isSingle = isSingleHerb(matchProductName);
+                const isTab = isTablet(matchProductName);
+
+                const item = { original: originalName, matched: finalMatch };
+
+                if (isTab) {
+                    if (!matchedTablet.some(m => m.matched === finalMatch)) matchedTablet.push(item);
+                } else if (isSingle) {
+                    if (!matched100g.some(m => m.matched === finalMatch)) matched100g.push(item);
+                } else {
+                    if (!matched200g.some(m => m.matched === finalMatch)) matched200g.push(item);
+                }
+
+                console.log(`[图片辨识] 匹配: "${productName}" → "${finalMatch}" (${isTab ? '錠劑' : isSingle ? '100g' : '200g'})`);
+            } else {
+                console.log(`[图片辨识] 未匹配: "${productName}"`);
+                unmatchedLines.push(productName);
+            }
+        }
+
+        console.log('[图片辨识] 结果:', matchedTablet.length, '个錠劑', matched100g.length, '个100g', matched200g.length, '个200g', unmatchedLines.length, '个未匹配');
+
+        // 组装输出结果（從對象取出 matched）
+        let output = '';
+
+        // 先输出锭劑
+        if (matchedTablet.length > 0) {
+            output += '錠劑\n' + matchedTablet.map(m => m.matched).join('\n');
+        }
+
+        // 再输出单方（100g）
+        if (matched100g.length > 0) {
+            if (output) output += '\n';
+            output += '100g\n' + matched100g.map(m => m.matched).join('\n');
+        }
+
+        // 再输出复方（200g）
+        if (matched200g.length > 0) {
+            if (output) output += '\n';
+            output += '200g\n' + matched200g.map(m => m.matched).join('\n');
+        }
+
+        // 顯示勾選面板（不直接填入 textarea）
+        if (matchedTablet.length === 0 && matched100g.length === 0 && matched200g.length === 0 && unmatchedLines.length === 0) {
+            alert('無法辨識圖片中的產品，請確認圖片清晰度或手動輸入');
+            btn.textContent = originalText;
+            btn.disabled = false;
+            e.target.value = '';
+            return;
+        }
+
+        // 組合所有項目（用 category 標記來源，original/matched 顯示對照）
+        const allItems = [
+            ...matchedTablet.map(item => ({ original: item.original, matched: item.matched, category: 'tablet' })),
+            ...matched100g.map(item  => ({ original: item.original, matched: item.matched, category: 'kz100' })),
+            ...matched200g.map(item  => ({ original: item.original, matched: item.matched, category: 'kz200' })),
+            ...unmatchedLines.map(n => ({ original: n, matched: null, category: 'unmatched' }))
+        ];
+
+        // 建立麵板 HTML
+        let html = `<div class="ocr-panel">
+            <div class="ocr-panel-header">
+                <span class="ocr-panel-title">📷 圖片辨識結果</span>
+                <span class="ocr-panel-count">共 ${allItems.length} 項</span>
+            </div>`;
+
+        // 全選/取消
+        html += `<div style="margin-bottom:10px; font-size:13px; color:#555;">
+            <label style="cursor:pointer;"><input type="checkbox" id="ocrSelectAll" onchange="toggleOCRAll(this.checked)" checked> 全選</label>
+        </div>`;
+
+        for (let i = 0; i < allItems.length; i++) {
+            const item = allItems[i];
+            const isMatched = item.matched !== null;
+            const displayName = isMatched ? item.matched : item.original;
+            const tagClass  = item.category === 'tablet'    ? 'tablet-tag'
+                            : item.category === 'unmatched' ? 'unmatched-tag'
+                            : 'kz-tag';
+            const tagLabel  = item.category === 'tablet'    ? '錠劑'
+                            : item.category === 'kz100'     ? '科中100g'
+                            : item.category === 'kz200'     ? '科中200g'
+                            : '未匹配';
+            // 若有校正，顯示「原→校」對照；未匹配顯示⚠️
+            const showOriginal = isMatched && item.original !== item.matched;
+            const nameHtml = showOriginal
+                ? `<span class="ocr-original">${escHtml(item.original)}</span><span class="ocr-arrow">→</span><span class="ocr-matched">${escHtml(item.matched)}</span>`
+                : `<span class="ocr-item-name">${escHtml(displayName)}</span>`;
+            
+            html += `<div class="ocr-item">
+                <input type="checkbox" class="ocr-cb" data-name="${escHtml(displayName)}" checked>
+                ${nameHtml}
+                <span class="ocr-item-tag ${tagClass}">${tagLabel}</span>
+            </div>`;
+        }
+
+        html += `<div class="ocr-confirm-bar">
+            <button class="btn ocr-cancel-btn" onclick="closeOCRPanel()">取消</button>
+            <button class="btn" onclick="confirmOCRSearch()">✅ 查詢所選 (${allItems.length})</button>
+        </div></div>`;
+
+        document.getElementById('ocrPanel').innerHTML = html;
+        btn.textContent = originalText;
+        btn.disabled = false;
+        e.target.value = '';
+
+    } catch (err) {
+        console.error('圖片辨識錯誤:', err);
+        alert('圖片辨識失敗，請嘗試其他圖片');
+        btn.textContent = originalText;
+        btn.disabled = false;
+        e.target.value = '';
+    }
+}
+
+// ===== OCR 勾選 → 批次查詢 =====
+function closeOCRPanel() {
+    document.getElementById('ocrPanel').innerHTML = '';
+}
+
+function toggleOCRAll(checked) {
+    document.querySelectorAll('.ocr-cb').forEach(cb => cb.checked = checked);
+    updateOCRCount();
+}
+
+function updateOCRCount() {
+    const checked = document.querySelectorAll('.ocr-cb:checked').length;
+    const btn = document.querySelector('.ocr-confirm-bar .btn:last-child');
+    if (btn) btn.textContent = `✅ 查詢所選 (${checked})`;
+}
+
+// 簡單 HTML 跳脫，防止 injection
+function escHtml(s) {
+    return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// 點擊勾選項時立刻更新計數（delegate，掛在 document 上）
+document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('ocr-cb')) updateOCRCount();
+});
+
+async function confirmOCRSearch() {
+    const cbs = document.querySelectorAll('.ocr-cb:checked');
+    if (cbs.length === 0) {
+        alert('請至少選擇一項');
+        return;
+    }
+
+    // 讀取勾選的品項名稱
+    const selected = Array.from(cbs).map(cb => cb.dataset.name);
+
+    // 關閉面板，填入 textarea 並執行查詢
+    closeOCRPanel();
+
+    const textarea = document.getElementById('input');
+    textarea.value = selected.join('\n');
+
+    // 點「查詢庫存」按鈕
+    document.getElementById('searchBtn').click();
+}
+
+// ============================================================
+// 初始化
+// ============================================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 绑定图片输入事件
+    const imageInput = document.getElementById('imageInput');
+    const imageBtn = document.getElementById('imageBtn');
+
+    if (imageBtn && imageInput) {
+        imageBtn.addEventListener('click', function() {
+            imageInput.click();
+        });
+
+        imageInput.addEventListener('change', function(event) {
+            handleImage(event);
+        });
+    }
+
+    // 页面加载时自动加载数据
+    loadData();
+});
+</script>
+</body>
+</html>
+
