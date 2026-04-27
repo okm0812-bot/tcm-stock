@@ -127,118 +127,6 @@
         .autocomplete-item.selected .db-tag {
             background: rgba(255,255,255,0.25) !important;
         }
-
-        /* ===== OCR 圖片辨識結果面板 ===== */
-        .ocr-panel {
-            background: white;
-            border-radius: 15px;
-            padding: 15px;
-            margin-top: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }
-        .ocr-panel-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-        .ocr-panel-title {
-            font-weight: bold;
-            font-size: 15px;
-            color: #333;
-        }
-        .ocr-panel-count {
-            font-size: 12px;
-            color: #666;
-        }
-        .ocr-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 8px 10px;
-            border-radius: 8px;
-            margin-bottom: 6px;
-            background: #f8f9fa;
-            cursor: pointer;
-        }
-        .ocr-item:hover { background: #e9ecef; }
-        .ocr-item input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; cursor: pointer; }
-        .ocr-item-name {
-            flex: 1;
-            font-size: 14px;
-            font-weight: 500;
-            color: #333;
-        }
-        .ocr-item-tag {
-            font-size: 10px;
-            padding: 2px 6px;
-            border-radius: 8px;
-            white-space: nowrap;
-        }
-        .ocr-item-tag.tablet-tag { background: #fce4ec; color: #c2185b; }
-        .ocr-item-tag.kz-tag { background: #ede7f6; color: #7b1fa2; }
-        .ocr-item-tag.unmatched-tag { background: #fff3cd; color: #856404; }
-        /* OCR 校正對照樣式 */
-        .ocr-original {
-            font-size: 13px;
-            color: #888;
-            text-decoration: line-through;
-        }
-        .ocr-arrow {
-            margin: 0 6px;
-            color: #999;
-            font-size: 12px;
-        }
-        .ocr-matched {
-            font-size: 14px;
-            font-weight: 500;
-            color: #2e7d32;
-        }
-        .ocr-confirm-bar {
-            display: flex;
-            gap: 10px;
-            margin-top: 12px;
-        }
-        .ocr-confirm-bar .btn {
-            height: 42px;
-            font-size: 14px;
-            border-radius: 21px;
-            flex: 1;
-        }
-        .ocr-cancel-btn {
-            background: #6c757d !important;
-        }
-        .ocr-progress {
-            text-align: center;
-            padding: 20px;
-            color: #666;
-            font-size: 14px;
-        }
-        .ocr-progress-bar {
-            height: 4px;
-            background: #e9ecef;
-            border-radius: 2px;
-            margin-top: 10px;
-            overflow: hidden;
-        }
-        .ocr-progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
-            border-radius: 2px;
-            transition: width 0.3s;
-        }
-        .ocr-result-item {
-            background: white;
-            border-radius: 10px;
-            padding: 12px;
-            margin-top: 8px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
     </style>
 </head>
 <body>
@@ -274,7 +162,6 @@
     </div>
 
     <div id="result"></div>
-    <div id="ocrPanel"></div>
 
     <div class="tip">
         <strong>💡 使用提示：</strong>
@@ -903,8 +790,7 @@ function handleAutocompleteKeydown(e) {
 }
 
 // 顯示補全建議
-// autoSelect=true: 若第一個結果分數 100，自動選取並執行查詢
-function showAutocompleteSuggestions(query, autoSelect = false) {
+function showAutocompleteSuggestions(query) {
     const dropdown = document.getElementById('autocompleteDropdown');
 
 
@@ -1061,16 +947,6 @@ function showAutocompleteSuggestions(query, autoSelect = false) {
     autocompleteVisible = true;
     autocompleteItems = topMatches;
     autocompleteIndex = -1;
-
-    // =========================================================
-    // 【自動選取】autoSelect=true 且第一個結果分數=100 時直接執行
-    // =========================================================
-    if (autoSelect && topMatches.length > 0 && topMatches[0].score === 100) {
-        // 延後一幀執行，確保 DOM 已渲染完成
-        setTimeout(() => {
-            selectAutocompleteItem(topMatches[0]);
-        }, 50);
-    }
 }
 
 // 計算匹配分數（只匹配開頭）
@@ -1140,18 +1016,18 @@ function selectAutocompleteItem(item) {
     // 替換當前行為選中的產品名（保留數量）
     lines[lineIndex] = item.name + quantity;
 
-    // 在選取行後加一空行，方便連續輸入
-    lines.splice(lineIndex + 1, 0, '');
-
     // 更新 textarea 值
     textarea.value = lines.join('\n');
 
-    // 將游標移到下一行開頭
-    const newPos = lineStart + lines[lineIndex].length + 1; // +1 for newline
+    // 將游標移到行尾
+    const newPos = lineStart + lines[lineIndex].length;
     textarea.setSelectionRange(newPos, newPos);
     textarea.focus();
 
     hideAutocomplete();
+
+    // 立即觸發查詢（與使用者按按鈕等效）
+    search();
 }
 
 // 隱藏補全選單
@@ -1469,8 +1345,6 @@ function startVoiceInput() {
         isListening = false;
         btn.textContent = '🎤 語音輸入';
         btn.style.background = '#667eea';
-        if (voiceDebounceTimer) clearTimeout(voiceDebounceTimer);
-        lastVoiceText = '';
         return;
     }
 
@@ -1479,13 +1353,9 @@ function startVoiceInput() {
     recognition = new SpeechRecognition();
     recognition.lang = 'zh-TW';
     recognition.model = 'phone_call';     // 電話錄音模式，對咬字/專業術語辨識較佳
-    recognition.continuous = false;      // ❌ 關閉連續聆聽：一句話說完自動停麥，用戶要查下一個時手動再按
-    recognition.interimResults = true;    // 开启实时结果，加快响应
-    recognition.maxAlternatives = 1;     // 只返回最佳结果，减少计算
-
-    let voiceDebounceTimer = null;
-    let lastVoiceText = '';   // 防重：擋同一段文字被寫入兩次
-    let finalConfirmed = false; // 標記：final 已確認，停止 interim 直到下一個 final
+    recognition.continuous = true;
+    recognition.interimResults = true;  // 开启实时结果，加快响应
+    recognition.maxAlternatives = 1;    // 只返回最佳结果，减少计算
 
     recognition.onresult = event => {
         const textarea = document.getElementById('input');
@@ -1493,75 +1363,25 @@ function startVoiceInput() {
         for (let i = event.resultIndex; i < event.results.length; i++) {
             const text = event.results[i][0].transcript.trim();
 
-            // =========================================================
-            // 【語音直送模式】每收到一個最終結果就寫入 textarea
-            // =========================================================
-            if (event.results[i].isFinal) {
-                finalConfirmed = true;
-                if (text.length < 1) continue;
-                // ✅ final 到達，立刻殺掉排隊中的 interim debounce
-                if (voiceDebounceTimer) { clearTimeout(voiceDebounceTimer); voiceDebounceTimer = null; }
+            // 只处理最终结果（isFinal=true），忽略实时识别中的临时结果
+            if (!event.results[i].isFinal) continue;
 
-                // ===== 自動比對資料庫校正 =====
-                const rawText = text.replace(/[，。、！？\s]/g, '');
-                const matched = smartMatchProduct(rawText);
-                const finalText = matched || rawText;
+            console.log('语音最终结果:', text);
 
-                // ✅ 移除 interim 可能已寫入的臨時行（最後一行若為 interim 遺留），再寫入 final
-                let currentText = textarea.value.trim();
-                if (currentText) {
-                    const lines = currentText.split('\n');
-                    const lastLine = lines[lines.length - 1];
-                    // 如果最後一行跟 rawText 相似（interim 遺留），移除它
-                    const cleanLast = lastLine.replace(/[，。、！？\s]/g, '');
-                    if (cleanLast && rawText.includes(cleanLast) || cleanLast.includes(rawText)) {
-                        lines.pop();
-                        currentText = lines.join('\n');
-                    }
-                }
-                textarea.value = currentText + (currentText ? '\n' : '') + finalText;
-                lastVoiceText = rawText;
+            if (text.length < 2) continue;
 
-                // 若有校正，console 提示
-                if (matched && matched !== rawText) {
-                    console.log(`[語音校正] "${rawText}" → "${matched}"`);
-                }
+            // 清理文本
+            const cleanedText = text.replace(/[，。、！？\s]/g, '');
 
-                // ✅ 語音寫入後顯示候選單，讓用戶選擇（不自動查詢）
-                const lines = textarea.value.split('\n');
-                const currentLine = lines[lines.length - 1].trim();
-                const cleanLine = currentLine.replace(/[\d瓶罐包盒顆粒]+$/, '').trim();
-                if (cleanLine.length >= 2 && Object.keys(DB_KZ).length > 0) {
-                    showAutocompleteSuggestions(cleanLine, false);
-                }
-                continue;
+            // 智能匹配数据库产品
+            const match = smartMatchProduct(cleanedText);
+
+            if (match) {
+                const currentText = textarea.value.trim();
+                textarea.value = currentText + (currentText ? '\n' : '') + match;
+                console.log('已添加产品:', match);
             }
-
-            // 👈 final 確認後，跳過 interim，直到下一個 final 重新開始
-            if (finalConfirmed) continue;
-
-            if (!event.results[i].isFinal && text.length >= 2) {
-                // 防抖：每次中間結果進來都重設計時器，300ms 後才處理
-                if (voiceDebounceTimer) clearTimeout(voiceDebounceTimer);
-                voiceDebounceTimer = setTimeout(() => {
-                    // ✅ 防重：若 final 已到達，放棄此 interim debounce
-                    if (finalConfirmed) return;
-                    const cleanedText = text.replace(/[，。、！？\s]/g, '');
-                    // 防重：若與 lastVoiceText 相同，跳過
-                    if (cleanedText === lastVoiceText) return;
-                    // 寫入最後一行
-                    const currentText = textarea.value.split('\n').slice(0, -1).join('\n');
-                    textarea.value = currentText + (currentText ? '\n' : '') + cleanedText;
-                    // ❌ interim 也不顯示 autocomplete，避免任何自動查詢可能
-                    const lines = textarea.value.split('\n');
-                    const currentLine = lines[lines.length - 1].trim();
-                    const cleanLine = currentLine.replace(/[\d瓶罐包盒顆粒]+$/, '').trim();
-                    // ✅ interim 也顯示候選單（autoSelect=false 不會自動查詢）
-                    if (cleanLine.length >= 2 && Object.keys(DB_KZ).length > 0) {
-                        showAutocompleteSuggestions(cleanLine, false);
-                    }
-                }, 300);
-            }
+            // 如果没匹配到，不添加（避免无效输入）
         }
     };
 
@@ -1573,13 +1393,15 @@ function startVoiceInput() {
     };
 
     recognition.onend = () => {
-        // ❌ continuous=false：一句話說完自動停麥，不自動重啟
-        // 狀態重置，下次要查時用戶手動再按按鈕
-        isListening = false;
-        finalConfirmed = false;
-        if (voiceDebounceTimer) clearTimeout(voiceDebounceTimer);
-        btn.textContent = '🎤 語音輸入';
-        btn.style.background = '#667eea';
+        if (isListening) {
+            try {
+                recognition.start();
+            } catch (e) {
+                isListening = false;
+                btn.textContent = '🎤 語音輸入';
+                btn.style.background = '#667eea';
+            }
+        }
     };
 
     recognition.start();
@@ -2134,7 +1956,7 @@ async function handleImage(e) {
         console.log(`[图片辨识] 处理后共 ${processedLines.length} 行:`);
         processedLines.forEach((line, i) => console.log(`  处理${i+1}: "${line}"`));
 
-        // 分类存储（存對象：{ original, matched, category }）
+        // 分类存储
         const matchedTablet = [];
         const matched100g = [];
         const matched200g = [];
@@ -2170,21 +1992,18 @@ async function handleImage(e) {
             if (match) {
                 // 组合产品名和数量（用于显示）
                 const finalMatch = match + qty;
-                const originalName = productName + qty;
 
                 // 判断是单方、复方还是锭劑
                 const matchProductName = match.replace(/\d+$/, '');
                 const isSingle = isSingleHerb(matchProductName);
                 const isTab = isTablet(matchProductName);
 
-                const item = { original: originalName, matched: finalMatch };
-
                 if (isTab) {
-                    if (!matchedTablet.some(m => m.matched === finalMatch)) matchedTablet.push(item);
+                    if (!matchedTablet.includes(finalMatch)) matchedTablet.push(finalMatch);
                 } else if (isSingle) {
-                    if (!matched100g.some(m => m.matched === finalMatch)) matched100g.push(item);
+                    if (!matched100g.includes(finalMatch)) matched100g.push(finalMatch);
                 } else {
-                    if (!matched200g.some(m => m.matched === finalMatch)) matched200g.push(item);
+                    if (!matched200g.includes(finalMatch)) matched200g.push(finalMatch);
                 }
 
                 console.log(`[图片辨识] 匹配: "${productName}" → "${finalMatch}" (${isTab ? '錠劑' : isSingle ? '100g' : '200g'})`);
@@ -2196,147 +2015,43 @@ async function handleImage(e) {
 
         console.log('[图片辨识] 结果:', matchedTablet.length, '个錠劑', matched100g.length, '个100g', matched200g.length, '个200g', unmatchedLines.length, '个未匹配');
 
-        // 组装输出结果（從對象取出 matched）
+        // 组装输出结果
         let output = '';
 
         // 先输出锭劑
         if (matchedTablet.length > 0) {
-            output += '錠劑\n' + matchedTablet.map(m => m.matched).join('\n');
+            output += '錠劑\n' + matchedTablet.join('\n');
         }
 
         // 再输出单方（100g）
         if (matched100g.length > 0) {
             if (output) output += '\n';
-            output += '100g\n' + matched100g.map(m => m.matched).join('\n');
+            output += '100g\n' + matched100g.join('\n');
         }
 
         // 再输出复方（200g）
         if (matched200g.length > 0) {
             if (output) output += '\n';
-            output += '200g\n' + matched200g.map(m => m.matched).join('\n');
+            output += '200g\n' + matched200g.join('\n');
         }
 
-        // 顯示勾選面板（不直接填入 textarea）
-        if (matchedTablet.length === 0 && matched100g.length === 0 && matched200g.length === 0 && unmatchedLines.length === 0) {
+        // 填入输入框
+        const textarea = document.getElementById('input');
+        if (output) {
+            textarea.value = output;
+            console.log('图片辨识完成，匹配到:', matchedTablet.length + matched100g.length + matched200g.length, '项');
+        } else {
             alert('無法辨識圖片中的產品，請確認圖片清晰度或手動輸入');
-            btn.textContent = originalText;
-            btn.disabled = false;
-            e.target.value = '';
-            return;
         }
-
-        // 組合所有項目（用 category 標記來源，original/matched 顯示對照）
-        const allItems = [
-            ...matchedTablet.map(item => ({ original: item.original, matched: item.matched, category: 'tablet' })),
-            ...matched100g.map(item  => ({ original: item.original, matched: item.matched, category: 'kz100' })),
-            ...matched200g.map(item  => ({ original: item.original, matched: item.matched, category: 'kz200' })),
-            ...unmatchedLines.map(n => ({ original: n, matched: null, category: 'unmatched' }))
-        ];
-
-        // 建立麵板 HTML
-        let html = `<div class="ocr-panel">
-            <div class="ocr-panel-header">
-                <span class="ocr-panel-title">📷 圖片辨識結果</span>
-                <span class="ocr-panel-count">共 ${allItems.length} 項</span>
-            </div>`;
-
-        // 全選/取消
-        html += `<div style="margin-bottom:10px; font-size:13px; color:#555;">
-            <label style="cursor:pointer;"><input type="checkbox" id="ocrSelectAll" onchange="toggleOCRAll(this.checked)" checked> 全選</label>
-        </div>`;
-
-        for (let i = 0; i < allItems.length; i++) {
-            const item = allItems[i];
-            const isMatched = item.matched !== null;
-            const displayName = isMatched ? item.matched : item.original;
-            const tagClass  = item.category === 'tablet'    ? 'tablet-tag'
-                            : item.category === 'unmatched' ? 'unmatched-tag'
-                            : 'kz-tag';
-            const tagLabel  = item.category === 'tablet'    ? '錠劑'
-                            : item.category === 'kz100'     ? '科中100g'
-                            : item.category === 'kz200'     ? '科中200g'
-                            : '未匹配';
-            // 若有校正，顯示「原→校」對照；未匹配顯示⚠️
-            const showOriginal = isMatched && item.original !== item.matched;
-            const nameHtml = showOriginal
-                ? `<span class="ocr-original">${escHtml(item.original)}</span><span class="ocr-arrow">→</span><span class="ocr-matched">${escHtml(item.matched)}</span>`
-                : `<span class="ocr-item-name">${escHtml(displayName)}</span>`;
-            
-            html += `<div class="ocr-item">
-                <input type="checkbox" class="ocr-cb" data-name="${escHtml(displayName)}" checked>
-                ${nameHtml}
-                <span class="ocr-item-tag ${tagClass}">${tagLabel}</span>
-            </div>`;
-        }
-
-        html += `<div class="ocr-confirm-bar">
-            <button class="btn ocr-cancel-btn" onclick="closeOCRPanel()">取消</button>
-            <button class="btn" onclick="confirmOCRSearch()">✅ 查詢所選 (${allItems.length})</button>
-        </div></div>`;
-
-        document.getElementById('ocrPanel').innerHTML = html;
-        btn.textContent = originalText;
-        btn.disabled = false;
-        e.target.value = '';
 
     } catch (err) {
-        console.error('圖片辨識錯誤:', err);
+        console.error('图片辨识错误:', err);
         alert('圖片辨識失敗，請嘗試其他圖片');
-        btn.textContent = originalText;
-        btn.disabled = false;
-        e.target.value = '';
-    }
-}
-
-// ===== OCR 勾選 → 批次查詢 =====
-function closeOCRPanel() {
-    document.getElementById('ocrPanel').innerHTML = '';
-}
-
-function toggleOCRAll(checked) {
-    document.querySelectorAll('.ocr-cb').forEach(cb => cb.checked = checked);
-    updateOCRCount();
-}
-
-function updateOCRCount() {
-    const checked = document.querySelectorAll('.ocr-cb:checked').length;
-    const btn = document.querySelector('.ocr-confirm-bar .btn:last-child');
-    if (btn) btn.textContent = `✅ 查詢所選 (${checked})`;
-}
-
-// 簡單 HTML 跳脫，防止 injection
-function escHtml(s) {
-    return String(s)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-// 點擊勾選項時立刻更新計數（delegate，掛在 document 上）
-document.addEventListener('change', function(e) {
-    if (e.target.classList.contains('ocr-cb')) updateOCRCount();
-});
-
-async function confirmOCRSearch() {
-    const cbs = document.querySelectorAll('.ocr-cb:checked');
-    if (cbs.length === 0) {
-        alert('請至少選擇一項');
-        return;
     }
 
-    // 讀取勾選的品項名稱
-    const selected = Array.from(cbs).map(cb => cb.dataset.name);
-
-    // 關閉面板，填入 textarea 並執行查詢
-    closeOCRPanel();
-
-    const textarea = document.getElementById('input');
-    textarea.value = selected.join('\n');
-
-    // 點「查詢庫存」按鈕
-    document.getElementById('searchBtn').click();
+    btn.textContent = originalText;
+    btn.disabled = false;
+    e.target.value = '';
 }
 
 // ============================================================
