@@ -1114,14 +1114,11 @@ function selectAutocompleteItem(item) {
         autocompleteCorrectedLines.add(lineIndex);
     }
 
-    // 在選取行後加一空行，方便連續輸入
-    lines.splice(lineIndex + 1, 0, '');
-
     // 更新 textarea 值
     textarea.value = lines.join('\n');
 
-    // 將游標移到下一行開頭
-    const newPos = lineStart + lines[lineIndex].length + 1; // +1 for newline
+    // 將游標留在品名後方，方便接著輸入數量
+    const newPos = lineStart + item.name.length;
     textarea.setSelectionRange(newPos, newPos);
     textarea.focus();
 
