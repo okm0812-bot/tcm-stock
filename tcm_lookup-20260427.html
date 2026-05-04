@@ -720,43 +720,24 @@ const findBestMatchInKZ = query => {
         }
     }
 
-    // 3. 2字查询只做精确比对，找不到就返回null
+    // 3. 2字查詢只做精確比對，找不到就返回null（防止短名稱錯配到長品項，如「酸棗仁」配到「酸棗仁湯」）
     if (query.length === 2) {
         return null;
     }
 
-    // 4. 3+字查询：包含匹配 + 模糊匹配
-    const allNames = Object.keys(DB_KZ).sort((a, b) => b.length - a.length);
-
-    // 4a. 單方包含匹配
-    for (const name of allNames) {
-        if (isSingleHerb(name) && name.includes(query)) {
-            return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: name !== query, fuzzy: name !== query, original: query };
+    // 4. 3+字查詢：僅限 TYPO_MAP 映射 + 精確匹配，不做包含匹配/模糊匹配（否則「酸棗仁」會錯誤映射到「酸棗仁湯」）
+    // 若 autocomplete 有顯示 fuzzy 候選，用戶會自行點選；直接搜尋則視為找不到
+    // 4a. TYPO_MAP 再次確認（針對3+字查詢，處理 typo map 中的含義映射）
+    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
+        if (query === correct) {
+            if (DB_KZ[correct]) return { name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], corrected: false, fuzzy: false };
+        }
+        if (Array.isArray(typos) && typos.includes(query)) {
+            if (DB_KZ[correct]) return { name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], corrected: true, fuzzy: true, original: query };
         }
     }
 
-    // 4b. 复方包含匹配（按名称长度降序，优先匹配最长的）
-    for (const name of allNames) {
-        if (!isSingleHerb(name)) {
-            if (name.includes(query)) {
-                return { name, status: DB_KZ[name][0], price: DB_KZ[name][1], corrected: name !== query, fuzzy: name !== query, original: query };
-            }
-        }
-    }
-
-    // 4c. 模糊匹配（3+字，门槛70%，防止短名稱錯配到長名稱）
-    let best = null, bestScore = 0.7;
-    for (const [name, data] of Object.entries(DB_KZ)) {
-        const chars = [...query].filter(c => name.includes(c));
-        const score = chars.length / query.length;
-        if (score > bestScore) {
-            bestScore = score;
-            best = { name, status: data[0], price: data[1], corrected: true, fuzzy: true, original: query };
-        }
-    }
-    if (best) return best;
-
-    return null;
+    return null;  // 找不到精確匹配，回報「找不到」
 };
 
 // ===== 锭劑专用匹配函数 =====
@@ -782,20 +763,12 @@ const findBestMatchInTablet = query => {
         }
     }
 
-    // 4. 移除"錠"后精确匹配（顯示有疑問）
+    // 5. 移除"錠"後精確匹配（顯示有疑問）
     const queryWithoutDing = query.replace(new RegExp(`[${TABLET_SUFFIX.join('')}]$`), '').trim();
     const tabletName = queryWithoutDing + TABLET_SUFFIX[0];
     if (DB_TABLET[tabletName]) return { name: tabletName, status: DB_TABLET[tabletName][0], price: DB_TABLET[tabletName][1], corrected: true, fuzzy: true };
 
-    // 5. 包含匹配（锭劑库中按长度降序，模糊）
-    const allTabletNames = Object.keys(DB_TABLET).sort((a, b) => b.length - a.length);
-    for (const name of allTabletNames) {
-        if (name === query || name.includes(query)) {
-            return { name, status: DB_TABLET[name][0], price: DB_TABLET[name][1], corrected: name !== query, fuzzy: name !== query };
-        }
-    }
-
-    // 6. 模糊匹配（仅3字以上，门槛70%，防止短名稱錯配到長名稱）
+    // 6. 模糊匹配（僅3字以上，門檻70%，防止短名稱錯配到長名稱）
     if (query.length >= 3) {
         let best = null, bestScore = 0.7;
         for (const [name, data] of Object.entries(DB_TABLET)) {
