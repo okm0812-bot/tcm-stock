@@ -1317,6 +1317,9 @@ function search() {
 
         if (!query) continue;
 
+        // 检查是否有「?」，有則標記為有疑問
+        const hasQuestionMark = line.includes('?');
+
         // 判断是锭劑还是科中
         const isTabletInput = TABLET_SUFFIX.some(c => query.includes(c));
 
@@ -1326,13 +1329,13 @@ function search() {
             // 锭劑：3个字以上进行模糊匹配锭劑库
             const tabletResult = findBestMatchInTablet(query);
             if (tabletResult) {
-                result = { displayName: tabletResult.name, status: tabletResult.status, price: tabletResult.price, source: 'tablet', corrected: tabletResult.corrected, fuzzy: tabletResult.fuzzy };
+                result = { displayName: tabletResult.name, status: tabletResult.status, price: tabletResult.price, source: 'tablet', corrected: tabletResult.corrected, fuzzy: tabletResult.fuzzy || hasQuestionMark };
             }
         } else {
             // 科中：使用完整匹配逻辑
             const kzResult = findBestMatchInKZ(query);
             if (kzResult) {
-                result = { displayName: kzResult.name, status: kzResult.status, price: kzResult.price, source: 'kz', corrected: kzResult.corrected, fuzzy: kzResult.fuzzy };
+                result = { displayName: kzResult.name, status: kzResult.status, price: kzResult.price, source: 'kz', corrected: kzResult.corrected, fuzzy: kzResult.fuzzy || hasQuestionMark };
             }
         }
 
@@ -1369,7 +1372,7 @@ function search() {
         } else {
             const outputNameForNotFound = originalProductName + ((qty > 1 || hasUserQty) ? qty : '');
             copyText += outputNameForNotFound + '\t找不到\n';
-            results.push({ displayName: originalProductName, outputName: outputNameForNotFound, qty: qty, status: 'not_found', source: 'none' });
+            results.push({ displayName: originalProductName, outputName: outputNameForNotFound, qty: qty, status: 'not_found', source: 'none', fuzzy: hasQuestionMark });
         }
     }
 
@@ -1378,8 +1381,9 @@ function search() {
 
     for (const item of results) {
         if (item.status === 'not_found') {
+            const fuzzyBadge = item.fuzzy ? '<span class="fuzzy-badge">❓ 有疑問</span>' : '';
             html += `<div class="result-item">
-                <div class="name">${item.outputName}</div>
+                <div class="name">${item.outputName}${fuzzyBadge}</div>
                 <div class="badge not-found">找不到</div>
             </div>`;
         } else if (item.status === 'specification') {
