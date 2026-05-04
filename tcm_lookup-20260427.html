@@ -680,21 +680,17 @@ const parseCSV = (csvText, source = 'kezhong') => {
             if (name && !skipWords.some(w => name.includes(w))) {
                 // ===== 庫存狀態轉換規則 =====
                 // 科中庫（source='kezhong'）：
-                //   低 → 有貨，無 → 缺貨，缺 → 有貨（目前無預訂品項）
+                //   有 → 有貨，無 → 缺貨
                 // 錠劑庫（source='tablet'）：
-                //   低 → 有貨，無 → 缺貨，預 → 預訂（目前無「缺」狀態）
+                //   低 → 有貨，無 → 缺貨
+                // 共用：含「預/订/定」→ 預訂
                 let stockStatus;
-                if (status === '低') {
+                if (status === '有') {
+                    stockStatus = '有货';
+                } else if (status === '低') {
                     stockStatus = '有货';
                 } else if (status === '無') {
                     stockStatus = '缺货';
-                } else if (status === '缺') {
-                    if (source === 'kezhong') {
-                        stockStatus = '有货';
-                    } else {
-                        const isSingle = isSingleHerb(name);
-                        stockStatus = isSingle ? '有货' : '缺货';
-                    }
                 } else if (status && (status.includes('預') || status.includes('订') || status.includes('定'))) {
                     stockStatus = '預訂';
                 } else {
