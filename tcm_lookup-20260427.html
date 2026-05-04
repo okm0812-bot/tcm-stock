@@ -1109,10 +1109,7 @@ function selectAutocompleteItem(item) {
     const originalLine = lines[lineIndex];
     lines[lineIndex] = item.name + quantity;
 
-    // 記錄這一行經過補全校正：比對原始行與選中名稱是否不同
-    if (originalLine.replace(/\d+$/, '').trim() !== item.name) {
-        autocompleteCorrectedLines.add(lineIndex);
-    }
+    // 點選候選 = 用戶明確確認，不需要標記「有疑問」
 
     // 更新 textarea 值
     textarea.value = lines.join('\n');
@@ -1276,11 +1273,7 @@ function search() {
             continue;
         }
 
-        // 記錄這行是否來自補全校正（由 autocomplete 自動校正過的）
-        const isAutocompleteCorrected = autocompleteCorrectedLines.has(results.length);
-        if (isAutocompleteCorrected) {
-            autocompleteCorrectedLines.delete(results.length); // 用完即刪
-        }
+        // 用戶主動點選候選 = 確認，不標記有疑問
 
         // 解析产品名和数量
         // 1. 先從原始行抓出結尾的「符號+數量」（如 /3、*3、-3、x12、x 12）允許數字後接瓶/罐等單位字
@@ -1313,13 +1306,13 @@ function search() {
             // 锭劑：3个字以上进行模糊匹配锭劑库
             const tabletResult = findBestMatchInTablet(query);
             if (tabletResult) {
-                result = { displayName: tabletResult.name, status: tabletResult.status, price: tabletResult.price, source: 'tablet', corrected: tabletResult.corrected, fuzzy: tabletResult.fuzzy || hasQuestionMark || isAutocompleteCorrected };
+                result = { displayName: tabletResult.name, status: tabletResult.status, price: tabletResult.price, source: 'tablet', corrected: tabletResult.corrected, fuzzy: tabletResult.fuzzy || hasQuestionMark };
             }
         } else {
             // 科中：使用完整匹配逻辑
             const kzResult = findBestMatchInKZ(query);
             if (kzResult) {
-                result = { displayName: kzResult.name, status: kzResult.status, price: kzResult.price, source: 'kz', corrected: kzResult.corrected, fuzzy: kzResult.fuzzy || hasQuestionMark || isAutocompleteCorrected };
+                result = { displayName: kzResult.name, status: kzResult.status, price: kzResult.price, source: 'kz', corrected: kzResult.corrected, fuzzy: kzResult.fuzzy || hasQuestionMark };
             }
         }
 
