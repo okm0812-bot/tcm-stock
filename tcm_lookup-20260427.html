@@ -816,6 +816,8 @@ const findBestMatchInTablet = query => {
 let autocompleteIndex = -1;
 let autocompleteItems = [];
 let autocompleteVisible = false;
+// 記錄哪些行是補全校正過的（行號 → 原始輸入），用於結果顯示 fuzzy badge
+let autocompleteCorrectedLines = new Set();
 
 // 初始化自動補全
 function initAutocomplete() {
@@ -1131,7 +1133,13 @@ function selectAutocompleteItem(item) {
     const quantity = numMatch ? numMatch[1] : '';
 
     // 替換當前行為選中的產品名（保留數量）
+    const originalLine = lines[lineIndex];
     lines[lineIndex] = item.name + quantity;
+
+    // 記錄這一行經過補全校正：比對原始行與選中名稱是否不同
+    if (originalLine.replace(/\d+$/, '').trim() !== item.name) {
+        autocompleteCorrectedLines.add(lineIndex);
+    }
 
     // 在選取行後加一空行，方便連續輸入
     lines.splice(lineIndex + 1, 0, '');
@@ -1298,6 +1306,12 @@ function search() {
             continue;
         }
 
+        // 記錄這行是否來自補全校正（由 autocomplete 自動校正過的）
+        const isAutocompleteCorrected = autocompleteCorrectedLines.has(results.length);
+        if (isAutocompleteCorrected) {
+            autocompleteCorrectedLines.delete(results.length); // 用完即刪
+        }
+
         // 解析产品名和数量
         // 1. 先從原始行抓出結尾的「符號+數量」（如 /3、*3、-3、x12、x 12）允許數字後接瓶/罐等單位字
         const trailingMatch = line.match(/[\s\*\-\+\/xX]*(\d{1,2})(?:[瓶罐包盒顆粒]|\s|$)/i);
@@ -1329,13 +1343,13 @@ function search() {
             // 锭劑：3个字以上进行模糊匹配锭劑库
             const tabletResult = findBestMatchInTablet(query);
             if (tabletResult) {
-                result = { displayName: tabletResult.name, status: tabletResult.status, price: tabletResult.price, source: 'tablet', corrected: tabletResult.corrected, fuzzy: tabletResult.fuzzy || hasQuestionMark };
+                result = { displayName: tabletResult.name, status: tabletResult.status, price: tabletResult.price, source: 'tablet', corrected: tabletResult.corrected, fuzzy: tabletResult.fuzzy || hasQuestionMark || isAutocompleteCorrected };
             }
         } else {
             // 科中：使用完整匹配逻辑
             const kzResult = findBestMatchInKZ(query);
             if (kzResult) {
-                result = { displayName: kzResult.name, status: kzResult.status, price: kzResult.price, source: 'kz', corrected: kzResult.corrected, fuzzy: kzResult.fuzzy || hasQuestionMark };
+                result = { displayName: kzResult.name, status: kzResult.status, price: kzResult.price, source: 'kz', corrected: kzResult.corrected, fuzzy: kzResult.fuzzy || hasQuestionMark || isAutocompleteCorrected };
             }
         }
 
@@ -1372,7 +1386,7 @@ function search() {
         } else {
             const outputNameForNotFound = originalProductName + ((qty > 1 || hasUserQty) ? qty : '');
             copyText += outputNameForNotFound + '\t找不到\n';
-            results.push({ displayName: originalProductName, outputName: outputNameForNotFound, qty: qty, status: 'not_found', source: 'none', fuzzy: hasQuestionMark });
+            results.push({ displayName: originalProductName, outputName: outputNameForNotFound, qty: qty, status: 'not_found', source: 'none', fuzzy: hasQuestionMark || isAutocompleteCorrected });
         }
     }
 
