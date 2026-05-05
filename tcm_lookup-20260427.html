@@ -1260,7 +1260,7 @@ function search() {
         // 第一行：先嘗試匹配，兩庫都找不到 = 客戶名稱，跳過
         if (firstLine) {
             firstLine = false;
-            const firstQ = toTraditional(cleanLine.replace(/\d{1,2}$/, '').trim());
+            const firstQ = toTraditional(line.replace(/\d{1,2}$/, '').trim());
             if (firstQ) {
                 const isTab = TABLET_SUFFIX.some(c => firstQ.includes(c));
                 const firstKz = findBestMatchInKZ(firstQ);
