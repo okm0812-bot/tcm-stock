@@ -27,6 +27,7 @@
         .in-stock { background: #d4edda; color: #155724; }
         .out-stock { background: #f8d7da; color: #721c24; }
         .booking { background: #fff3cd; color: #856404; }
+        .contract { background: #cce5ff; color: #004085; }
         .not-found { background: #e2e3e5; color: #383d41; }
         .corrected { background: #fff3cd; color: #856404; }
         .category { margin-top: 12px; }
@@ -95,6 +96,7 @@
         .autocomplete-item .stock-hint.in-stock { background: #d4edda; color: #155724; }
         .autocomplete-item .stock-hint.out-stock { background: #f8d7da; color: #721c24; }
         .autocomplete-item .stock-hint.booking { background: #fff3cd; color: #856404; }
+        .autocomplete-item .stock-hint.contract { background: #cce5ff; color: #004085; }
         .autocomplete-item:hover .stock-hint,
         .autocomplete-item.selected .stock-hint {
             background: rgba(255,255,255,0.3);
@@ -249,6 +251,7 @@
         <div class="stats-grid" id="quickStats" style="display:none;">
             <div class="stat-item"><span class="stat-number" id="totalItems">0</span>總項</div>
             <div class="stat-item"><span class="stat-number" id="inStockItems">0</span>有貨</div>
+            <div class="stat-item"><span class="stat-number" id="contractItems">0</span>合約</div>
             <div class="stat-item"><span class="stat-number" id="outStockItems">0</span>缺貨</div>
             <div class="stat-item"><span class="stat-number" id="bookingItems">0</span>預訂</div>
         </div>
@@ -276,7 +279,7 @@
     <div class="tip">
         <strong>💡 使用提示：</strong>
         <ul>
-            <li>✅ 有貨 = 可出貨 | ⚠️ 缺貨 = 無庫存（缺）| ⏳ 預訂 = 需等待（預）</li>
+            <li>✅ 有貨 = 可出貨 | 📋 合約 = 合約供貨 | ⚠️ 缺貨 = 無庫存（缺）| ⏳ 預訂 = 需等待（預）</li>
             <li>數量輸入：生脈飲2 = 2罐</li>
             <li>語音輸入：自動比對資料庫（繁簡體）</li>
             <li>點「顯示價格」查看詳細報價</li>
@@ -687,6 +690,8 @@ const parseCSV = (csvText, source = 'kezhong') => {
                 let stockStatus;
                 if (status === '有') {
                     stockStatus = '有货';
+                } else if (status === '合約') {
+                    stockStatus = '合约';
                 } else if (status === '低') {
                     stockStatus = '有货';
                 } else if (status === '無') {
@@ -977,7 +982,7 @@ function showAutocompleteSuggestions(query, autoSelect = false) {
         const bStartsWith = b.name.startsWith(query) ? 0 : 1;
         if (aStartsWith !== bStartsWith) return aStartsWith - bStartsWith;
         // 2. 次優先：有貨 > 預訂 > 其他 > 缺貨
-        const stockRank = (s) => s === '有货' ? 0 : s === '預訂' ? 1 : s === '缺货' ? 3 : 2;
+        const stockRank = (s) => s === '有货' ? 0 : s === '合约' ? 1 : s === '預訂' ? 2 : s === '缺货' ? 4 : 3;
         const rankA = stockRank(a.status);
         const rankB = stockRank(b.status);
         if (rankA !== rankB) return rankA - rankB;
@@ -999,8 +1004,8 @@ function showAutocompleteSuggestions(query, autoSelect = false) {
 
     // 構建下拉選單
     dropdown.innerHTML = topMatches.map((item, index) => {
-        const stockClass = item.status === '有货' ? 'in-stock' : item.status === '預訂' ? 'booking' : 'out-stock';
-        const stockText = item.status === '有货' ? '✅ 有貨' : item.status === '預訂' ? '⏳ 預訂' : '⚠️ 缺貨';
+        const stockClass = item.status === '有货' ? 'in-stock' : item.status === '合约' ? 'contract' : item.status === '預訂' ? 'booking' : 'out-stock';
+        const stockText = item.status === '有货' ? '✅ 有貨' : item.status === '合约' ? '📋 合約' : item.status === '預訂' ? '⏳ 預訂' : '⚠️ 缺貨';
         const dbClass = item.dbType === '科中' ? 'db-kz' : 'db-tablet';
         return `
             <div class="autocomplete-item" data-index="${index}" data-name="${item.name}">
@@ -1241,7 +1246,7 @@ function search() {
     const skipKeywords = ['100g', '200g', '錠劑', '錠', '謝謝', '谢谢'];
     let results = [];  // 保存结果，保持顺序
     let copyText = '';
-    let stats = { inStock: 0, outStock: 0, booking: 0, total: 0 };
+    let stats = { inStock: 0, contract: 0, outStock: 0, booking: 0, total: 0 };
     let firstLine = true;
 
     for (const line of lines) {
@@ -1321,11 +1326,15 @@ function search() {
             const unitPrice = price === '時價' ? 0 : parseInt(price) || 0;
             const totalPrice = unitPrice * qty;
             const isInStock = status === '有货';
+            const isContract = status === '合约';
             const isBooking = status === '預訂';
 
             // 更新统计
             if (isBooking) {
                 stats.booking += qty;
+            } else if (isContract) {
+                stats.contract += qty;
+                stats.total += totalPrice;
             } else if (isInStock) {
                 stats.inStock += qty;
                 stats.total += totalPrice;
@@ -1339,13 +1348,15 @@ function search() {
             // 复制文本 - 只保留有货和预订品项
             if (isInStock) {
                 copyText += outputName + '\n';
+            } else if (isContract) {
+                copyText += outputName + '\n';
             } else if (isBooking) {
                 copyText += outputName + '（預）\n';
             }
             // 缺货品项不输出到复制文本
 
             // 保存结果
-            results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source, fuzzy, hasUserQty });
+            results.push({ displayName, outputName, qty, status, price, isBooking, isContract, isInStock, unitPrice, totalPrice, source, fuzzy, hasUserQty });
         } else {
             const outputNameForNotFound = originalProductName + ((qty > 1 || hasUserQty) ? qty : '');
             copyText += outputNameForNotFound + '\t找不到\n';
@@ -1371,10 +1382,10 @@ function search() {
             </div>`;
         } else {
             const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
-            const statusClass = item.isBooking ? 'booking' : item.isInStock ? 'in-stock' : 'out-stock';
-            const badgeContent = item.isBooking ? '⏳ 預訂' : item.isInStock ? '✅ 有貨' : '⚠️ 缺貨';
+            const statusClass = item.isBooking ? 'booking' : item.isContract ? 'contract' : item.isInStock ? 'in-stock' : 'out-stock';
+            const badgeContent = item.isBooking ? '⏳ 預訂' : item.isContract ? '📋 合約' : item.isInStock ? '✅ 有貨' : '⚠️ 缺貨';
             const fuzzyBadge = (item.fuzzy && !item.hasUserQty) ? '<span class="fuzzy-badge">❓ 有疑問</span>' : '';
-            const nameWithStatus = item.outputName + (item.isBooking ? '（預）' : item.isInStock ? '✅' : '（缺）');
+            const nameWithStatus = item.outputName + (item.isBooking ? '（預）' : item.isContract ? '📋' : item.isInStock ? '✅' : '（缺）');
             html += `<div class="result-item">
                 <div class="name">${nameWithStatus}${fuzzyBadge}</div>
                 <div class="badge ${statusClass}">${badgeContent}</div>
@@ -1386,11 +1397,12 @@ function search() {
     // 汇总统计
     html += `<div class="summary">
         <div class="total">${showPrice && stats.total > 0 ? stats.total + ' 元' : '查詢完成'}</div>
-        <div class="count">✅ 有貨 ${stats.inStock} 項 | ⚠️ 缺貨 ${stats.outStock} 項 | ⏳ 預訂 ${stats.booking} 項</div>
+        <div class="count">✅ 有貨 ${stats.inStock} 項 | 📋 合約 ${stats.contract || 0} 項 | ⚠️ 缺貨 ${stats.outStock} 項 | ⏳ 預訂 ${stats.booking} 項</div>
     </div>`;
     
     // 更新快速統計
     document.getElementById('inStockItems').textContent = stats.inStock;
+    document.getElementById('contractItems').textContent = stats.contract || 0;
     document.getElementById('outStockItems').textContent = stats.outStock;
     document.getElementById('bookingItems').textContent = stats.booking;
 
