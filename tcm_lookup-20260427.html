@@ -29,6 +29,7 @@
         .booking { background: #fff3cd; color: #856404; }
         .contract { background: #cce5ff; color: #004085; }
         .not-found { background: #e2e3e5; color: #383d41; }
+        .customer-name { background: #e2e3e5; color: #888; font-style: italic; }
         .corrected { background: #fff3cd; color: #856404; }
         .category { margin-top: 12px; }
         .category h3 { background: rgba(255,255,255,0.3); color: white; padding: 8px 15px; border-radius: 10px; margin: 0 0 8px 0; font-size: 14px; }
@@ -1256,10 +1257,22 @@ function search() {
             continue;
         }
 
-        // 跳过客户名逻辑已删除
-        // 原因：如果客户输入的是公司没有的产品应该显示"找不到"，才对客户有帮助
+        // 第一行：先嘗試匹配，兩庫都找不到 = 客戶名稱，跳過
         if (firstLine) {
             firstLine = false;
+            const firstQ = toTraditional(cleanLine.replace(/\d{1,2}$/, '').trim());
+            if (firstQ) {
+                const isTab = TABLET_SUFFIX.some(c => firstQ.includes(c));
+                const firstKz = findBestMatchInKZ(firstQ);
+                const firstTab = isTab ? findBestMatchInTablet(firstQ) : null;
+                if (!firstKz && !firstTab) {
+                    // 兩庫都找不到 = 客戶名稱，直接跳過
+                    copyText += `[${line}] \n`;
+                    results.push({ displayName: line, outputName: line, qty: 1, status: 'customer-name', source: 'note' });
+                    continue;
+                }
+                // 第一行是品項，正常執行下面的匹配邏輯
+            }
         }
 
         // 检查是否为规格关键词（100G, 200G, 單方, 複方, 錠劑）
@@ -1379,6 +1392,12 @@ function search() {
             html += `<div class="result-item">
                 <div class="name">${item.outputName}</div>
                 <div class="badge spec">規格</div>
+            </div>`;
+        } else if (item.status === 'customer-name') {
+            // 第一行客戶名稱：灰色斜體顯示，不影響統計
+            html += `<div class="result-item">
+                <div class="name" style="font-style:italic;color:#888;">👤 ${item.outputName}</div>
+                <div class="badge customer-name">客戶名稱</div>
             </div>`;
         } else {
             const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
