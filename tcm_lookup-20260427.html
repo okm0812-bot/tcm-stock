@@ -1374,7 +1374,7 @@ function search() {
         } else {
             const outputNameForNotFound = originalProductName + ((qty > 1 || hasUserQty) ? qty : '');
             copyText += outputNameForNotFound + '\t找不到\n';
-            results.push({ displayName: originalProductName, outputName: outputNameForNotFound, qty: qty, status: 'not_found', source: 'none', fuzzy: hasQuestionMark || isAutocompleteCorrected });
+            results.push({ displayName: originalProductName, outputName: outputNameForNotFound, qty: qty, status: 'not_found', source: 'none', fuzzy: hasQuestionMark });
         }
     }
 
