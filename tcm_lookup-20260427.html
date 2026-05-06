@@ -734,7 +734,7 @@ const findBestMatchInKZ = query => {
     // 4. 3+字查詢：僅限 TYPO_MAP 映射 + 精確匹配 + 後綴匹配，不做包含匹配/模糊匹配
     // 4a. 後綴匹配（處理常見省略：「八味地黃」→「八味地黃丸」、「九味羌活」→「九味羌活湯」等）
     if (query.length >= 3) {
-        const suffixes = ['丸', '湯', '散', '飲', '膏', '丹', '煎', '劑', '露'];
+        const suffixes = ['丸', '湯', '散', '飲', '膏', '丹', '煎', '劑', '露', '片'];
         for (const suffix of suffixes) {
             const withSuffix = query + suffix;
             if (DB_KZ[withSuffix]) return { name: withSuffix, status: DB_KZ[withSuffix][0], price: DB_KZ[withSuffix][1], corrected: true, fuzzy: true, original: query };
