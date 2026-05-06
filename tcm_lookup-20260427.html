@@ -29,6 +29,7 @@
         .booking { background: #fff3cd; color: #856404; }
         .contract { background: #cce5ff; color: #004085; }
         .not-found { background: #e2e3e5; color: #383d41; }
+        .unknown { background: #e8e0f0; color: #553c9a; }
         .customer-name { background: #e2e3e5; color: #888; font-style: italic; }
         .corrected { background: #fff3cd; color: #856404; }
         .category { margin-top: 12px; }
@@ -255,6 +256,7 @@
             <div class="stat-item"><span class="stat-number" id="contractItems">0</span>合約</div>
             <div class="stat-item"><span class="stat-number" id="outStockItems">0</span>缺貨</div>
             <div class="stat-item"><span class="stat-number" id="bookingItems">0</span>預訂</div>
+            <div class="stat-item"><span class="stat-number" id="unknownItems">0</span>未知</div>
         </div>
     </div>
 
@@ -699,6 +701,9 @@ const parseCSV = (csvText, source = 'kezhong') => {
                     stockStatus = '缺货';
                 } else if (status && (status.includes('預') || status.includes('订') || status.includes('定'))) {
                     stockStatus = '預訂';
+                } else if (status && status.trim()) {
+                    // 有值但不在已知狀態列表 → 顯示未知，不當有貨
+                    stockStatus = '?';
                 } else {
                     stockStatus = '有货';
                 }
@@ -1104,7 +1109,7 @@ function selectAutocompleteItem(item) {
     const cursorPos = textarea.selectionStart;
 
     // 找到當前行的開始和結束位置
-    const lines = value.split('\n');
+    const lines = value.replace(/\r\n/g, '\n').split('\n');
     let lineStart = 0;
     let lineIndex = 0;
 
@@ -1258,7 +1263,7 @@ function search() {
     const skipKeywords = ['100g', '200g', '錠劑', '錠', '謝謝', '谢谢'];
     let results = [];  // 保存结果，保持顺序
     let copyText = '';
-    let stats = { inStock: 0, contract: 0, outStock: 0, booking: 0, total: 0 };
+    let stats = { inStock: 0, contract: 0, outStock: 0, booking: 0, unknown: 0, total: 0 };
     let firstLine = true;
 
     for (const line of lines) {
@@ -1352,6 +1357,7 @@ function search() {
             const isInStock = status === '有货';
             const isContract = status === '合约';
             const isBooking = status === '預訂';
+            const isUnknown = status === '?';
 
             // 更新统计
             if (isBooking) {
@@ -1362,6 +1368,8 @@ function search() {
             } else if (isInStock) {
                 stats.inStock += qty;
                 stats.total += totalPrice;
+            } else if (isUnknown) {
+                stats.unknown = (stats.unknown || 0) + qty;
             } else {
                 stats.outStock += qty;
             }
@@ -1377,10 +1385,10 @@ function search() {
             } else if (isBooking) {
                 copyText += outputName + '（預）\n';
             }
-            // 缺货品项不输出到复制文本
+            // 缺货、未知品项不输出到复制文本
 
             // 保存结果
-            results.push({ displayName, outputName, qty, status, price, isBooking, isContract, isInStock, unitPrice, totalPrice, source, fuzzy, hasUserQty });
+            results.push({ displayName, outputName, qty, status, price, isBooking, isContract, isInStock, isUnknown, unitPrice, totalPrice, source, fuzzy, hasUserQty });
         } else {
             const outputNameForNotFound = originalProductName + ((qty > 1 || hasUserQty) ? qty : '');
             copyText += outputNameForNotFound + '\t找不到\n';
@@ -1415,6 +1423,13 @@ function search() {
                 <div class="name" style="font-style:italic;color:#888;">👤 ${item.outputName}</div>
                 <div class="badge customer-name">客戶名稱</div>
             </div>`;
+        } else if (item.isUnknown) {
+            const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : `${item.price}元`) : '';
+            html += `<div class="result-item">
+                <div class="name">${item.outputName}</div>
+                <div class="badge unknown">❓ 未知</div>
+                <div class="price">${priceStr}</div>
+            </div>`;
         } else {
             const priceStr = showPrice ? (item.price === '時價' ? '請電洽' : (item.qty > 1 ? `${item.unitPrice}x${item.qty}=${item.totalPrice}元` : `${item.price}元`)) : '';
             const statusClass = item.isBooking ? 'booking' : item.isContract ? 'contract' : item.isInStock ? 'in-stock' : 'out-stock';
@@ -1432,12 +1447,13 @@ function search() {
     // 汇总统计
     html += `<div class="summary">
         <div class="total">${showPrice && stats.total > 0 ? stats.total + ' 元' : '查詢完成'}</div>
-        <div class="count">✅ 有貨 ${stats.inStock} 項 | 📋 合約 ${stats.contract || 0} 項 | ⚠️ 缺貨 ${stats.outStock} 項 | ⏳ 預訂 ${stats.booking} 項</div>
+        <div class="count">✅ 有貨 ${stats.inStock} 項 | 📋 合約 ${stats.contract || 0} 項 | ⚠️ 缺貨 ${stats.outStock} 項 | ⏳ 預訂 ${stats.booking} 項${stats.unknown ? ` | ❓ 未知 ${stats.unknown} 項` : ''}</div>
     </div>`;
     
     // 更新快速統計
     document.getElementById('inStockItems').textContent = stats.inStock;
     document.getElementById('contractItems').textContent = stats.contract || 0;
+    document.getElementById('unknownItems').textContent = stats.unknown || 0;
     document.getElementById('outStockItems').textContent = stats.outStock;
     document.getElementById('bookingItems').textContent = stats.booking;
 
