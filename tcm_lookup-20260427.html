@@ -1008,11 +1008,13 @@ function showAutocompleteSuggestions(query, autoSelect = false) {
         const stockClass = item.status === '有货' ? 'in-stock' : item.status === '合约' ? 'contract' : item.status === '預訂' ? 'booking' : 'out-stock';
         const stockText = item.status === '有货' ? '✅ 有貨' : item.status === '合约' ? '📋 合約' : item.status === '預訂' ? '⏳ 預訂' : '⚠️ 缺貨';
         const dbClass = item.dbType === '科中' ? 'db-kz' : 'db-tablet';
+        // 非精確匹配（score < 100）顯示有疑問 badge
+        const fuzzyBadge = item.score < 100 ? '<span class="fuzzy-badge">❓ 有疑問</span>' : '';
         return `
             <div class="autocomplete-item" data-index="${index}" data-name="${item.name}">
                 <span class="match-text">
                     <span class="db-tag ${dbClass}">${item.dbType}</span>
-                    ${highlightMatch(item.name, query)}
+                    ${highlightMatch(item.name, query)}${fuzzyBadge}
                 </span>
                 <span class="stock-hint ${stockClass}">${stockText}</span>
             </div>
@@ -1537,7 +1539,7 @@ function startVoiceInput() {
                 const lines = textarea.value.split('\n');
                 const currentLine = lines[lines.length - 1].trim();
                 const cleanLine = currentLine.replace(/[\d瓶罐包盒顆粒]+$/, '').trim();
-                if (cleanLine.length >= 2 && Object.keys(DB_KZ).length > 0) {
+                if (cleanLine.length >= 1 && Object.keys(DB_KZ).length > 0) {
                     showAutocompleteSuggestions(cleanLine, false);
                 }
                 continue;
@@ -1546,7 +1548,7 @@ function startVoiceInput() {
             // 👈 final 確認後，跳過 interim，直到下一個 final 重新開始
             if (finalConfirmed) continue;
 
-            if (!event.results[i].isFinal && text.length >= 2) {
+            if (!event.results[i].isFinal && text.length >= 1) {
                 // 防抖：每次中間結果進來都重設計時器，300ms 後才處理
                 if (voiceDebounceTimer) clearTimeout(voiceDebounceTimer);
                 voiceDebounceTimer = setTimeout(() => {
@@ -1563,7 +1565,7 @@ function startVoiceInput() {
                     const currentLine = lines[lines.length - 1].trim();
                     const cleanLine = currentLine.replace(/[\d瓶罐包盒顆粒]+$/, '').trim();
                     // ✅ interim 也顯示候選單（autoSelect=false 不會自動查詢）
-                    if (cleanLine.length >= 2 && Object.keys(DB_KZ).length > 0) {
+                    if (cleanLine.length >= 1 && Object.keys(DB_KZ).length > 0) {
                         showAutocompleteSuggestions(cleanLine, false);
                     }
                 }, 300);
