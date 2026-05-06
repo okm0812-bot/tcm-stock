@@ -1392,6 +1392,11 @@ function search() {
     let html = '';
 
     for (const item of results) {
+        // 过滤：有疑问+缺货不显示
+        if (item.fuzzy && item.status === 'out-stock') {
+            continue;
+        }
+
         if (item.status === 'not_found') {
             const fuzzyBadge = item.fuzzy ? '<span class="fuzzy-badge">❓ 有疑問</span>' : '';
             html += `<div class="result-item">
