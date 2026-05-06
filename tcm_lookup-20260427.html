@@ -1237,7 +1237,8 @@ function search() {
     }
 
     const inputEl = document.getElementById('input');
-    const lines = inputEl.value.trim().split('\n').map(l => l.trim()).filter(Boolean);
+    // 處理貼上時可能攜帶的 \r\n 換行符
+    const lines = inputEl.value.replace(/\r\n/g, '\n').trim().split('\n').map(l => l.trim()).filter(Boolean);
 
     if (!lines.length) {
         inputEl.focus();
