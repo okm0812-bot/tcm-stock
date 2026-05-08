@@ -615,7 +615,7 @@ const parseCSV = (csvText, source = 'kezhong') => {
 
 // ===== 科中专用匹配函数 =====
 // 匹配规则：
-// - 2字查询：只做精确比对，找不到显示「找不到」
+// - 2字查询：只做精确比对，無生產显示「無生產」
 // - 3+字查询：允许模糊匹配，匹配结果与输入不同显示「有疑问」
 const findBestMatchInKZ = query => {
     if (!query || !Object.keys(DB_KZ).length) return null;
@@ -630,7 +630,7 @@ const findBestMatchInKZ = query => {
         }
     }
 
-    // 3. 2字查詢只做精確比對，找不到就返回null（防止短名稱錯配到長品項，如「酸棗仁」配到「酸棗仁湯」）
+    // 3. 2字查詢只做精確比對，無生產就返回null（防止短名稱錯配到長品項，如「酸棗仁」配到「酸棗仁湯」）
     if (query.length === 2) {
         return null;
     }
@@ -655,7 +655,7 @@ const findBestMatchInKZ = query => {
         }
     }
 
-    return null;  // 找不到精確匹配，回報「找不到」
+    return null;  // 無生產精確匹配，回報「無生產」
 };
 
 // ===== 锭劑专用匹配函数 =====
@@ -1171,7 +1171,7 @@ function search() {
             continue;
         }
 
-        // 第一行：先嘗試匹配，兩庫都找不到 = 客戶名稱，跳過
+        // 第一行：先嘗試匹配，兩庫都無生產 = 客戶名稱，跳過
         if (firstLine) {
             firstLine = false;
             const firstQ = toTraditional(line.replace(/\d{1,2}$/, '').trim());
@@ -1180,7 +1180,7 @@ function search() {
                 const firstKz = findBestMatchInKZ(firstQ);
                 const firstTab = isTab ? findBestMatchInTablet(firstQ) : null;
                 if (!firstKz && !firstTab) {
-                    // 兩庫都找不到 = 客戶名稱，直接跳過
+                    // 兩庫都無生產 = 客戶名稱，直接跳過
                     copyText += `[${line}] \n`;
                     results.push({ displayName: line, outputName: line, qty: 1, status: 'customer-name', source: 'note' });
                     continue;
@@ -1289,7 +1289,7 @@ function search() {
             results.push({ displayName, outputName, qty, status, price, isBooking, isContract, isInStock, isUnknown, unitPrice, totalPrice, source, fuzzy, hasUserQty });
         } else {
             const outputNameForNotFound = originalProductName + ((qty > 1 || hasUserQty) ? qty : '');
-            copyText += outputNameForNotFound + '\t找不到\n';
+            copyText += outputNameForNotFound + '\t無生產\n';
             results.push({ displayName: originalProductName, outputName: outputNameForNotFound, qty: qty, status: 'not_found', source: 'none', fuzzy: hasQuestionMark });
         }
     }
@@ -1307,7 +1307,7 @@ function search() {
             const fuzzyBadge = item.fuzzy ? '<span class="fuzzy-badge">❓ 有疑問</span>' : '';
             html += `<div class="result-item">
                 <div class="name">${item.outputName}${fuzzyBadge}</div>
-                <div class="badge not-found">找不到</div>
+                <div class="badge not-found">無生產</div>
             </div>`;
         } else if (item.status === 'specification') {
             // 规格关键词：直接显示，不加状态
