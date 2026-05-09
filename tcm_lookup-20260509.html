@@ -2,29 +2,29 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>BI庫存查詢系統</title>
     <style>
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 15px; margin: 0; }
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 15px; padding: max(15px, env(safe-area-inset-top)) max(15px, env(safe-area-inset-right)) max(15px, env(safe-area-inset-bottom)) max(15px, env(safe-area-inset-left)); margin: 0; overscroll-behavior: contain; -webkit-tap-highlight-color: transparent; }
         .container { max-width: 500px; margin: 0 auto; }
         .header { text-align: center; color: white; margin-bottom: 20px; }
         .header h1 { font-size: 24px; margin: 0; }
         .header .status { font-size: 12px; opacity: 0.8; margin-top: 5px; }
         .search-box { background: white; border-radius: 20px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
         .btn-group { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
-        .btn-small { background: #667eea; color: white; border: none; padding: 10px 12px; font-size: 14px; border-radius: 20px; cursor: pointer; flex: 1; min-width: 90px; height: 44px; }
+        .btn-small { background: #667eea; color: white; border: none; padding: 10px 12px; font-size: 14px; border-radius: 20px; cursor: pointer; flex: 1; min-width: 90px; height: 44px; -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none; }
         .btn-small:disabled { opacity: 0.6; cursor: not-allowed; }
         .btn-clear { background: #dc3545; }
         textarea { width: 100%; padding: 14px; font-size: 16px; border: 2px solid #ddd; border-radius: 12px; outline: none; height: 180px; resize: none; margin-bottom: 12px; }
         textarea:focus { border-color: #667eea; }
         /* 測試版：輸入時自動延長 */
-        .autoresize { height: 60px !important; min-height: 60px; max-height: 400px; overflow: hidden; transition: height 0.25s ease; }
+        .autoresize { height: 60px; min-height: 60px; max-height: 400px; overflow: hidden; transition: height 0.25s ease; }
         .autoresize.scritty { height: 60px; }
         .autoresize.smedium { height: 120px; }
         .autoresize.stall { height: 200px; }
         .autoresize.sfull { height: 400px; }
-        .btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 14px; font-size: 16px; border-radius: 25px; cursor: pointer; width: 100%; font-weight: bold; height: 50px; }
+        .btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 14px; font-size: 16px; border-radius: 25px; cursor: pointer; width: 100%; font-weight: bold; height: 50px; -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none; }
         .btn:disabled { background: #ccc; }
         .result-item { background: white; border-radius: 10px; padding: 12px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
         .name { font-weight: bold; font-size: 15px; flex: 1; min-width: 120px; }
@@ -1380,24 +1380,27 @@ function search() {
     });
 }
 
-function clearInput() { document.getElementById('input').value = ''; document.getElementById('result').innerHTML = ''; const el = document.getElementById('input'); el.className = 'autoresize scritty'; el.style.height = ''; }
+function clearInput() { document.getElementById('input').value = ''; document.getElementById('result').innerHTML = ''; const el = document.getElementById('input'); el.className = 'autoresize'; el.style.height = '60px'; }
 function togglePrice() { showPrice = !showPrice; const btn = document.getElementById('priceBtn'); btn.textContent = showPrice ? '🙈 隱藏價格' : '💰 顯示價格'; btn.classList.toggle('price-active', showPrice); if (document.getElementById('input').value) search(); }
 
 // ===== 自動延長輸入框 =====
 function autoResize(el) {
-    el.style.height = 'auto';
-    const scrollH = el.scrollHeight;
+    const lineCount = (el.value.match(/\n/g) || []).length + 1;
     if (el.value === '') {
+        el.className = 'autoresize';
+        el.style.height = '60px';
+    } else if (lineCount <= 3) {
         el.className = 'autoresize scritty';
-        el.style.height = '';
-    } else if (scrollH <= 80) {
-        el.className = 'autoresize scritty';
-    } else if (scrollH <= 140) {
+        el.style.height = '60px';
+    } else if (lineCount <= 5) {
         el.className = 'autoresize smedium';
-    } else if (scrollH <= 220) {
+        el.style.height = '120px';
+    } else if (lineCount <= 7) {
         el.className = 'autoresize stall';
+        el.style.height = '200px';
     } else {
         el.className = 'autoresize sfull';
+        el.style.height = '400px';
     }
 }
 
