@@ -18,6 +18,12 @@
         .btn-clear { background: #dc3545; }
         textarea { width: 100%; padding: 14px; font-size: 16px; border: 2px solid #ddd; border-radius: 12px; outline: none; height: 180px; resize: none; margin-bottom: 12px; }
         textarea:focus { border-color: #667eea; }
+        /* 測試版：輸入時自動延長 */
+        .autoresize { height: 60px !important; min-height: 60px; max-height: 400px; overflow: hidden; transition: height 0.25s ease; }
+        .autoresize.scritty { height: 60px; }
+        .autoresize.smedium { height: 120px; }
+        .autoresize.stall { height: 200px; }
+        .autoresize.sfull { height: 400px; }
         .btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 14px; font-size: 16px; border-radius: 25px; cursor: pointer; width: 100%; font-weight: bold; height: 50px; }
         .btn:disabled { background: #ccc; }
         .result-item { background: white; border-radius: 10px; padding: 12px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
@@ -152,7 +158,7 @@
         </div>
         </div>
         <div class="autocomplete-wrapper">
-            <textarea id="input" placeholder="每行輸入一個產品&#10;範例：&#10;羌活勝濕湯錠&#10;苦參2&#10;語音/圖片自動比對資料庫"></textarea>
+            <textarea id="input" class="autoresize" placeholder="每行輸入一個產品&#10;範例：&#10;羌活勝濕湯錠&#10;苦參2&#10;語音/圖片自動比對資料庫" oninput="autoResize(this)"></textarea>
             <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
         </div>
         <button class="btn" id="searchBtn" onclick="search()">🔍 查詢庫存</button>
@@ -1374,8 +1380,26 @@ function search() {
     });
 }
 
-function clearInput() { document.getElementById('input').value = ''; document.getElementById('result').innerHTML = ''; }
+function clearInput() { document.getElementById('input').value = ''; document.getElementById('result').innerHTML = ''; const el = document.getElementById('input'); el.className = 'autoresize scritty'; el.style.height = ''; }
 function togglePrice() { showPrice = !showPrice; const btn = document.getElementById('priceBtn'); btn.textContent = showPrice ? '🙈 隱藏價格' : '💰 顯示價格'; btn.classList.toggle('price-active', showPrice); if (document.getElementById('input').value) search(); }
+
+// ===== 自動延長輸入框 =====
+function autoResize(el) {
+    el.style.height = 'auto';
+    const scrollH = el.scrollHeight;
+    if (el.value === '') {
+        el.className = 'autoresize scritty';
+        el.style.height = '';
+    } else if (scrollH <= 80) {
+        el.className = 'autoresize scritty';
+    } else if (scrollH <= 140) {
+        el.className = 'autoresize smedium';
+    } else if (scrollH <= 220) {
+        el.className = 'autoresize stall';
+    } else {
+        el.className = 'autoresize sfull';
+    }
+}
 
 // ===== 语音输入 =====
 let recognition = null;
