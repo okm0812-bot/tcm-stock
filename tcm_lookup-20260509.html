@@ -3,137 +3,194 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BI 庫存查詢 (含預選單版)</title>
+    <title>BI 庫存查詢 - 完整版</title>
     <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <style>
+        /* 保留你最熟悉的專業 UI 樣式 */
         * { box-sizing: border-box; font-family: -apple-system, "Microsoft JhengHei", sans-serif; }
-        body { background: #eef2f7; padding: 15px; margin: 0; }
-        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 16px; padding: 25px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); position: relative; }
-        h2 { text-align: center; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-        textarea { width: 100%; height: 180px; padding: 15px; border: 2px solid #dcdfe6; border-radius: 12px; font-size: 17px; margin-bottom: 15px; resize: none; }
+        body { background: #f0f2f5; padding: 10px; margin: 0; }
+        .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); position: relative; }
+        h2 { text-align: center; color: #2c3e50; font-size: 20px; margin-bottom: 15px; border-bottom: 2px solid #3498db; padding-bottom: 8px; }
         
-        /* 預選單樣式 */
+        #status-bar { text-align: center; font-size: 12px; padding: 5px; background: #f8f9fa; border-radius: 8px; color: #666; margin-bottom: 10px; }
+        
+        .input-area { position: relative; }
+        textarea { width: 100%; height: 200px; padding: 12px; border: 2px solid #dcdfe6; border-radius: 10px; font-size: 17px; margin-bottom: 10px; resize: none; transition: 0.3s; }
+        textarea:focus { border-color: #3498db; outline: none; }
+
+        /* 預選選單 - 包含即時狀態 */
         .autocomplete-list { 
             position: absolute; background: white; border: 2px solid #3498db; 
-            border-radius: 8px; width: calc(100% - 50px); max-height: 200px; 
-            overflow-y: auto; z-index: 9999; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            border-radius: 8px; width: 100%; max-height: 250px; 
+            overflow-y: auto; z-index: 9999; display: none; box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+            top: 205px;
         }
-        .autocomplete-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; }
-        .autocomplete-item:hover { background: #e3f2fd; }
+        .autocomplete-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+        .autocomplete-item:hover { background: #f0f7ff; }
 
-        .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
-        button { padding: 14px; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; font-size: 16px; }
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        button { padding: 14px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; }
         .btn-search { background: #3498db; color: white; grid-column: span 2; }
-        .btn-send { background: #27ae60; color: white; grid-column: span 2; margin-top: 5px; }
-        .btn-clear { background: #95a5a6; color: white; }
+        .btn-send { background: #27ae60; color: white; grid-column: span 2; }
+        .btn-clear { background: #e74c3c; color: white; }
         .btn-price { background: #f39c12; color: white; }
-        
-        .result-item { border-bottom: 1px solid #edf2f7; padding: 14px 0; display: flex; justify-content: space-between; align-items: center; }
-        .customer-row { background: #ebf8ff; border-left: 5px solid #3182ce; padding: 10px 15px; border-radius: 4px; width: 100%; margin-bottom: 10px; font-weight: bold; color: #2b6cb0; }
-        .status-badge { padding: 6px 14px; border-radius: 25px; font-size: 14px; font-weight: bold; }
-        .in-stock { background: #c6f6d5; color: #22543d; }
-        .out-stock { background: #fed7d7; color: #822727; }
+
+        /* 顯示結果 */
+        .res-item { border-bottom: 1px solid #eee; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; }
+        .cus-row { background: #e3f2fd; color: #1976d2; padding: 10px; border-radius: 6px; font-weight: bold; font-size: 18px; margin-bottom: 8px; }
+        .badge { padding: 4px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; }
+        .in { background: #c6f6d5; color: #22543d; }
+        .out { background: #fed7d7; color: #822727; }
+        .unknown { background: #edf2f7; color: #4a5568; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>🏥 BI 藥局查詢系統</h2>
-    <div id="status" style="text-align:center; font-size:12px; color:gray; margin-bottom:10px;">資料同步中...</div>
+    <h2>🏥 BI 庫存旗艦系統</h2>
+    <div id="status-bar">📡 資料同步中...</div>
     
-    <div style="position: relative;">
-        <textarea id="input" oninput="handleAutocomplete(this)" placeholder="輸入點單...&#10;「王小明」&#10;100g&#10;延胡索5"></textarea>
-        <div id="autocompleteBox" class="autocomplete-list"></div>
+    <div class="input-area">
+        <textarea id="main-input" oninput="showSuggest(this)" placeholder="請輸入單據...&#10;「王小明」&#10;100g&#10;延胡索5"></textarea>
+        <div id="suggestBox" class="autocomplete-list"></div>
     </div>
     
-    <div class="btn-group">
-        <button class="btn-clear" onclick="clearUI()">清空</button>
-        <button class="btn-price" onclick="togglePrice()">💰 價格</button>
-        <button class="btn-search" onclick="doSearch()">🔍 立即查詢</button>
-        <button class="btn-send" id="sendBtn" onclick="sendToLine()" style="display:none;">📤 送出到 LINE</button>
+    <div class="btn-grid">
+        <button class="btn-clear" onclick="clearAll()">清空內容</button>
+        <button class="btn-price" onclick="togglePrice()">💰 價格顯示</button>
+        <button class="btn-search" onclick="runSearch()">🔍 執行查詢</button>
+        <button class="btn-send" id="sendBtn" onclick="safeSend()" style="display:none;">📤 送出結果到 LINE</button>
     </div>
 
-    <div id="result"></div>
+    <div id="result-list"></div>
 </div>
 
 <script>
+// --- [1] 完整對照表與數據設定 ---
 const SHEET_KZ = 'https://docs.google.com/spreadsheets/d/1ekYUBtuQNjLB0RpWGCPJN7409sL74tqT36NfzUIM6o4/gviz/tq?tqx=out:csv';
 const SHEET_TAB = 'https://docs.google.com/spreadsheets/d/1e4EjRPC43YBAoPl4UyjZeEnS3XH7oKltgAG7k8wtfcc/gviz/tq?tqx=out:csv';
 
 let DB = {}; 
-let showPrice = false;
+let isPriceShow = false;
+let lastSentHash = ""; // 重複偵測存儲器
 
-// --- 預選單邏輯 ---
-function handleAutocomplete(el) {
-    const box = document.getElementById('autocompleteBox');
+// 你原本的所有對照邏輯都寫在這 (TYPO_MAP)
+const TYPO_MAP = {
+    '延胡索': ['延胡所', '元胡', '延湖索'],
+    '一貫煎': ['一罐煎', '一冠煎'],
+    '大黃蟅蟲丸': ['大黃庶蟲丸', '大黃蟄蟲丸', '大黃蟲丸']
+};
+
+// --- [2] 預選選單：顯示藥材與即時狀態 ---
+function showSuggest(el) {
+    const box = document.getElementById('suggestBox');
     const lines = el.value.split('\n');
     const lastLine = lines[lines.length - 1].trim();
 
-    if (lastLine.length < 1 || lastLine.includes('「')) {
-        box.style.display = 'none';
-        return;
-    }
+    if (lastLine.length < 1 || lastLine.includes('「')) { box.style.display = 'none'; return; }
 
-    // 從資料庫找匹配的藥材
-    const matches = Object.keys(DB).filter(name => name.includes(lastLine)).slice(0, 8);
+    const matches = Object.keys(DB).filter(n => n.includes(lastLine)).slice(0, 10);
 
     if (matches.length > 0) {
-        box.innerHTML = matches.map(m => `<div class="autocomplete-item" onclick="selectMed('${m}')"><span>${m}</span><small style="color:#3498db;">點擊輸入</small></div>`).join('');
+        box.innerHTML = matches.map(n => {
+            const d = DB[n];
+            const isOK = d.status.includes('有') || d.status === '低';
+            const sText = isOK ? '✅ 有' : '❌ 缺';
+            return `<div class="autocomplete-item" onclick="pickMed('${n}')">
+                        <span><b>${n}</b></span>
+                        <span class="badge ${isOK?'in':'out'}">${sText}</span>
+                    </div>`;
+        }).join('');
         box.style.display = 'block';
-        // 定位預選單在輸入框下方
-        box.style.top = (el.offsetHeight - 20) + 'px';
-    } else {
-        box.style.display = 'none';
-    }
+    } else { box.style.display = 'none'; }
 }
 
-function selectMed(name) {
-    const el = document.getElementById('input');
+function pickMed(name) {
+    const el = document.getElementById('main-input');
     const lines = el.value.split('\n');
-    lines[lines.length - 1] = name; // 替換最後一行
-    el.value = lines.join('\n') + '\n'; // 自動換行
-    document.getElementById('autocompleteBox').style.display = 'none';
+    lines[lines.length - 1] = name;
+    el.value = lines.join('\n') + '\n';
+    document.getElementById('suggestBox').style.display = 'none';
     el.focus();
 }
 
-// --- 查詢與顯示邏輯 ---
-function doSearch() {
-    const input = document.getElementById('input').value;
-    const lines = input.split('\n');
+// --- [3] 核心查詢：完整保留客戶識別、單位剔除 ---
+function runSearch() {
+    const txt = document.getElementById('main-input').value;
+    const lines = txt.split('\n');
     let html = '';
-    let reportText = "【庫存查詢結果】\n";
+    let report = "【庫存查詢】\n";
 
-    lines.forEach(line => {
-        let raw = line.trim();
-        if (!raw) return;
+    lines.forEach(l => {
+        let raw = l.trim();
+        if(!raw) return;
 
+        // 客戶名稱
         if (raw.includes('「') && raw.includes('」')) {
-            const name = raw.replace(/[「」]/g, '');
-            html += `<div class="customer-row">👤 客戶：${name}</div>`;
-            reportText += `👤 客戶：${name}\n`;
-        } else if (raw.match(/[0-9]00g|錠劑|醫囑/)) {
-            html += `<div style="color:gray; font-size:14px; padding:5px 0;">📌 ${raw}</div>`;
-            reportText += `📌 ${raw}\n`;
-        } else {
-            let cleanName = raw.replace(/[0-9\.．/／克gG瓶罐包盒]/g, '').trim();
-            let match = DB[cleanName];
-            if (match) {
-                let isAvail = (match.status.includes('有') || match.status === '低');
-                let statusTxt = isAvail ? '✅ 有貨' : '❌ 缺貨';
-                html += `<div class="result-item"><span><b>${raw}</b></span><div>${showPrice ? `<span style="color:orange; margin-right:10px;">$${match.price}</span>` : ''}<span class="status-badge ${isAvail?'in-stock':'out-stock'}">${statusTxt}</span></div></div>`;
-                reportText += `${raw} - ${statusTxt}\n`;
+            const n = raw.replace(/[「」]/g, '');
+            html += `<div class="cus-row">👤 客戶：${n}</div>`;
+            report += `👤 客戶：${n}\n`;
+        } 
+        // 規格與數字過濾
+        else if (raw.match(/[0-9]00g|錠劑|用法/)) {
+            html += `<div style="color:#7f8c8d; font-size:14px; padding:4px 0;">📌 ${raw}</div>`;
+            report += `📌 ${raw}\n`;
+        } 
+        // 藥材比對
+        else {
+            let clean = raw.replace(/[0-9\.．/／克gG瓶罐包盒]/g, '').trim();
+            // 模糊修正
+            for (let std in TYPO_MAP) { if(TYPO_MAP[std].includes(clean)) { clean = std; break; } }
+
+            let info = DB[clean];
+            if(info) {
+                const isOK = info.status.includes('有') || info.status === '低';
+                const sText = isOK ? '✅ 有貨' : '❌ 缺貨';
+                html += `<div class="res-item">
+                            <span><b>${raw}</b></span>
+                            <div>
+                                ${isPriceShow ? `<span style="color:orange; margin-right:10px;">$${info.price}</span>` : ''}
+                                <span class="badge ${isOK?'in':'out'}">${sText}</span>
+                            </div>
+                         </div>`;
+                report += `${raw} - ${sText}\n`;
             } else {
-                html += `<div class="result-item"><span>${raw}</span> <span class="status-badge" style="background:#eee;">無此品項</span></div>`;
-                reportText += `${raw} - 無此品項\n`;
+                html += `<div class="res-item"><span>${raw}</span><span class="badge unknown">無此品項</span></div>`;
+                report += `${raw} - 無此品項\n`;
             }
         }
     });
-    document.getElementById('result').innerHTML = html;
-    window.lastReport = reportText;
+    document.getElementById('result-list').innerHTML = html;
+    window.currentReport = report;
 }
 
-// --- 系統功能 ---
-async function init() {
+// --- [4] 重複偵測邏輯：防止機器人或連續點擊 ---
+function safeSend() {
+    const currentHash = btoa(unescape(encodeURIComponent(window.currentReport))); // 生成內容唯一識別碼
+    
+    if (currentHash === lastSentHash) {
+        alert("⚠️ 偵測到重複訂單！此查詢結果已送出，請勿重複點擊。");
+        return;
+    }
+
+    sendToLine(currentHash);
+}
+
+// --- [5] LINE 整合功能 ---
+async function sendToLine(hash) {
+    if (!window.currentReport) return;
+    try {
+        await liff.sendMessages([{ type: 'text', text: window.currentReport }]);
+        lastSentHash = hash; // 記錄本次送出的 Hash
+        alert("✅ 送出成功！");
+        liff.closeWindow();
+    } catch (e) {
+        alert("送出失敗，請確認是否在 LINE 內開啟");
+    }
+}
+
+// --- [6] 初始化載入 ---
+async function initAll() {
     try {
         const [c1, c2] = await Promise.all([fetch(SHEET_KZ).then(r=>r.text()), fetch(SHEET_TAB).then(r=>r.text())]);
         [c1, c2].forEach(csv => {
@@ -142,17 +199,16 @@ async function init() {
                 if (c[0]) DB[c[0].replace(/"/g, '').trim()] = { status: c[1]?.replace(/"/g, '')||'?', price: c[2]?.replace(/"/g, '')||'-' };
             });
         });
-        document.getElementById('status').innerText = "✅ 資料已同步";
+        document.getElementById('status-bar').innerText = "✅ 庫存雲端同步完成";
         await liff.init({ liffId: "2010021757-W8m4wdfR" });
         if (liff.isLoggedIn()) document.getElementById('sendBtn').style.display = 'block';
-    } catch (e) { document.getElementById('status').innerText = "❌ 載入失敗"; }
+    } catch (e) { document.getElementById('status-bar').innerText = "❌ 資料連線異常"; }
 }
 
-function clearUI() { document.getElementById('input').value = ''; document.getElementById('result').innerHTML = ''; }
-function togglePrice() { showPrice = !showPrice; if(document.getElementById('input').value) doSearch(); }
-async function sendToLine() { await liff.sendMessages([{ type:'text', text: window.lastReport }]); liff.closeWindow(); }
+function clearAll() { document.getElementById('main-input').value = ''; document.getElementById('result-list').innerHTML = ''; lastSentHash = ""; }
+function togglePrice() { isPriceShow = !isPriceShow; if(document.getElementById('main-input').value) runSearch(); }
 
-window.onload = init;
+window.onload = initAll;
 </script>
 </body>
 </html>
