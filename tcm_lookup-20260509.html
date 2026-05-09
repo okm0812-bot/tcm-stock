@@ -1834,5 +1834,61 @@ document.addEventListener('DOMContentLoaded', function() {
     loadData();
 });
 </script>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
+    <script>
+        // 2. 初始化 LINE LIFF
+        // 注意：請確保此 ID 與你在 LINE Developers 後台申請的一致
+        liff.init({ liffId: "2010021757-W8m4wdfR" }).then(() => {
+            if (liff.isInClient()) {
+                document.getElementById('status').textContent += " (LINE 連結成功)";
+            }
+        }).catch(err => console.error("LIFF 初始化失敗", err));
+
+        // 3. 整合送出功能與重複偵測
+        let lastSentContent = ""; 
+
+        function sendToLine() {
+            // 自動抓取你原本程式碼生成的「copyContent」區塊
+            const resultContent = document.getElementById('copyContent');
+            
+            if (!resultContent) {
+                alert("請先執行查詢，產生結果後再送出！");
+                return;
+            }
+
+            const resultText = resultContent.innerText.trim();
+            
+            if (!resultText) {
+                alert("查詢結果為空，無法送出。");
+                return;
+            }
+
+            // 【防重複偵測】：內容跟上次一樣就不准送
+            if (resultText === lastSentContent) {
+                alert("⚠️ 偵測到重複訂單！剛才已經送出過同樣的內容，請勿重複操作。");
+                return;
+            }
+
+            // 執行傳送回 LINE 聊天室
+            if (liff.isInClient()) {
+                liff.sendMessages([{
+                    type: 'text',
+                    text: "📦 庫存查詢結果：\n" + resultText
+                }]).then(() => {
+                    lastSentContent = resultText; // 紀錄發送內容
+                    alert("✅ 訂單已傳送到對話框");
+                }).catch(err => {
+                    if (err.message.includes("user declined")) {
+                        alert("傳送失敗：請在 LINE 設定中允許此 App 傳送訊息。");
+                    } else {
+                        alert("傳送失敗：" + err);
+                    }
+                });
+            } else {
+                alert("此功能僅限在 LINE App 內使用。請確保你是點擊 liff.line.me 的連結。");
+            }
+        }
+    </script>
 </body>
 </html>
