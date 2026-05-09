@@ -156,7 +156,6 @@
             <button class="btn-small" id="priceBtn" onclick="togglePrice()">💰 顯示價格</button>
             <button class="btn-small btn-clear" onclick="clearInput()">🗑️ 清除</button>
         </div>
-        </div>
         <div class="autocomplete-wrapper">
             <textarea id="input" class="autoresize" placeholder="每行輸入一個產品&#10;範例：&#10;羌活勝濕湯錠&#10;苦參2&#10;語音/圖片自動比對資料庫" oninput="autoResize(this)"></textarea>
             <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
@@ -1843,4 +1842,22 @@ function getPronunciationSimilarity(text, name) {
             if (tSimilar.includes(n) || nSimilar.includes(t)) {
                 matchScore += 0.7;  // 相似字符给 0.7 分
             }
-       
+        }
+    }
+
+    return totalChars > 0 ? matchScore / maxLen : 0;
+}
+
+// ===== OCR 功能已移除 =====
+
+// ============================================================
+// 初始化
+// ============================================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadData();
+});
+</script>
+</body>
+</html>
+
