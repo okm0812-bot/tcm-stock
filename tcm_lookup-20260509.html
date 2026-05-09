@@ -1185,6 +1185,22 @@ function search() {
 
         // 用戶主動點選候選 = 確認，不標記有疑問
 
+        // 解析产品名和数量（提早計算，供麻黃特殊處理使用）
+        // 1. 先從原始行抓出結尾的「符號+數量」（如 /3、*3、-3、x12、x 12）允許數字後接瓶/罐等單位字
+        const trailingMatch = line.match(/[\s\*\-\+\/xX]*(\d{1,2})(?:[瓶罐包盒顆粒]|\s|$)/i);
+        const qty = trailingMatch ? parseInt(trailingMatch[1]) : 1;
+        const hasUserQty = !!trailingMatch;
+
+        // 2. 清除：移除常見單位詞、前綴 x/×/∗、結尾的 符號（只留數字）
+        let cleanLine = line
+            .replace(/[x×∗]/gi, '')                                    // 前綴 x/×/∗
+            .replace(/[瓶罐包盒顆粒]/g, '')                             // 單位
+            .replace(/^\+/, '')                                         // 前置 +
+            .replace(/[\s\*\-+xX/\s]+(\d{1,2})(\s*)$/i, '$1$2').trim(); // 結尾 符號+數字 → 只留數字
+
+        // 3. 移除末尾殘留的數字得到產品名
+        const originalProductName = cleanLine.replace(/\d{1,2}$/, '').trim();
+
         // 🌿 特殊處理：輸入「麻黃」自動帶出 200g（單味藥預設量）
         if (originalProductName === '麻黃' && !hasUserQty) {
             // 將此行視為「麻黃200g」處理
@@ -1216,21 +1232,7 @@ function search() {
             // 若 DB 也找不到，正常走下面邏輯
         }
 
-        // 解析产品名和数量
-        // 1. 先從原始行抓出結尾的「符號+數量」（如 /3、*3、-3、x12、x 12）允許數字後接瓶/罐等單位字
-        const trailingMatch = line.match(/[\s\*\-\+\/xX]*(\d{1,2})(?:[瓶罐包盒顆粒]|\s|$)/i);
-        const qty = trailingMatch ? parseInt(trailingMatch[1]) : 1;
-        const hasUserQty = !!trailingMatch;
-
-        // 2. 清除：移除常見單位詞、前綴 x/×/∗、結尾的 符號（只留數字）
-        let cleanLine = line
-            .replace(/[x×∗]/gi, '')                                    // 前綴 x/×/∗
-            .replace(/[瓶罐包盒顆粒]/g, '')                             // 單位
-            .replace(/^\+/, '')                                         // 前置 +
-            .replace(/[\s\*\-+xX/\s]+(\d{1,2})(\s*)$/i, '$1$2').trim(); // 結尾 符號+數字 → 只留數字
-
-        // 3. 移除末尾殘留的數字得到產品名
-        const originalProductName = cleanLine.replace(/\d{1,2}$/, '').trim();
+        // 正式解析產品名和數量（由上方麻黃區塊繼續使用 qty/hasUserQty/originalProductName）
         const query = toTraditional(originalProductName);  // 簡轉繁再匹配
 
         if (!query) continue;
@@ -1841,10 +1843,4 @@ function getPronunciationSimilarity(text, name) {
             if (tSimilar.includes(n) || nSimilar.includes(t)) {
                 matchScore += 0.7;  // 相似字符给 0.7 分
             }
-        }
-    }
-
-    return totalChars > 0 ? matchScore / maxLen : 0;
-}
-
-// ===== OCR 功能已移除 ==
+       
