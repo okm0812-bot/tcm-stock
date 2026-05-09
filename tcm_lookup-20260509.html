@@ -1045,7 +1045,8 @@ async function loadData() {
             fetch(SHEET_URL_TABLET)
         ]);
 
-        if (!res1.ok || !res2.ok) throw new Error('網路錯誤');
+        if (!res1.ok) throw new Error(`科中Sheet讀取失敗 (${res1.status})`);
+        if (!res2.ok) throw new Error(`錠劑Sheet讀取失敗 (${res2.status})`);
 
         // 解析两个 Sheet
         DB_KZ = parseCSV(await res1.text(), 'kezhong');
@@ -1054,15 +1055,17 @@ async function loadData() {
         const kzCount = Object.keys(DB_KZ).length;
         const tabletCount = Object.keys(DB_TABLET).length;
         lastLoadTime = Date.now();  // 记录加载时间
-        status.textContent = `✅ 資料已更新: ${new Date().toLocaleTimeString()} (${kzCount + tabletCount}項)`;
-        
+        status.textContent = `✅ 資料已更新: ${new Date().toLocaleTimeString()} (科中${kzCount}項/錠劑${tabletCount}項)`;
+
 
         searchBtn.disabled = false;
 
     } catch (e) {
         console.error('載入失敗:', e);
-        status.textContent = '❌ 載入失敗，請重新整理';
-        document.getElementById('result').innerHTML = '<div class="error">無法連線 Google Sheet<br>請檢查網路後點「更新資料」</div>';
+        const errMsg = e.message || '未知錯誤';
+        status.textContent = '❌ 載入失敗：' + errMsg;
+        status.style.color = '#ff4444';
+        document.getElementById('result').innerHTML = `<div class="error">❌ 載入失敗：${errMsg}<br>請確認 Google Sheet 仍是「任何人可檢視」<br><small>${SHEET_URL_KEZHONG.match(/\/d\/[\w-]+/)?.[0]}</small></div>`;
     }
 
     btn.textContent = '更新資料';
@@ -1844,16 +1847,4 @@ function getPronunciationSimilarity(text, name) {
     return totalChars > 0 ? matchScore / maxLen : 0;
 }
 
-// ===== OCR 功能已移除 =====
-
-// ============================================================
-// 初始化
-// ============================================================
-
-document.addEventListener('DOMContentLoaded', function() {
-    loadData();
-});
-</script>
-</body>
-</html>
-
+// ===== OCR 功能已移除 ==
