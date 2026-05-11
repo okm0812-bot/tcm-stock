@@ -1384,28 +1384,13 @@ function search() {
     });
 }
 
-function clearInput() { document.getElementById('input').value = ''; document.getElementById('result').innerHTML = ''; const el = document.getElementById('input'); el.className = 'autoresize'; el.style.height = '60px'; }
+function clearInput() { document.getElementById('input').value = ''; document.getElementById('result').innerHTML = ''; const el = document.getElementById('input'); el.style.height = '60px'; }
 function togglePrice() { showPrice = !showPrice; const btn = document.getElementById('priceBtn'); btn.textContent = showPrice ? '🙈 隱藏價格' : '💰 顯示價格'; btn.classList.toggle('price-active', showPrice); if (document.getElementById('input').value) search(); }
 
 // ===== 自動延長輸入框 =====
 function autoResize(el) {
-    const lineCount = (el.value.match(/\n/g) || []).length + 1;
-    if (el.value === '') {
-        el.className = 'autoresize';
-        el.style.height = '60px';
-    } else if (lineCount <= 3) {
-        el.className = 'autoresize scritty';
-        el.style.height = '60px';
-    } else if (lineCount <= 5) {
-        el.className = 'autoresize smedium';
-        el.style.height = '120px';
-    } else if (lineCount <= 7) {
-        el.className = 'autoresize stall';
-        el.style.height = '200px';
-    } else {
-        el.className = 'autoresize sfull';
-        el.style.height = '400px';
-    }
+    el.style.height = 'auto';                    // 重置，讓它能縮小
+    el.style.height = el.scrollHeight + 'px';    // 撐開到實際高度
 }
 
 // ===== 语音输入 =====
