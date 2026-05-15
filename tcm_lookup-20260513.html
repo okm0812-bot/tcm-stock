@@ -343,7 +343,7 @@ const TYPO_MAP = {
     '茵陳五苓散': ['茵陳五苓散', '茵陳五苓'],
     '栝樓薤白半夏湯': ['栝樓薤白半夏湯', '栝樓薤白', '瓜蒌薤白半夏', '葛樓薤白'],
     '桂枝加龍骨牡蠣湯': ['桂枝加龍骨牡蠣湯', '桂枝加龍骨牡蠣', '桂枝加龍骨牡力'],
-    '桔梗湯': ['桔梗湯', '吉梗'],
+    '桔梗湯': ['桔梗湯'],
     '桑螵蛸散': ['桑螵蛸散', '桑螵蛸'],
     '烏藥順氣散': ['烏藥順氣散', '烏藥順氣'],
     '益氣聰明湯': ['益氣聰明湯', '益氣聰明', '益志聰明'],
@@ -401,7 +401,7 @@ const TYPO_MAP = {
     '溫膽湯': ['溫膽湯', '溫膽'],
     '聖愈湯': ['聖愈湯', '聖愈', '聖喻'],
     '當歸四逆湯': ['當歸四逆湯', '當歸四逆', '當龜四逆'],
-    '蒼耳散': ['蒼耳散', '蒼耳', '苍耳', '倉耳'],
+    '蒼耳散': ['蒼耳散', '倉耳'],
     '銀翹散': ['銀翹散', '銀翹', '银翘', '銀橋'],
 
     '寧嗽丸': ['寧嗽丸', '寧嗽'],
@@ -470,7 +470,7 @@ const TYPO_MAP = {
     '穿心蓮': ['穿心蓮', '穿心莲'],
     '威靈仙': ['威靈仙', '威灵仙'],
     '益母草': ['益母草'],
-    '桔梗': ['桔梗'],
+    '桔梗': ['桔梗', '吉梗'],
     '柴胡': ['柴胡'],
     '秦艽': ['秦艽'],
     '茯苓': ['茯苓'],
@@ -501,7 +501,7 @@ const TYPO_MAP = {
     '當歸': ['當歸', '当归'],
     '葛根': ['葛根'],
     '蒼朮': ['蒼朮', '苍术'],
-    '蒼耳子': ['蒼耳子', '苍耳子'],
+    '蒼耳子': ['蒼耳子', '苍耳子', '苍耳', '蒼耳'],
     '綿茵陳': ['綿茵陳', '绵茵陈'],
     '蒲黃': ['蒲黃', '蒲黄'],
     '蒲公英': ['蒲公英'],
@@ -739,8 +739,7 @@ function handleAutocompleteKeydown(e) {
 }
 
 // 顯示補全建議
-// autoSelect=true: 若第一個結果分數 100，自動選取並執行查詢
-function showAutocompleteSuggestions(query, autoSelect = false) {
+function showAutocompleteSuggestions(query) {
     const dropdown = document.getElementById('autocompleteDropdown');
 
 
@@ -897,15 +896,6 @@ function showAutocompleteSuggestions(query, autoSelect = false) {
     autocompleteItems = topMatches;
     autocompleteIndex = -1;
 
-    // =========================================================
-    // 【自動選取】autoSelect=true 且第一個結果分數=100 時直接執行
-    // =========================================================
-    if (autoSelect && topMatches.length > 0 && topMatches[0].score === 100) {
-        // 延後一幀執行，確保 DOM 已渲染完成
-        setTimeout(() => {
-            selectAutocompleteItem(topMatches[0]);
-        }, 50);
-    }
 }
 
 
@@ -1434,7 +1424,7 @@ function startVoiceInput() {
                 const currentLine = lines[lines.length - 1].trim();
                 const cleanLine = currentLine.replace(/[\d瓶罐包盒顆粒]+$/, '').trim();
                 if (cleanLine.length >= 1 && Object.keys(DB_KZ).length > 0) {
-                    showAutocompleteSuggestions(cleanLine, false);
+                    showAutocompleteSuggestions(cleanLine);
                 }
                 continue;
             }
@@ -1458,9 +1448,9 @@ function startVoiceInput() {
                     const lines = textarea.value.split('\n');
                     const currentLine = lines[lines.length - 1].trim();
                     const cleanLine = currentLine.replace(/[\d瓶罐包盒顆粒]+$/, '').trim();
-                    // ✅ interim 也顯示候選單（autoSelect=false 不會自動查詢）
+                    // ✅ interim 也顯示候選單
                     if (cleanLine.length >= 1 && Object.keys(DB_KZ).length > 0) {
-                        showAutocompleteSuggestions(cleanLine, false);
+                        showAutocompleteSuggestions(cleanLine);
                     }
                 }, 300);
             }
