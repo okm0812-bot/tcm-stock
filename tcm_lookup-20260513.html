@@ -154,7 +154,7 @@
             <button class="btn-small btn-clear" onclick="clearInput()">🗑️ 清除</button>
         </div>
         <div class="autocomplete-wrapper">
-            <textarea id="input" class="autoresize" placeholder="每行輸入一個產品&#10;範例：&#10;羌活勝濕湯錠&#10;苦參2&#10;語音/圖片自動比對資料庫" oninput="autoResize(this)"></textarea>
+            <textarea id="input" class="autoresize" placeholder="每行輸入一個產品&#10;範例：&#10;@王中醫　← 客戶名（用@開頭）&#10;羌活勝濕湯錠&#10;苦參2&#10;語音/圖片自動比對資料庫" oninput="autoResize(this)"></textarea>
             <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
         </div>
         <button class="btn" id="searchBtn" onclick="search()">🔍 查詢庫存</button>
@@ -1091,31 +1091,20 @@ function search() {
     let results = [];  // 保存结果，保持顺序
     let copyText = '';
     let stats = { inStock: 0, contract: 0, outStock: 0, booking: 0, unknown: 0, total: 0 };
-    let firstLine = true;
-
     for (const line of lines) {
         // 跳过规格行
         if (skipKeywords.includes(line.toLowerCase())) {
-            if (firstLine) firstLine = false;
             copyText += line + '\n';
             continue;
         }
 
-        // 第一行：先嘗試匹配，兩庫都無生產 = 客戶名稱，跳過
-        if (firstLine) {
-            firstLine = false;
-            const firstQ = toTraditional(line.replace(/\d{1,2}$/, '').trim());
-            if (firstQ) {
-                const isTab = TABLET_SUFFIX.some(c => firstQ.includes(c));
-                const firstKz = findBestMatchInKZ(firstQ);
-                const firstTab = isTab ? findBestMatchInTablet(firstQ) : null;
-                if (!firstKz && !firstTab) {
-                    // 兩庫都無生產 = 客戶名稱，直接跳過
-                    copyText += `[${line}] \n`;
-                    results.push({ displayName: line, outputName: line, qty: 1, status: 'customer-name', source: 'note' });
-                    continue;
-                }
-                // 第一行是品項，正常執行下面的匹配邏輯
+        // 客戶名稱：以 @ 開頭標示，例如 @王中醫 → 輸出 [王中醫]
+        if (line.trim().startsWith('@')) {
+            const customerName = line.trim().substring(1).trim();
+            if (customerName) {
+                copyText += `[${customerName}] \n`;
+                results.push({ displayName: customerName, outputName: customerName, qty: 1, status: 'customer-name', source: 'note' });
+                continue;
             }
         }
 
