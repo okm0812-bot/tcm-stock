@@ -19,7 +19,7 @@
         textarea { width: 100%; padding: 14px; font-size: 16px; border: 2px solid #ddd; border-radius: 12px; outline: none; height: 180px; resize: none; margin-bottom: 12px; }
         textarea:focus { border-color: #667eea; }
         /* 測試版：輸入時自動延長 */
-        .autoresize { height: 60px; min-height: 60px; max-height: 400px; overflow: hidden; transition: height 0.25s ease; }
+        .autoresize { min-height: 120px; max-height: 400px; overflow: hidden; transition: height 0.25s ease; }
         .btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 14px; font-size: 16px; border-radius: 25px; cursor: pointer; width: 100%; font-weight: bold; height: 50px; -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none; }
         .btn:disabled { background: #ccc; }
         .result-item { background: white; border-radius: 10px; padding: 12px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
@@ -1326,7 +1326,7 @@ function search() {
     });
 }
 
-function clearInput() { document.getElementById('input').value = ''; document.getElementById('result').innerHTML = ''; const el = document.getElementById('input'); el.style.height = '60px'; }
+function clearInput() { const el = document.getElementById('input'); el.value = ''; document.getElementById('result').innerHTML = ''; el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
 function togglePrice() { showPrice = !showPrice; const btn = document.getElementById('priceBtn'); btn.textContent = showPrice ? '🙈 隱藏價格' : '💰 顯示價格'; btn.classList.toggle('price-active', showPrice); if (document.getElementById('input').value) search(); }
 
 // ===== 自動延長輸入框 =====
