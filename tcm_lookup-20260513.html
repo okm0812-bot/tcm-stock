@@ -49,10 +49,10 @@
         .copied { background: #17a2b8 !important; }
 
         .error { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 10px; text-align: center; font-size: 13px; }
-                .btn-small:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: all 0.2s; }
-        .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); transition: all 0.2s; }
-        .result-item { box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.2s; }
-        .result-item:hover { transform: translateY(-1px); }
+                @media (hover: hover) { .btn-small:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: all 0.2s; } }
+        @media (hover: hover) { .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); transition: all 0.2s; } }
+        .result-item { box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        @media (hover: hover) { .result-item:hover { transform: translateY(-1px); transition: transform 0.2s; } }
         .fuzzy-badge { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 10px; background: #fff3cd; color: #856404; margin-left: 6px; vertical-align: middle; }
 
         /* 自動補全下拉選單樣式 */
