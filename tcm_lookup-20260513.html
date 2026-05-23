@@ -1161,7 +1161,7 @@ function search() {
                 else if (isUnknown) { stats.unknown = (stats.unknown || 0) + qty200; }
                 else { stats.outStock += qty200; }
 
-                const outputName = '麻黃200g';
+                const outputName = '麻黃（200g單方）';
                 if (isInStock) { copyText += outputName + '\n'; }
                 else if (isContract) { copyText += outputName + '（合約）\n'; }
                 else if (isBooking) { copyText += outputName + '（預）\n'; }
