@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+﻿﻿<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BI庫存查詢系統</title>
+    <title>科學中藥庫存查詢</title>
     <style>
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 15px; margin: 0; }
@@ -11,14 +11,14 @@
         .header { text-align: center; color: white; margin-bottom: 20px; }
         .header h1 { font-size: 24px; margin: 0; }
         .header .status { font-size: 12px; opacity: 0.8; margin-top: 5px; }
-        .search-box { background: white; border-radius: 20px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-        .btn-group { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
-        .btn-small { background: #667eea; color: white; border: none; padding: 10px 12px; font-size: 14px; border-radius: 20px; cursor: pointer; flex: 1; min-width: 90px; height: 44px; }
+        .search-box { background: white; border-radius: 20px; padding: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .btn-group { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+        .btn-small { background: #667eea; color: white; border: none; padding: 8px 12px; font-size: 13px; border-radius: 20px; cursor: pointer; flex: 1; min-width: 80px; }
         .btn-small:disabled { opacity: 0.6; cursor: not-allowed; }
         .btn-clear { background: #dc3545; }
-        textarea { width: 100%; padding: 14px; font-size: 16px; border: 2px solid #ddd; border-radius: 12px; outline: none; height: 120px; resize: none; margin-bottom: 12px; }
+        textarea { width: 100%; padding: 12px; font-size: 16px; border: 2px solid #ddd; border-radius: 12px; outline: none; height: 100px; resize: none; margin-bottom: 10px; }
         textarea:focus { border-color: #667eea; }
-        .btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 14px; font-size: 16px; border-radius: 25px; cursor: pointer; width: 100%; font-weight: bold; height: 50px; }
+        .btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 12px; font-size: 16px; border-radius: 25px; cursor: pointer; width: 100%; font-weight: bold; }
         .btn:disabled { background: #ccc; }
         .result-item { background: white; border-radius: 10px; padding: 12px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
         .name { font-weight: bold; font-size: 15px; flex: 1; min-width: 120px; }
@@ -94,7 +94,6 @@
         }
         .autocomplete-item .stock-hint.in-stock { background: #d4edda; color: #155724; }
         .autocomplete-item .stock-hint.out-stock { background: #f8d7da; color: #721c24; }
-        .autocomplete-item .stock-hint.booking { background: #fff3cd; color: #856404; }
         .autocomplete-item:hover .stock-hint,
         .autocomplete-item.selected .stock-hint {
             background: rgba(255,255,255,0.3);
@@ -132,7 +131,7 @@
 <body>
 <div class="container">
     <div class="header">
-        <h1>🏥 BI庫存查詢系統</h1>
+        <h1>🏥 科學中藥庫存查詢</h1>
         <div class="status" id="status">載入中...</div>
         <div class="stats-grid" id="quickStats" style="display:none;">
             <div class="stat-item"><span class="stat-number" id="totalItems">0</span>總項</div>
@@ -145,14 +144,13 @@
     <div class="search-box">
         <div class="btn-group">
             <button class="btn-small" id="refreshBtn" onclick="loadData()">🔄 更新資料</button>
-            <button class="btn-small" onclick="document.getElementById('imageInput').click()">📷 圖片辨識</button>
-            <button class="btn-small" id="voiceBtn" onclick="startVoiceInput()">🎤 語音輸入</button>
-            <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleImage(event)">
+            <button class="btn-small btn-clear" onclick="clearInput()">🗑️ 清除</button>
+            <button class="btn-small" id="priceBtn" onclick="togglePrice()">💰 顯示價格</button>
         </div>
         <div class="btn-group">
-            <button class="btn-small" id="priceBtn" onclick="togglePrice()">💰 顯示價格</button>
-            <button class="btn-small btn-clear" onclick="clearInput()">🗑️ 清除</button>
-        </div>
+            <button class="btn-small" id="voiceBtn" onclick="startVoiceInput()">🎤 語音輸入</button>
+            <button class="btn-small" onclick="document.getElementById('imageInput').click()">📷 圖片辨識</button>
+            <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleImage(event)">
         </div>
         <div class="autocomplete-wrapper">
             <textarea id="input" placeholder="每行輸入一個產品&#10;範例：&#10;羌活勝濕湯錠&#10;苦參2&#10;語音/圖片自動比對資料庫"></textarea>
@@ -186,37 +184,6 @@ let DB_TABLET = {};  // 锭劑数据库
 let showPrice = false;
 let lastLoadTime = null;  // 上次加载时间（毫秒）
 const STALE_MS = 5 * 60 * 1000;  // 5分钟后自动刷新
-
-// ===== 簡轉繁對照表 =====
-// 用於自動轉換用戶輸入的簡體字
-const S2T_MAP = {
-    '汤': '湯', '术': '朮', '参': '參', '黄': '黃', '当': '當',
-    '归': '歸', '泻': '瀉', '鸡': '雞', '痹': '痺', '风': '風',
-    '师': '師', '钟': '鐘', '别': '別', '颗': '顆', '丝': '絲',
-    '络': '絡', '经': '經', '结': '結', '练': '練', '约': '約',
-    '红': '紅', '级': '級', '纯': '純', '纱': '紗', '纳': '納',
-    '纸': '紙', '线': '線', '组': '組', '细': '細', '织': '織',
-    '终': '終', '绝': '絕', '统': '統', '继': '繼', '绩': '績',
-    '绪': '緒', '续': '續', '鱼': '魚', '龟': '龜', '麦': '麥',
-    '盐': '鹽', '药': '藥', '芦': '蘆', '苍': '蒼', '苏': '蘇',
-    '莱': '萊', '莲': '蓮', '营': '營', '萧': '蕭', '萨': '薩',
-    '虚': '虛', '虫': '蟲', '单': '單', '传': '傳', '伤': '傷',
-    '仪': '儀', '优': '優', '侠': '俠', '侨': '僑', '俩': '倆',
-    '俭': '儉', '债': '債', '偿': '償', '备': '備', '复': '復',
-    '壶': '壺', '处': '處', '夸': '誇', '夺': '奪', '奋': '奮',
-    '妇': '婦', '孙': '孫', '学': '學', '宝': '寶', '实': '實',
-    '宽': '寬', '对': '對', '导': '導', '尽': '盡', '层': '層',
-    '届': '屆', '属': '屬', '屡': '屢', '岁': '歲', '尧': '堯',
-    '巩': '鞏', '帘': '簾', '币': '幣', '帅': '帥', '帧': '幀',
-    '帮': '幫', '带': '帶', '坛': '壇', '坏': '壞', '坠': '墜',
-    '头': '頭', '坛': '壇', '坏': '壞', '坠': '墜'
-};
-
-// 簡轉繁函數
-const toTraditional = text => {
-    if (!text) return text;
-    return [...text].map(c => S2T_MAP[c] || c).join('');
-};
 
 // ===== 常见错别字对照表 =====
 // 格式：'正确名称': ['语音/OCR常见错误']
@@ -438,7 +405,7 @@ const TYPO_MAP = {
     // === 16劃 ===
     '蘇子降氣湯': ['蘇子降氣'],
     '藿香正氣散': ['藿香正氣', '藿香正气'],
-    '蠲痹湯': ['蠲痹', '蠲痹湯', '蠲痺', '蠲痺湯'],
+    '蠲痹湯': ['蠲痹', '蠲痹湯'],
     '響聲破笛丸': ['響聲破笛'],
 
     // === 17-19劃 ===
@@ -638,8 +605,8 @@ const findBestMatchInKZ = query => {
         }
     }
 
-    // 4c. 模糊匹配（3+字，门槛70%，防止短名稱錯配到長名稱）
-    let best = null, bestScore = 0.7;
+    // 4c. 模糊匹配（3+字，门槛50%，顯示有疑問）
+    let best = null, bestScore = 0.5;
     for (const [name, data] of Object.entries(DB_KZ)) {
         const chars = [...query].filter(c => name.includes(c));
         const score = chars.length / query.length;
@@ -668,20 +635,12 @@ const findBestMatchInTablet = query => {
         }
     }
 
-    // 3. 移除末尾常見後綴後加上「錠」比對（處理用戶輸入「羌活勝濕湯」查不到「羌活勝濕湯錠」的問題）
-    for (const suffix of ['湯', '散', '丸', '飲', '膏', '丹', '煎', '劑', '露']) {
-        if (query.endsWith(suffix)) {
-            const tryTablet = query.slice(0, -suffix.length) + TABLET_SUFFIX[0];
-            if (DB_TABLET[tryTablet]) return { name: tryTablet, status: DB_TABLET[tryTablet][0], price: DB_TABLET[tryTablet][1], corrected: true, fuzzy: true };
-        }
-    }
-
-    // 4. 移除"錠"后精确匹配（顯示有疑問）
+    // 3. 移除"錠"后精确匹配（顯示有疑問）
     const queryWithoutDing = query.replace(new RegExp(`[${TABLET_SUFFIX.join('')}]$`), '').trim();
     const tabletName = queryWithoutDing + TABLET_SUFFIX[0];
     if (DB_TABLET[tabletName]) return { name: tabletName, status: DB_TABLET[tabletName][0], price: DB_TABLET[tabletName][1], corrected: true, fuzzy: true };
 
-    // 5. 包含匹配（锭劑库中按长度降序，模糊）
+    // 4. 包含匹配（锭劑库中按长度降序，模糊）
     const allTabletNames = Object.keys(DB_TABLET).sort((a, b) => b.length - a.length);
     for (const name of allTabletNames) {
         if (name === query || name.includes(query)) {
@@ -689,9 +648,9 @@ const findBestMatchInTablet = query => {
         }
     }
 
-    // 6. 模糊匹配（仅3字以上，门槛70%，防止短名稱錯配到長名稱）
+    // 5. 模糊匹配（仅3字以上，门槛50%，顯示有疑問）
     if (query.length >= 3) {
-        let best = null, bestScore = 0.7;
+        let best = null, bestScore = 0.5;
         for (const [name, data] of Object.entries(DB_TABLET)) {
             const matchedChars = [...query].filter(c => name.includes(c));
             const score = matchedChars.length / query.length;
@@ -721,11 +680,6 @@ function initAutocomplete() {
 
     // 監聽鍵盤事件
     textarea.addEventListener('keydown', handleAutocompleteKeydown);
-
-    // 點擊 textarea 關閉下拉選單（貼上後點擊輸入欄可收起選單）
-    textarea.addEventListener('click', () => {
-        hideAutocomplete();
-    });
 
     // 點擊其他地方關閉下拉選單
     document.addEventListener('click', (e) => {
@@ -793,118 +747,60 @@ function handleAutocompleteKeydown(e) {
 function showAutocompleteSuggestions(query) {
     const dropdown = document.getElementById('autocompleteDropdown');
 
-
     if (!query || query.length < 1) {
         hideAutocomplete();
         return;
     }
 
     // 從 DB_KZ 和 DB_TABLET 中搜尋匹配項
-    // 策略：與 main query 完全一致的匹配邏輯
-    // 1. 先用 typo map + 精確匹配（最高分）
-    // 2. 再用包含匹配（高分）
-    // 3. 最後 fuzzy 匹配（門檻 50%）
     const matches = [];
-    const isTabletInput = TABLET_SUFFIX.some(c => query.includes(c));
 
-    // 步驟A：Typo map 精確匹配（兩庫都查，取最高分）
-    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
-        const allNames = [correct, ...(Array.isArray(typos) ? typos : [])];
-        if (!allNames.includes(query)) continue;
-        // KZ 精確匹配
-        if (DB_KZ[correct]) {
-            matches.push({ name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], score: 100, matchType: 'typo-exact', dbType: '科中' });
-        }
-        // Tablet 精確匹配
-        if (DB_TABLET[correct]) {
-            matches.push({ name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1], score: 100, matchType: 'typo-exact', dbType: '錠劑' });
-        }
-    }
-
-    // 步驟B：直接精確匹配
-    if (DB_KZ[query]) matches.push({ name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], score: 100, matchType: 'exact', dbType: '科中' });
-    if (DB_TABLET[query]) matches.push({ name: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1], score: 100, matchType: 'exact', dbType: '錠劑' });
-
-    // 步驟C：移除後綴 + 加「錠」匹配（Tablet suffix 時使用，與 main query 一致）
-    if (isTabletInput) {
-        for (const suffix of ['湯','散','丸','飲','膏','丹','煎','劑','露']) {
-            if (query.endsWith(suffix)) {
-                const tryTablet = query.slice(0, -suffix.length) + '錠';
-                if (DB_TABLET[tryTablet] && !matches.some(m => m.name === tryTablet)) {
-                    matches.push({ name: tryTablet, status: DB_TABLET[tryTablet][0], price: DB_TABLET[tryTablet][1], score: 95, matchType: 'suffix-convert', dbType: '錠劑' });
-                }
-                break;
-            }
-        }
-    }
-
-    // 步驟D：包含匹配（key 包含 query 或 query 包含 key）
-    console.log('[autocomplete] Step D: scanning DB_KZ', Object.keys(DB_KZ).length, 'entries for query:', JSON.stringify(query));
-    let stepDCount = 0;
+    // 搜尋科中資料庫
     for (const [name, data] of Object.entries(DB_KZ)) {
-        if (matches.some(m => m.name === name)) continue;
-        if (name.includes(query) || query.includes(name)) {
-            matches.push({ name, status: data[0], price: data[1], score: 80, matchType: 'contains', dbType: '科中' });
-            stepDCount++;
+        const matchResult = calculateMatchScore(query, name);
+        if (matchResult.score > 0) {
+            matches.push({
+                name,
+                status: data[0],
+                price: data[1],
+                score: matchResult.score,
+                matchType: matchResult.type,
+                dbType: '科中'
+            });
         }
     }
 
+    // 搜尋錠劑資料庫
     for (const [name, data] of Object.entries(DB_TABLET)) {
-        if (matches.some(m => m.name === name)) continue;
-        if (name.includes(query) || query.includes(name)) {
-            matches.push({ name, status: data[0], price: data[1], score: 80, matchType: 'contains', dbType: '錠劑' });
+        const matchResult = calculateMatchScore(query, name);
+        if (matchResult.score > 0) {
+            matches.push({
+                name,
+                status: data[0],
+                price: data[1],
+                score: matchResult.score,
+                matchType: matchResult.type,
+                dbType: '錠劑'
+            });
         }
     }
 
-    // 步驟E：模糊匹配（門檻 50%，query ≥ 3 字）
-    if (query.length >= 3) {
-        const allKZ = Object.entries(DB_KZ);
-        const allTab = Object.entries(DB_TABLET);
-        for (const [name, data] of allKZ) {
-            if (matches.some(m => m.name === name)) continue;
-            const matchedChars = [...query].filter(c => name.includes(c));
-            const score = Math.round((matchedChars.length / query.length) * 80);
-            if (score >= 40) matches.push({ name, status: data[0], price: data[1], score, matchType: 'fuzzy', dbType: '科中' });
-        }
-        for (const [name, data] of allTab) {
-            if (matches.some(m => m.name === name)) continue;
-            const matchedChars = [...query].filter(c => name.includes(c));
-            const score = Math.round((matchedChars.length / query.length) * 80);
-            if (score >= 40) matches.push({ name, status: data[0], price: data[1], score, matchType: 'fuzzy', dbType: '錠劑' });
-        }
-    }
-
-    // 去重：同名只保留最高分
-    const deduped = [];
-    for (const m of matches) {
-        const existing = deduped.find(d => d.name === m.name);
-        if (!existing || m.score > existing.score) {
-            if (existing) deduped.splice(deduped.indexOf(existing), 1);
-            deduped.push(m);
-        }
-    }
-
-    // 用 deduped 替換 matches 後面的排序
-    matches.length = 0;
-    matches.push(...deduped);
-
-    // 按匹配度排序
+    // 按匹配度排序，取前 12 個
     matches.sort((a, b) => {
-        // 1. 最高優先：名稱開頭匹配 query（用戶最可能要找的）
-        const aStartsWith = a.name.startsWith(query) ? 0 : 1;
-        const bStartsWith = b.name.startsWith(query) ? 0 : 1;
-        if (aStartsWith !== bStartsWith) return aStartsWith - bStartsWith;
-        // 2. 次優先：有貨 > 預訂 > 其他 > 缺貨
-        const stockRank = (s) => s === '有货' ? 0 : s === '預訂' ? 1 : s === '缺货' ? 3 : 2;
-        const rankA = stockRank(a.status);
-        const rankB = stockRank(b.status);
-        if (rankA !== rankB) return rankA - rankB;
-        // 3. 同狀態，優先分數高
+        // 1. 優先科中，後錠劑
+        if (a.dbType !== b.dbType) {
+            return a.dbType === '科中' ? -1 : 1;
+        }
+        // 2. 同類型中，優先有貨
+        if (a.status !== b.status) {
+            if (a.status === '有货') return -1;
+            if (b.status === '有货') return 1;
+        }
+        // 3. 同條件下按分數
         return b.score - a.score;
     });
 
-    const topMatches = matches.slice(0, 48);
-
+    const topMatches = matches.slice(0, 24);
 
     if (topMatches.length === 0) {
         dropdown.innerHTML = '<div class="autocomplete-empty">無匹配項目</div>';
@@ -917,8 +813,8 @@ function showAutocompleteSuggestions(query) {
 
     // 構建下拉選單
     dropdown.innerHTML = topMatches.map((item, index) => {
-        const stockClass = item.status === '有货' ? 'in-stock' : item.status === '預訂' ? 'booking' : 'out-stock';
-        const stockText = item.status === '有货' ? '✅ 有貨' : item.status === '預訂' ? '⏳ 預訂' : '⚠️ 缺貨';
+        const stockClass = item.status === '有货' ? 'in-stock' : 'out-stock';
+        const stockText = item.status === '有货' ? '✅ 有貨' : '⚠️ 缺貨';
         const dbClass = item.dbType === '科中' ? 'db-kz' : 'db-tablet';
         return `
             <div class="autocomplete-item" data-index="${index}" data-name="${item.name}">
@@ -1025,9 +921,6 @@ function selectAutocompleteItem(item) {
     textarea.focus();
 
     hideAutocomplete();
-
-    // 立即觸發查詢（與使用者按按鈕等效）
-    search();
 }
 
 // 隱藏補全選單
@@ -1196,7 +1089,7 @@ function search() {
 
         // 3. 移除末尾殘留的數字得到產品名
         const originalProductName = cleanLine.replace(/\d{1,2}$/, '').trim();
-        const query = toTraditional(originalProductName);  // 簡轉繁再匹配
+        const query = originalProductName;
 
         if (!query) continue;
 
@@ -1236,8 +1129,8 @@ function search() {
                 stats.outStock += qty;
             }
 
-            // 输出时组合：产品名 + 数量（qty > 1 或用户明确输入数量时显示）
-            const outputName = displayName + ((qty > 1 || hasUserQty) ? qty : '');
+            // 输出时组合：产品名 + 数量（qty > 1 时永远显示，去掉分隔符）
+            const outputName = displayName + (qty > 1 ? qty : '');
 
             // 复制文本 - 只保留有货和预订品项
             if (isInStock) {
@@ -1250,7 +1143,7 @@ function search() {
             // 保存结果
             results.push({ displayName, outputName, qty, status, price, isBooking, isInStock, unitPrice, totalPrice, source, fuzzy, hasUserQty });
         } else {
-            const outputNameForNotFound = originalProductName + ((qty > 1 || hasUserQty) ? qty : '');
+            const outputNameForNotFound = originalProductName + (qty > 1 ? qty : '');
             copyText += outputNameForNotFound + '\t找不到\n';
             results.push({ displayName: originalProductName, outputName: outputNameForNotFound, qty: qty, status: 'not_found', source: 'none' });
         }
@@ -2079,4 +1972,3 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 </body>
 </html>
-
