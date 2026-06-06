@@ -521,6 +521,16 @@ const TYPO_MAP = {
     '麻黃': ['麻黃', '麻黄'],
 };
 
+// ===== 單方藥保護名單 =====
+// 這些名稱是單方藥，不應被後綴匹配自動轉成方劑（如「炙甘草」→「炙甘草湯」）
+// 包含 TYPO_MAP 單方區的所有名稱 + 額外已知單方藥
+const SINGLE_HERB_NAMES = new Set([
+    // 從 TYPO_MAP 單方區自動收集
+    ...Object.entries(TYPO_MAP).filter(([k, v]) => Array.isArray(v) && !['湯','散','丸','飲','膏','丹','煎','劑','露','片'].some(s => k.endsWith(s))).flatMap(([k, v]) => [k, ...v.filter(a => typeof a === 'string')]),
+    // 額外保護：目前無庫存但確實是單方藥的名稱
+    '炙甘草', '炙草', '生甘草',
+]);
+
 // ===== 工具函数 =====
 // 判断是否为锭劑（包含"锭"或同音字）
 const TABLET_SUFFIX = ['錠', '锭', '碇', '碙'];
@@ -598,7 +608,10 @@ const findBestMatchInKZ = query => {
     }
 
     // 4. 3+字查詢：僅限 TYPO_MAP 映射 + 精確匹配 + 後綴匹配，不做包含匹配/模糊匹配
-    // 4a. 後綴匹配（處理常見省略：「八味地黃」→「八味地黃丸」、「九味羌活」→「九味羌活湯」等）
+    // 4a. 單方藥保護：若 query 是單方藥名，不做後綴匹配（防止「炙甘草」→「炙甘草湯」等混淆）
+    if (SINGLE_HERB_NAMES.has(query)) return null;
+
+    // 4b. 後綴匹配（處理常見省略：「八味地黃」→「八味地黃丸」、「九味羌活」→「九味羌活湯」等）
     if (query.length >= 3) {
         const suffixes = ['丸', '湯', '散', '飲', '膏', '丹', '煎', '劑', '露', '片'];
         for (const suffix of suffixes) {
@@ -626,6 +639,8 @@ const findBestMatchInTablet = query => {
     }
 
     // 3. 移除末尾常見後綴後加上「錠」比對（處理用戶輸入「羌活勝濕湯」查不到「羌活勝濕湯錠」的問題）
+    // 單方藥保護：若 query 是單方藥名，跳過後綴轉換（防止「炙甘草」→「炙甘草湯錠」等混淆）
+    if (SINGLE_HERB_NAMES.has(query)) return null;
     for (const suffix of ['湯', '散', '丸', '飲', '膏', '丹', '煎', '劑', '露']) {
         if (query.endsWith(suffix)) {
             const tryTablet = query.slice(0, -suffix.length) + TABLET_SUFFIX[0];
@@ -775,7 +790,8 @@ function showAutocompleteSuggestions(query) {
     if (DB_TABLET[query]) matches.push({ name: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1], score: 100, matchType: 'exact', dbType: '錠劑' });
 
     // 步驟C：移除後綴 + 加「錠」匹配（Tablet suffix 時使用，與 main query 一致）
-    if (isTabletInput) {
+    // 單方藥保護：若 query 是單方藥名，跳過後綴轉換
+    if (isTabletInput && !SINGLE_HERB_NAMES.has(query)) {
         for (const suffix of ['湯','散','丸','飲','膏','丹','煎','劑','露']) {
             if (query.endsWith(suffix)) {
                 const tryTablet = query.slice(0, -suffix.length) + '錠';
