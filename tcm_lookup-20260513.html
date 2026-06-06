@@ -595,10 +595,15 @@ const findBestMatchInKZ = query => {
     // 1. 精确匹配（所有长度都执行）
     if (DB_KZ[query]) return { name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], corrected: false, fuzzy: false };
 
-    // 2. 错别字匹配
+    // 2. 错别字匹配（單方藥保護：若 query 是單方藥名，不應被 TYPO_MAP alias 匹配到方劑）
     for (const [correct, typos] of Object.entries(TYPO_MAP)) {
         if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
-            if (DB_KZ[correct]) return { name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], corrected: true, fuzzy: true, original: query };
+            if (DB_KZ[correct]) {
+                // 保護：若 query 是單方藥名但 correct 是方劑（以湯散丸飲等結尾），跳過
+                const isFormulaName = ['湯','散','丸','飲','膏','丹','煎','劑','露','片'].some(s => correct.endsWith(s));
+                if (SINGLE_HERB_NAMES.has(query) && isFormulaName) continue;
+                return { name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], corrected: true, fuzzy: true, original: query };
+            }
         }
     }
 
@@ -634,7 +639,12 @@ const findBestMatchInTablet = query => {
     // 2. 错别字匹配（锭劑专用，顯示有疑問讓客戶確認）
     for (const [correct, typos] of Object.entries(TYPO_MAP)) {
         if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
-            if (DB_TABLET[correct]) return { name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1], corrected: true, fuzzy: true };
+            if (DB_TABLET[correct]) {
+                // 保護：若 query 是單方藥名但 correct 是方劑錠劑，跳過
+                const isFormulaName = ['湯','散','丸','飲','膏','丹','煎','劑','露','片'].some(s => correct.replace(/[錠锭碇碙]$/, '').endsWith(s));
+                if (SINGLE_HERB_NAMES.has(query) && isFormulaName) continue;
+                return { name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1], corrected: true, fuzzy: true };
+            }
         }
     }
 
