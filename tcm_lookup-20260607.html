@@ -1301,7 +1301,12 @@ function search() {
             } else if (isBooking) {
                 copyText += outputName + '（預）\n';
             }
-            // 缺货、未知品项不输出到复制文本
+            // 歧義雙選：在可複製區域追加提示行，提醒用戶手動修改
+            if (result.ambiguous && ambiguousAlt) {
+                const altOutputName = ambiguousAlt.displayName + ((qty > 1 || hasUserQty) ? qty : '');
+                const altStatusHint = ambiguousAlt.status === '單方' ? '單方' : (ambiguousAlt.isInStock ? '有貨' : ambiguousAlt.isBooking ? '預訂' : ambiguousAlt.isContract ? '合約' : '缺貨');
+                copyText += '  → 或 ' + altOutputName + '（' + altStatusHint + '）\n';
+            }
 
             // 保存结果
             results.push({ displayName, outputName, qty, status, price, isBooking, isContract, isInStock, isUnknown, unitPrice, totalPrice, source, fuzzy, hasUserQty, ambiguous: result.ambiguous, ambiguousAlt });
