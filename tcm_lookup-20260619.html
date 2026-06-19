@@ -1099,6 +1099,34 @@ async function loadData(isBackground = false) {
 // GAS Web App URL（需部署後填入）
 const CHANGE_GAS_URL = 'https://script.google.com/macros/s/AKfycbzF7UJKkAotK9CRZEctUSUqd5FB4Fmy4KipujO-A5wzXPEnGxenCZphAloAqJKKZJds/exec';
 
+function postToGAS(payload) {
+    // GAS Web App POST 會 302 redirect，fetch 會丢 body
+    // 用隱藏 form + iframe 提交繞過
+    let iframe = document.getElementById('gas-iframe');
+    if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.id = 'gas-iframe';
+        iframe.name = 'gas-iframe';
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+    }
+    let form = document.getElementById('gas-form');
+    if (form) form.remove();
+    form = document.createElement('form');
+    form.id = 'gas-form';
+    form.method = 'POST';
+    form.action = CHANGE_GAS_URL;
+    form.target = 'gas-iframe';
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'payload';
+    input.value = JSON.stringify(payload);
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+}
+
 async function checkChanges() {
     const btn = document.getElementById('changeBtn');
     btn.disabled = true;
@@ -1125,39 +1153,23 @@ async function checkChanges() {
 
             if (isFirstRun) {
                 // 首次：只寫入快照基準，不比對
-                try {
-                    await fetch(CHANGE_GAS_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'text/plain' },
-                        body: JSON.stringify({
-                            action: 'record',
-                            date: today,
-                            changes: { added: [], removed: [], statusChanged: [] },
-                            snapshot: buildCurrentSnapshot()
-                        })
-                    });
-                } catch (postErr) {
-                    console.warn('快照寫入失敗:', postErr);
-                }
+                postToGAS({
+                    action: 'record',
+                    date: today,
+                    changes: { added: [], removed: [], statusChanged: [] },
+                    snapshot: buildCurrentSnapshot()
+                });
                 showChangeModal({ added: [], removed: [], statusChanged: [], firstRun: true });
             } else {
                 const changes = computeChanges(DB_KZ, DB_TABLET, snapshot);
                 // 快照不是今天 → 寫入異動紀錄並更新快照
                 if (snapshotDate !== today && (changes.added.length || changes.removed.length || changes.statusChanged.length)) {
-                    try {
-                        await fetch(CHANGE_GAS_URL, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'text/plain' },
-                            body: JSON.stringify({
-                                action: 'record',
-                                date: today,
-                                changes: changes,
-                                snapshot: buildCurrentSnapshot()
-                            })
-                        });
-                    } catch (postErr) {
-                        console.warn('異動紀錄寫入失敗:', postErr);
-                    }
+                    postToGAS({
+                        action: 'record',
+                        date: today,
+                        changes: changes,
+                        snapshot: buildCurrentSnapshot()
+                    });
                 }
                 showChangeModal(changes, snapshotDate);
             }

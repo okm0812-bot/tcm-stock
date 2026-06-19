@@ -2,17 +2,17 @@
  * TCM 庫存異動紀錄 GAS Endpoint
  * 
  * 部署方式：
- * 1. 在現有 GAS 專案加入此程式碼（或在同一專案新增 .gs 檔案）
- * 2. 部署為網頁應用程式，權限設「任何人」
+ * 1. 在現有 LINE Bot GAS 專案新增一個 .gs 檔案，貼入此程式碼
+ * 2. 部署為網頁應用程式（新部署，不影響現有 LINE Bot webhook），權限設「任何人」
  * 3. 取得 URL 後填入 tcm_lookup HTML 的 CHANGE_GAS_URL 常數
  * 
- * 需要的 Google Sheet 分頁：
+ * Sheet ID：1A4LtTGVqQuJ8MTfrRGn41QmcYwGZgCNjOc4lOfRjgd0
+ * 會自動新增兩個分頁：
  * - 「庫存快照」：欄位 [日期, 資料庫類型, 品名, 狀態]
  * - 「異動紀錄」：欄位 [日期, 資料庫類型, 品名, 舊狀態, 新狀態, 異動類型]
- * 
- * 若分頁不存在會自動建立
  */
 
+const CHANGE_SS_ID = '1A4LtTGVqQuJ8MTfrRGn41QmcYwGZgCNjOc4lOfRjgd0';
 const SNAPSHOT_SHEET = '庫存快照';
 const CHANGES_SHEET = '異動紀錄';
 
@@ -40,6 +40,28 @@ function doGet(e) {
 function doPost(e) {
   const action = e.parameter.action;
   
+  // 支援兩種格式：form-encoded (payload 參數) 或 JSON body
+  let payload;
+  if (e.postData && e.postData.contents) {
+    try {
+      payload = JSON.parse(e.postData.contents);
+    } catch(err) {
+      // 可能是 form-encoded
+    }
+  }
+  if (!payload && e.parameter.payload) {
+    try {
+      payload = JSON.parse(e.parameter.payload);
+    } catch(err) {
+      return ContentService.createTextOutput(JSON.stringify({ error: 'Invalid payload' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+  
+  if (payload && payload.action === 'record') {
+    return recordChangesFromPayload(payload);
+  }
+  
   if (action === 'record') {
     return recordChanges(e);
   }
@@ -49,17 +71,16 @@ function doPost(e) {
 }
 
 function getSnapshot(e) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(CHANGE_SS_ID);
   const snapshotSheet = getOrCreateSheet(ss, SNAPSHOT_SHEET, ['日期', '資料庫類型', '品名', '狀態']);
   
   const data = snapshotSheet.getDataRange().getValues();
   if (data.length <= 1) {
-    // 無快照
     return ContentService.createTextOutput(JSON.stringify({ snapshot: {}, date: '' }))
       .setMimeType(ContentService.MimeType.JSON);
   }
   
-  // 取最新日期的快照（假設按日期排序，最後一筆最新）
+  // 取最新日期
   let latestDate = '';
   for (let i = 1; i < data.length; i++) {
     const rowDate = data[i][0];
@@ -70,7 +91,7 @@ function getSnapshot(e) {
   const snapshot = {};
   for (let i = 1; i < data.length; i++) {
     const rowDate = data[i][0].toString().slice(0, 10);
-    if (rowDate !== latestDate) continue; // 只取最新日期
+    if (rowDate !== latestDate) continue;
     const dbType = data[i][1];
     const name = data[i][2];
     const status = data[i][3];
@@ -82,13 +103,26 @@ function getSnapshot(e) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+function recordChangesFromPayload(payload) {
+  const date = payload.date;
+  const changes = payload.changes;
+  const snapshot = payload.snapshot;
+  
+  return writeChangesAndSnapshot(date, changes, snapshot);
+}
+
 function recordChanges(e) {
   const payload = JSON.parse(e.postData.contents);
   const date = payload.date;
   const changes = payload.changes;
   const snapshot = payload.snapshot;
   
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  return writeChangesAndSnapshot(date, changes, snapshot);
+}
+
+function writeChangesAndSnapshot(date, changes, snapshot) {
+  
+  const ss = SpreadsheetApp.openById(CHANGE_SS_ID);
   const changesSheet = getOrCreateSheet(ss, CHANGES_SHEET, ['日期', '資料庫類型', '品名', '舊狀態', '新狀態', '異動類型']);
   const snapshotSheet = getOrCreateSheet(ss, SNAPSHOT_SHEET, ['日期', '資料庫類型', '品名', '狀態']);
   
