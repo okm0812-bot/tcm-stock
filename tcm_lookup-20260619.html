@@ -135,6 +135,37 @@
             background: #9333ea !important;
             color: #fff;
         }
+
+        /* 異動彈窗 */
+        .change-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 2000;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .change-modal {
+            background: white; border-radius: 20px; padding: 20px;
+            max-width: 460px; width: 90%; max-height: 80vh; overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .change-modal h3 { margin: 0 0 12px 0; font-size: 18px; color: #333; }
+        .change-modal .close-btn {
+            float: right; background: none; border: none; font-size: 22px;
+            cursor: pointer; color: #999; padding: 0 4px;
+        }
+        .change-modal .close-btn:hover { color: #333; }
+        .change-list { margin-top: 10px; }
+        .change-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 12px; margin: 4px 0; border-radius: 8px; font-size: 14px;
+        }
+        .change-item.added { background: #d4edda; }
+        .change-item.removed { background: #f8d7da; }
+        .change-item.status-change { background: #fff3cd; }
+        .change-item .change-name { font-weight: bold; }
+        .change-item .change-detail { font-size: 12px; color: #555; }
+        .change-empty { text-align: center; color: #999; padding: 20px; font-size: 14px; }
+        .change-date { font-size: 12px; color: #888; margin-bottom: 8px; }
+        .change-loading { text-align: center; padding: 30px; color: #667eea; font-size: 16px; }
     </style>
 </head>
 <body>
@@ -151,6 +182,7 @@
         </div>
         <div class="btn-group">
             <button class="btn-small" id="priceBtn" onclick="togglePrice()">💰 顯示價格</button>
+            <button class="btn-small" id="changeBtn" onclick="checkChanges()">📋 異動</button>
             <button class="btn-small btn-clear" onclick="clearInput()">🗑️ 清除</button>
         </div>
         <div class="autocomplete-wrapper">
@@ -1061,6 +1093,189 @@ async function loadData(isBackground = false) {
     btn.textContent = '更新資料';
     btn.disabled = false;
     searchBtn.disabled = false;
+}
+
+// ===== 異動偵測功能 =====
+// GAS Web App URL（需部署後填入）
+const CHANGE_GAS_URL = '';
+
+async function checkChanges() {
+    const btn = document.getElementById('changeBtn');
+    btn.disabled = true;
+    btn.textContent = '比對中...';
+
+    // 確保資料已載入
+    if (!Object.keys(DB_KZ).length && !Object.keys(DB_TABLET).length) {
+        await loadData();
+    }
+
+    try {
+        if (!CHANGE_GAS_URL) {
+            // 無 GAS endpoint → 純本地 localStorage 方案
+            showChangeModal(await computeLocalChanges());
+        } else {
+            // 有 GAS endpoint → 與 Google Sheet 快照比對
+            const res = await fetch(CHANGE_GAS_URL + '?action=getsnapshot');
+            if (!res.ok) throw new Error('快照讀取失敗 (' + res.status + ')');
+            const data = await res.json();
+            const snapshot = data.snapshot || {};
+            const snapshotDate = data.date || '';
+            const changes = computeChanges(DB_KZ, DB_TABLET, snapshot);
+
+            // 若有異動且快照不是今天，寫入異動紀錄並更新快照
+            const today = new Date().toISOString().slice(0, 10);
+            if (snapshotDate !== today && (changes.added.length || changes.removed.length || changes.statusChanged.length)) {
+                try {
+                    await fetch(CHANGE_GAS_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify({
+                            action: 'record',
+                            date: today,
+                            changes: changes,
+                            snapshot: buildCurrentSnapshot()
+                        })
+                    });
+                } catch (postErr) {
+                    console.warn('異動紀錄寫入失敗:', postErr);
+                }
+            }
+
+            showChangeModal(changes, snapshotDate);
+        }
+    } catch (e) {
+        console.error('異動偵測失敗:', e);
+        showChangeModal({ added: [], removed: [], statusChanged: [], error: e.message });
+    }
+
+    btn.disabled = false;
+    btn.textContent = '📋 異動';
+}
+
+function buildCurrentSnapshot() {
+    // 建立快照：{ name: status } 格式
+    const snap = {};
+    for (const [name, data] of Object.entries(DB_KZ)) snap['KZ:' + name] = data[0];
+    for (const [name, data] of Object.entries(DB_TABLET)) snap['TB:' + name] = data[0];
+    return snap;
+}
+
+function computeChanges(currentKZ, currentTB, snapshot) {
+    const current = {};
+    for (const [name, data] of Object.entries(currentKZ)) current['KZ:' + name] = data[0];
+    for (const [name, data] of Object.entries(currentTB)) current['TB:' + name] = data[0];
+
+    const added = [];
+    const removed = [];
+    const statusChanged = [];
+
+    // 當前有、快照無 → 新增
+    for (const [key, status] of Object.entries(current)) {
+        if (!(key in snapshot)) {
+            added.push({ name: key.replace(/^(KZ:|TB:)/, m => m === 'KZ:' ? '' : ''), status, db: key.startsWith('TB:') ? '錠劑' : '科中' });
+        } else if (snapshot[key] !== status) {
+            statusChanged.push({ name: key.replace(/^(KZ:|TB:)/, ''), oldStatus: snapshot[key], newStatus: status, db: key.startsWith('TB:') ? '錠劑' : '科中' });
+        }
+    }
+
+    // 快照有、當前無 → 消失
+    for (const [key, status] of Object.entries(snapshot)) {
+        if (!(key in current)) {
+            removed.push({ name: key.replace(/^(KZ:|TB:)/, ''), status, db: key.startsWith('TB:') ? '錠劑' : '科中' });
+        }
+    }
+
+    return { added, removed, statusChanged };
+}
+
+async function computeLocalChanges() {
+    // 無 GAS 時，用 localStorage 存快照比對
+    const STORAGE_KEY = 'tcm_snapshot';
+    const DATE_KEY = 'tcm_snapshot_date';
+    const today = new Date().toISOString().slice(0, 10);
+    const current = buildCurrentSnapshot();
+
+    const savedRaw = localStorage.getItem(STORAGE_KEY);
+    const savedDate = localStorage.getItem(DATE_KEY) || '';
+
+    if (!savedRaw) {
+        // 首次：存快照，無比對
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+        localStorage.setItem(DATE_KEY, today);
+        return { added: [], removed: [], statusChanged: [], firstRun: true };
+    }
+
+    const snapshot = JSON.parse(savedRaw);
+    const changes = computeChanges(DB_KZ, DB_TABLET, snapshot);
+
+    // 更新快照為今天
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+    localStorage.setItem(DATE_KEY, today);
+
+    return { ...changes, snapshotDate: savedDate };
+}
+
+function showChangeModal(changes, snapshotDate) {
+    // 移除舊彈窗
+    const old = document.querySelector('.change-overlay');
+    if (old) old.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'change-overlay';
+    overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+
+    let html = '<div class="change-modal">';
+    html += '<button class="close-btn" onclick="this.closest(\'.change-overlay\').remove()">&times;</button>';
+
+    if (changes.error) {
+        html += '<h3>❌ 異動偵測失敗</h3>';
+        html += '<div class="change-empty">' + changes.error + '</div>';
+    } else if (changes.firstRun) {
+        html += '<h3>📋 庫存異動</h3>';
+        html += '<div class="change-empty">首次使用，已儲存快照基準。<br>下次比對即可看到異動。</div>';
+    } else {
+        const total = changes.added.length + changes.removed.length + changes.statusChanged.length;
+        html += '<h3>📋 庫存異動</h3>';
+        if (snapshotDate) html += '<div class="change-date">基準日：' + snapshotDate + ' → 今天</div>';
+        if (total === 0) {
+            html += '<div class="change-empty">✅ 無異動</div>';
+        } else {
+            html += '<div class="change-list">';
+            if (changes.added.length) {
+                html += '<div style="font-size:13px;color:#155724;font-weight:bold;margin:8px 0 4px">🆕 新增品項</div>';
+                for (const item of changes.added) {
+                    html += '<div class="change-item added"><span class="change-name">' + item.name + '</span><span class="change-detail">' + item.db + ' · ' + statusLabel(item.status) + '</span></div>';
+                }
+            }
+            if (changes.removed.length) {
+                html += '<div style="font-size:13px;color:#721c24;font-weight:bold;margin:8px 0 4px">🗑️ 消失品項</div>';
+                for (const item of changes.removed) {
+                    html += '<div class="change-item removed"><span class="change-name">' + item.name + '</span><span class="change-detail">' + item.db + ' · ' + statusLabel(item.status) + '</span></div>';
+                }
+            }
+            if (changes.statusChanged.length) {
+                html += '<div style="font-size:13px;color:#856404;font-weight:bold;margin:8px 0 4px">🔄 狀態變化</div>';
+                for (const item of changes.statusChanged) {
+                    html += '<div class="change-item status-change"><span class="change-name">' + item.name + '</span><span class="change-detail">' + statusLabel(item.oldStatus) + ' → ' + statusLabel(item.newStatus) + '</span></div>';
+                }
+            }
+            html += '</div>';
+            html += '<div style="text-align:center;margin-top:10px;font-size:13px;color:#888">共 ' + total + ' 項異動</div>';
+        }
+    }
+
+    html += '</div>';
+    overlay.innerHTML = html;
+    document.body.appendChild(overlay);
+}
+
+function statusLabel(status) {
+    if (status === '有货') return '有貨';
+    if (status === '合约') return '合約';
+    if (status === '无') return '缺貨';
+    if (/預|订|定/.test(status)) return '預訂';
+    if (status === '?') return '未知';
+    return status;
 }
 
 // ===== 页面加载时自动抓资料 =====
