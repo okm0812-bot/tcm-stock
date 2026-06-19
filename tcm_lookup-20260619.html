@@ -1120,11 +1120,11 @@ async function checkChanges() {
             const data = await res.json();
             const snapshot = data.snapshot || {};
             const snapshotDate = data.date || '';
-            const changes = computeChanges(DB_KZ, DB_TABLET, snapshot);
-
-            // 若有異動且快照不是今天，寫入異動紀錄並更新快照
             const today = new Date().toISOString().slice(0, 10);
-            if (snapshotDate !== today && (changes.added.length || changes.removed.length || changes.statusChanged.length)) {
+            const isFirstRun = !snapshotDate;
+
+            if (isFirstRun) {
+                // 首次：只寫入快照基準，不比對
                 try {
                     await fetch(CHANGE_GAS_URL, {
                         method: 'POST',
@@ -1132,16 +1132,35 @@ async function checkChanges() {
                         body: JSON.stringify({
                             action: 'record',
                             date: today,
-                            changes: changes,
+                            changes: { added: [], removed: [], statusChanged: [] },
                             snapshot: buildCurrentSnapshot()
                         })
                     });
                 } catch (postErr) {
-                    console.warn('異動紀錄寫入失敗:', postErr);
+                    console.warn('快照寫入失敗:', postErr);
                 }
+                showChangeModal({ added: [], removed: [], statusChanged: [], firstRun: true });
+            } else {
+                const changes = computeChanges(DB_KZ, DB_TABLET, snapshot);
+                // 快照不是今天 → 寫入異動紀錄並更新快照
+                if (snapshotDate !== today && (changes.added.length || changes.removed.length || changes.statusChanged.length)) {
+                    try {
+                        await fetch(CHANGE_GAS_URL, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'text/plain' },
+                            body: JSON.stringify({
+                                action: 'record',
+                                date: today,
+                                changes: changes,
+                                snapshot: buildCurrentSnapshot()
+                            })
+                        });
+                    } catch (postErr) {
+                        console.warn('異動紀錄寫入失敗:', postErr);
+                    }
+                }
+                showChangeModal(changes, snapshotDate);
             }
-
-            showChangeModal(changes, snapshotDate);
         }
     } catch (e) {
         console.error('異動偵測失敗:', e);
