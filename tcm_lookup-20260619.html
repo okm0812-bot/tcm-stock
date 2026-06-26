@@ -1374,6 +1374,21 @@ function search() {
     // 📦 「各N」預處理：遇到「各6」「各12」等，往前回溯分配數量到未帶數量的品項行
     const GE_REG = /^各(\d{1,3})$/;
     const SPEC_KW_PRE = /^(100G|200G|單方|複方|錠劑|科中)/i;
+    // 偵測客戶名行：不含數量、不在庫存中、不以@開頭、不是規格、不是各N → 視為客戶名/備註
+    const isLikelyCustomerOrRemark = (s) => {
+        const t = s.trim();
+        if (t.startsWith('@') || GE_REG.test(t) || SPEC_KW_PRE.test(t)) return false;
+        if (/[\d瓶罐包盒顆粒]/.test(t)) return false; // 含數量或單位 → 不是客戶名
+        const trad = toTraditional(t);
+        if (DB_KZ[trad] || DB_TABLET[trad]) return false; // 庫存有此品項 → 不是客戶名
+        // TYPO_MAP 也查
+        for (const [correct, typos] of Object.entries(TYPO_MAP)) {
+            if (trad === correct || (Array.isArray(typos) && typos.includes(trad))) {
+                if (DB_KZ[correct] || DB_TABLET[correct]) return false;
+            }
+        }
+        return true; // 不含數量、不在庫存 → 視為客戶名/備註
+    };
     // 先找出所有「各N」行的索引和數量
     const gePositions = [];
     for (let i = 0; i < lines.length; i++) {
@@ -1387,8 +1402,9 @@ function search() {
         let j = geIdx - 1;
         while (j > prevGeIdx) {
             const lj = lines[j].trim();
-            if (lj.startsWith('@')) break;      // 碰到客戶名，停止
-            if (SPEC_KW_PRE.test(lj)) break;    // 碾到規格行，停止
+            if (lj.startsWith('@')) break;      // 碰到 @客戶名，停止
+            if (SPEC_KW_PRE.test(lj)) break;    // 碰到規格行，停止
+            if (isLikelyCustomerOrRemark(lj)) break;  // 碰到非@客戶名/備註，停止
             if (!/\d{1,3}(?:[瓶罐包盒顆粒]|\s|$)/.test(lj)) {
                 lines[j] = lj + geQty;          // 追加數量
             }
@@ -1401,14 +1417,18 @@ function search() {
     let results = [];  // 保存结果，保持顺序
     let copyText = '';
     let stats = { inStock: 0, contract: 0, outStock: 0, booking: 0, unknown: 0, total: 0, inStockItems: 0, contractItems: 0, outStockItems: 0, bookingItems: 0, unknownItems: 0 };
+    let lineIndex = 0;
     for (const line of lines) {
+        lineIndex++;
         // 跳过规格行
         if (skipKeywords.includes(line.toLowerCase())) {
             copyText += line + '\n';
             continue;
         }
 
-        // 客戶名稱：以 @ 開頭標示，例如 @王中醫 → 輸出 [王中醫]
+        // 客戶名稱偵測（兩種入口）
+        // 入口1：以 @ 開頭標示，例如 @王中醫 → 輸出 [王中醫]
+        // 入口2：第一行不含數量、不在庫存中 → 視為客戶名
         if (line.trim().startsWith('@')) {
             const customerName = line.trim().substring(1).trim();
             if (customerName) {
@@ -1416,6 +1436,12 @@ function search() {
                 results.push({ displayName: customerName, outputName: customerName, qty: 1, status: 'customer-name', source: 'note' });
                 continue;
             }
+        }
+        // 入口2：第一行無@前缀，但看起來是客戶名
+        if (lineIndex === 1 && isLikelyCustomerOrRemark(line.trim())) {
+            copyText += `[${line.trim()}] \n`;
+            results.push({ displayName: line.trim(), outputName: line.trim(), qty: 1, status: 'customer-name', source: 'note' });
+            continue;
         }
 
         // 检查是否为规格关键词（100G, 200G, 單方, 複方, 錠劑）
