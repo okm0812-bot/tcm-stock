@@ -627,11 +627,8 @@ const findBestMatchInKZ = query => {
 
     // 1. 精确匹配（所有长度都执行）
     if (DB_KZ[query]) {
-        // 歧義判斷：若 query 是單方藥名，且 DB 中也有 query+方劑後綴（如「炙甘草」+「炙甘草湯」），標記歧義
-        const formulaSuffixes = ['湯','散','丸','飲','膏','丹','煎','劑','露','片'];
-        const hasFormulaVariant = formulaSuffixes.some(s => DB_KZ[query + s]);
-        const ambiguous = SINGLE_HERB_NAMES.has(query) && hasFormulaVariant;
-        return { name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], corrected: false, fuzzy: false, ambiguous: ambiguous || undefined };
+        // 精確匹配存在時不做歧義提醒——用戶輸入「炙甘草」有精確匹配就直接顯示
+        return { name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], corrected: false, fuzzy: false };
     }
 
     // 2. 错别字匹配
@@ -1514,21 +1511,8 @@ function search() {
                 result = { displayName: kzResult.name, status: kzResult.status, price: kzResult.price, source: 'kz', corrected: kzResult.corrected, fuzzy: kzResult.fuzzy || hasQuestionMark || (kzResult.corrected && query.length >= 3) };
                 if (kzResult.ambiguous) {
                     result.ambiguous = true;
-                    if (kzResult.corrected) {
-                        // 步驟 2/4：匹配到方劑，備選是單方（用戶原始輸入）
-                        ambiguousAlt = { displayName: query, outputName: query + ((qty > 1 || hasUserQty) ? qty : ''), qty, status: '單方', source: 'kz', isBooking: false, isContract: false, isInStock: false, isUnknown: false, unitPrice: 0, totalPrice: 0, fuzzy: false, hasUserQty };
-                    } else {
-                        // 步驟 1：精確匹配到單方，備選是方劑（query+後綴）
-                        const formulaSuffixes = ['湯','散','丸','飲','膏','丹','煎','劑','露','片'];
-                        for (const suffix of formulaSuffixes) {
-                            const formulaName = query + suffix;
-                            if (DB_KZ[formulaName]) {
-                                const fPrice = DB_KZ[formulaName][1] === '時價' ? 0 : parseInt(DB_KZ[formulaName][1]) || 0;
-                                ambiguousAlt = { displayName: formulaName, outputName: formulaName + ((qty > 1 || hasUserQty) ? qty : ''), qty, status: DB_KZ[formulaName][0], source: 'kz', isBooking: DB_KZ[formulaName][0] === '預訂', isContract: DB_KZ[formulaName][0] === '合约', isInStock: DB_KZ[formulaName][0] === '有货', isUnknown: DB_KZ[formulaName][0] === '?', unitPrice: fPrice, totalPrice: fPrice * qty, fuzzy: false, hasUserQty };
-                                break;
-                            }
-                        }
-                    }
+                    // 精確匹配不存在時的歧義提醒：匹配到方劑，備選是單方（用戶原始輸入）
+                    ambiguousAlt = { displayName: query, outputName: query + ((qty > 1 || hasUserQty) ? qty : ''), qty, status: '單方', source: 'kz', isBooking: false, isContract: false, isInStock: false, isUnknown: false, unitPrice: 0, totalPrice: 0, fuzzy: false, hasUserQty };
                 }
             }
         }
