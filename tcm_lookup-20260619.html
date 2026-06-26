@@ -1406,7 +1406,7 @@ function search() {
             if (SPEC_KW_PRE.test(lj)) break;    // 碰到規格行，停止
             if (isLikelyCustomerOrRemark(lj)) break;  // 碰到非@客戶名/備註，停止
             if (!/\d{1,3}(?:[瓶罐包盒顆粒]|\s|$)/.test(lj)) {
-                lines[j] = lj + geQty;          // 追加數量
+                lines[j] = lj + ' ' + geQty;    // 追加數量（空格分隔）
             }
             j--;
         }
