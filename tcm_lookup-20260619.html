@@ -1374,6 +1374,32 @@ function search() {
         return;
     }
 
+    // 📦 「各N」預處理：遇到「各6」「各12」等，往前回溯分配數量到未帶數量的品項行
+    const GE_REG = /^各(\d{1,3})$/;
+    const SPEC_KW_PRE = /^(100G|200G|單方|複方|錠劑|科中)/i;
+    // 先找出所有「各N」行的索引和數量
+    const gePositions = [];
+    for (let i = 0; i < lines.length; i++) {
+        const geMatch = lines[i].match(GE_REG);
+        if (geMatch) gePositions.push({ index: i, qty: geMatch[1] });
+    }
+    // 從後往前處理（避免 splice 造成索引偏移）
+    for (let g = gePositions.length - 1; g >= 0; g--) {
+        const { index: geIdx, qty: geQty } = gePositions[g];
+        const prevGeIdx = g > 0 ? gePositions[g - 1].index : -1;
+        let j = geIdx - 1;
+        while (j > prevGeIdx) {
+            const lj = lines[j].trim();
+            if (lj.startsWith('@')) break;      // 碰到客戶名，停止
+            if (SPEC_KW_PRE.test(lj)) break;    // 碾到規格行，停止
+            if (!/\d{1,3}(?:[瓶罐包盒顆粒]|\s|$)/.test(lj)) {
+                lines[j] = lj + geQty;          // 追加數量
+            }
+            j--;
+        }
+        lines.splice(geIdx, 1);  // 刪除「各N」行本身
+    }
+
     const skipKeywords = ['100g', '200g', '錠劑', '錠', '謝謝', '谢谢'];
     let results = [];  // 保存结果，保持顺序
     let copyText = '';
