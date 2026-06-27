@@ -1616,9 +1616,8 @@ function search() {
 
     for (const item of results) {
         // 过滤：有疑问+缺货不显示（歧義結果除外，歧義雙選需顯示）
-        if (item.fuzzy && item.status === '缺货' && !item.ambiguous) {
-            continue;
-        }
+        // 2026-06-27 fix: fuzzy+缺貨也顯示（帶❓有疑問標記），不再跳過
+        // 用戶需要知道缺貨資訊，fuzzy 只是提醒用戶確認品名是否正確
 
         if (item.status === 'not_found') {
             const fuzzyBadge = item.fuzzy ? '<span class="fuzzy-badge">❓ 有疑問</span>' : '';
