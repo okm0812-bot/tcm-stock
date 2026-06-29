@@ -587,7 +587,7 @@ const parseCSVLine = line => {
 
 const parseCSV = (csvText, source = 'kezhong') => {
     const data = {};
-    const skipWords = ['劃', '品名', '單方', '目前', '每日', '實際', '以上'];
+    const skipWords = ['劃', '品名', '單方', '目前', '每日', '實際', '以上', '其他', '預訂', '下單', '交期', '庫存量表', '庫存均', '有庫存', '會缺貨'];
 
     csvText.split('\n').slice(1).forEach(line => {
         const row = parseCSVLine(line);
@@ -1306,7 +1306,7 @@ function showChangeModal(changes, snapshotDate) {
 function statusLabel(status) {
     if (status === '有货') return '有貨';
     if (status === '合约') return '合約';
-    if (status === '无') return '缺貨';
+    if (status === '缺货' || status === '无') return '缺貨';
     if (/預|订|定/.test(status)) return '預訂';
     if (status === '?') return '未知';
     return status;
