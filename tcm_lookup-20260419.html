@@ -592,16 +592,17 @@ const parseCSV = (csvText) => {
     const lines = csvText.split('\n');
 
     // === 自動偵測每組欄數（3=無價格 / 4=有價格）===
-    // 從 header 行找兩個「品名」的間距，自動適配 CSV 結構變更
+    // 科中 CSV header 在第二行，錠劑 CSV header 在第一行
+    // 逐行掃描前兩行，找到含兩個「品名」的行即決定 step
     let step = 4; // 預設有價格
-    if (lines.length >= 2) {
-        const headerRow = parseCSVLine(lines[1]);
+    for (let hi = 0; hi < Math.min(2, lines.length); hi++) {
+        const headerRow = parseCSVLine(lines[hi]);
         const idx1 = headerRow.findIndex(h => h && h.replace(/\s+/g, '').includes('品名'));
         const idx2 = idx1 >= 0 ? headerRow.findIndex((h, i) => i > idx1 && h && h.replace(/\s+/g, '').includes('品名')) : -1;
-        if (idx2 > idx1) step = idx2 - idx1;
+        if (idx2 > idx1) { step = idx2 - idx1; break; }
     }
 
-    lines.slice(2).forEach(line => {
+    lines.slice(1).forEach(line => {
         const row = parseCSVLine(line);
         for (let j = 0; j < row.length; j += step) {
             const [name, status, price] = [row[j], row[j+1], row[j+2]];
