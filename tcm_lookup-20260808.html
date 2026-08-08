@@ -44,6 +44,61 @@
       }
     }
 
+    /* 密碼保護畫面 */
+    #authOverlay {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(135deg, #2F5496, #1F3864);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    .auth-box {
+      background: white;
+      border-radius: 16px;
+      padding: 36px 32px;
+      max-width: 320px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    }
+    .auth-box h2 {
+      color: #1F3864;
+      font-size: 18px;
+      margin-bottom: 18px;
+    }
+    .auth-box input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1.5px solid #d0d5dd;
+      border-radius: 8px;
+      font-size: 15px;
+      margin-bottom: 14px;
+      text-align: center;
+      letter-spacing: 2px;
+    }
+    .auth-box input:focus { outline: none; border-color: #2F5496; }
+    .auth-box button {
+      width: 100%;
+      padding: 10px;
+      background: #2F5496;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .auth-box button:hover { background: #1F3864; }
+    .auth-error {
+      color: #c62828;
+      font-size: 13px;
+      margin-top: 10px;
+      min-height: 18px;
+    }
+    #mainContent { display: none; }
+
     .controls {
       background: white;
       border-radius: 12px;
@@ -288,6 +343,16 @@
   </style>
 </head>
 <body>
+  <div id="authOverlay">
+    <div class="auth-box">
+      <h2>🔒 請輸入密碼才能查看</h2>
+      <input type="password" id="authInput" placeholder="請輸入密碼" autofocus>
+      <button onclick="checkAuth()">確認</button>
+      <div class="auth-error" id="authError"></div>
+    </div>
+  </div>
+
+  <div id="mainContent">
   <div class="container">
     <div class="header">
       <div class="header-contact">如有問題聯絡陳宗文 0933447081（LINE ID）</div>
@@ -712,6 +777,35 @@
 
     init();
     updateSortIcons();
+  </script>
+  </div>
+
+  <script>
+    // ===== 密碼保護 =====
+    const SITE_PASSWORD = '0933447081';
+
+    function checkAuth() {
+      const input = document.getElementById('authInput');
+      const errorEl = document.getElementById('authError');
+      if (input.value === SITE_PASSWORD) {
+        sessionStorage.setItem('tcm_authed', '1');
+        document.getElementById('authOverlay').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'block';
+      } else {
+        errorEl.textContent = '密碼錯誤，請再試一次';
+        input.value = '';
+        input.focus();
+      }
+    }
+
+    document.getElementById('authInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') checkAuth();
+    });
+
+    if (sessionStorage.getItem('tcm_authed') === '1') {
+      document.getElementById('authOverlay').style.display = 'none';
+      document.getElementById('mainContent').style.display = 'block';
+    }
   </script>
 </body>
 </html>
