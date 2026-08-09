@@ -1155,11 +1155,22 @@ async function loadData(isBackground = false) {
         if (!statLine) {
             statLine = document.createElement('div');
             statLine.id = 'stockStats';
-            statLine.style.cssText = 'font-size:13px;color:#666;margin-top:4px;line-height:1.6;';
+            statLine.style.cssText = 'font-size:13px;margin-top:6px;line-height:2;';
             status.parentNode.insertBefore(statLine, status.nextSibling);
         }
-        statLine.innerHTML = `科中：有貨 <b style="color:#2d8c3c">${kzStat['有货']}</b> · 缺貨 <b style="color:#c0392b">${kzStat['缺货']}</b> · 合約 <b style="color:#8e6c00">${kzStat['合约']}</b> · 預訂 <b style="color:#6c3d9f">${kzStat['預訂']}</b>`
-            + `<br>錠劑：有貨 <b style="color:#2d8c3c">${tbStat['有货']}</b> · 缺貨 <b style="color:#c0392b">${tbStat['缺货']}</b> · 合約 <b style="color:#8e6c00">${tbStat['合约']}</b> · 預訂 <b style="color:#6c3d9f">${tbStat['預訂']}</b>`;
+        const pill = (label, value, bg, fg) =>
+            `<span style="display:inline-block;background:${bg};color:${fg};font-weight:700;padding:2px 8px;border-radius:10px;margin-right:4px;">${label} ${value}</span>`;
+        statLine.innerHTML =
+            `<span style="color:#555;margin-right:4px;">科中：</span>`
+            + pill('有貨', kzStat['有货'], '#00e676', '#00390f')
+            + pill('缺貨', kzStat['缺货'], '#ff5252', '#4a0000')
+            + pill('合約', kzStat['合约'], '#ffc400', '#4a3700')
+            + pill('預訂', kzStat['預訂'], '#7c4dff', '#1a0057')
+            + `<br><span style="color:#555;margin-right:4px;">錠劑：</span>`
+            + pill('有貨', tbStat['有货'], '#00e676', '#00390f')
+            + pill('缺貨', tbStat['缺货'], '#ff5252', '#4a0000')
+            + pill('合約', tbStat['合约'], '#ffc400', '#4a3700')
+            + pill('預訂', tbStat['預訂'], '#7c4dff', '#1a0057');
 
     } catch (e) {
         console.error('載入失敗:', e);
