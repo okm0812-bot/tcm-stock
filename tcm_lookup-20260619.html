@@ -236,13 +236,33 @@ const S2T_MAP = {
     '届': '屆', '属': '屬', '屡': '屢', '岁': '歲', '尧': '堯',
     '巩': '鞏', '帘': '簾', '币': '幣', '帅': '帥', '帧': '幀',
     '帮': '幫', '带': '帶', '坛': '壇', '坏': '壞', '坠': '墜',
-    '头': '頭'
+    '头': '頭',
+    // 補充：常見中藥材/處方會用到的簡體字
+    '龙': '龍', '胆': '膽', '连': '連', '叶': '葉', '泽': '澤',
+    '姜': '薑', '党': '黨', '断': '斷', '蒌': '蔞', '兰': '蘭',
+    '贯': '貫', '栀': '梔', '翘': '翹', '银': '銀', '独': '獨',
+    '圣': '聖',
+    '壳': '殼', '郁': '鬱', '补': '補', '锁': '鎖', '阳': '陽',
+    '乌': '烏', '贞': '貞', '苁': '蓯',
+    // 補充：常見一般用字（避免整句夾雜簡體字時漏轉）
+    '关': '關', '树': '樹', '动': '動', '运': '運', '进': '進',
+    '转': '轉', '变': '變', '应': '應', '医': '醫', '为': '為',
+    '来': '來', '这': '這', '个': '個', '长': '長', '门': '門',
+    '间': '間', '问': '問', '闻': '聞', '时': '時', '东': '東',
+    '车': '車', '气': '氣', '会': '會', '说': '說', '还': '還',
+    '没': '沒', '现': '現', '点': '點', '么': '麼'
 };
 
 // 簡轉繁函數
 const toTraditional = text => {
     if (!text) return text;
     return [...text].map(c => S2T_MAP[c] || c).join('');
+};
+
+// 全形數字轉半形（避免輸入法切到全形時，數量被誤判成客戶名稱行）
+const toHalfWidthDigits = text => {
+    if (!text) return text;
+    return text.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
 };
 
 // ===== 常见错别字对照表 =====
@@ -673,12 +693,14 @@ const findBestMatchInKZ = query => {
 
     // 5. 模糊匹配（僅3字以上，門檻70%）—— 若最高分候選不只一個，絕不自動選，
     //    回報 multiCandidate 交由人工確認，避免誤判成藥性不同的方劑（如小柴胡湯／大柴胡湯）
+    //    分母採 max(query長度, 候選長度)，避免「較短查詢」被字數更多、只是剛好包含全部字的無關長方名蓋掉
+    //    （例如「瓜蔞實」不該被誤配到完全不同的「瓜蔞枳實湯」）
     if (query.length >= 3) {
         const threshold = 0.7;
         const scored = [];
         for (const [name, data] of Object.entries(DB_KZ)) {
             const matchedChars = [...query].filter(c => name.includes(c));
-            const score = matchedChars.length / query.length;
+            const score = matchedChars.length / Math.max(query.length, name.length);
             if (score > threshold) scored.push({ name, status: data[0], price: data[1], score });
         }
         if (scored.length) {
@@ -1412,7 +1434,7 @@ function search() {
 
     const inputEl = document.getElementById('input');
     // 處理貼上時可能攜帶的 \r\n 換行符
-    const lines = inputEl.value.replace(/\r\n/g, '\n').trim().split('\n').map(l => l.trim()).filter(Boolean);
+    const lines = inputEl.value.replace(/\r\n/g, '\n').trim().split('\n').map(l => toHalfWidthDigits(l.trim())).filter(Boolean);
 
     if (!lines.length) {
         inputEl.focus();
@@ -1522,7 +1544,7 @@ function search() {
         // 2. 清除：移除常見單位詞、前綴 x/×/∗、結尾的 符號（只留數字）
         let cleanLine = line
             .replace(/[x×∗]/gi, '')                                    // 前綴 x/×/∗
-            .replace(/[瓶罐包盒顆粒]/g, '')                             // 單位
+            .replace(/[瓶罐包盒顆粒]+\s*$/, '')                          // 單位（僅限結尾，避免誤刪品名中間的字，如「一罐煎」）
             .replace(/^\+/, '')                                         // 前置 +
             .replace(/[\s\*\-+xX/\s]+(\d{1,2})(\s*)$/i, '$1$2').trim(); // 結尾 符號+數字 → 只留數字
 
