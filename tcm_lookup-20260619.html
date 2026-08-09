@@ -1080,7 +1080,26 @@ async function loadData(isBackground = false) {
         const kzCount = Object.keys(DB_KZ).length;
         const tabletCount = Object.keys(DB_TABLET).length;
         lastLoadTime = Date.now();  // 记录加载时间
+
+        // 統計各庫存狀態數量
+        const countStatus = (db) => {
+            const c = { '有货': 0, '缺货': 0, '合约': 0, '預訂': 0, '?': 0 };
+            for (const v of Object.values(db)) c[v[0]] = (c[v[0]] || 0) + 1;
+            return c;
+        };
+        const kzStat = countStatus(DB_KZ);
+        const tbStat = countStatus(DB_TABLET);
         status.textContent = `✅ 資料已更新: ${new Date().toLocaleTimeString()} (科中${kzCount}項/錠劑${tabletCount}項)`;
+        // 在 status 下方插入統計行（若不存在則建立）
+        let statLine = document.getElementById('stockStats');
+        if (!statLine) {
+            statLine = document.createElement('div');
+            statLine.id = 'stockStats';
+            statLine.style.cssText = 'font-size:13px;color:#666;margin-top:4px;line-height:1.6;';
+            status.parentNode.insertBefore(statLine, status.nextSibling);
+        }
+        statLine.innerHTML = `科中：有貨 <b style="color:#2d8c3c">${kzStat['有货']}</b> · 缺貨 <b style="color:#c0392b">${kzStat['缺货']}</b> · 合約 <b style="color:#8e6c00">${kzStat['合约']}</b> · 預訂 <b style="color:#6c3d9f">${kzStat['預訂']}</b>`
+            + `<br>錠劑：有貨 <b style="color:#2d8c3c">${tbStat['有货']}</b> · 缺貨 <b style="color:#c0392b">${tbStat['缺货']}</b> · 合約 <b style="color:#8e6c00">${tbStat['合约']}</b> · 預訂 <b style="color:#6c3d9f">${tbStat['預訂']}</b>`;
 
     } catch (e) {
         console.error('載入失敗:', e);
