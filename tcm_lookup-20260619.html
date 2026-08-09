@@ -488,11 +488,12 @@ const TYPO_MAP = {
     '白芍': ['白芍'],
     '白芷': ['白芷'],
     '北板藍根': ['北板藍根', '北板蓝根', '板藍根', '板蓝根'],
-    '石菖蒲': ['石菖蒲'],
+    '石菖蒲': ['石菖蒲', '石昌蒲'],
     '何首烏': ['何首烏', '何首乌'],
     '赤芍': ['赤芍'],
     '辛夷': ['辛夷'],
     '防風': ['防風', '防风'],
+    '藿香': ['藿香', '霍香'],
     '牡丹皮': ['牡丹皮'],
     '金銀花': ['金銀花', '金银花'],
     '羌活': ['羌活'],
@@ -667,6 +668,28 @@ const findBestMatchInKZ = query => {
                 const ambiguous = SINGLE_HERB_NAMES.has(query);
                 return { name: withSuffix, status: DB_KZ[withSuffix][0], price: DB_KZ[withSuffix][1], corrected: true, fuzzy: true, original: query, ambiguous };
             }
+        }
+    }
+
+    // 5. 模糊匹配（僅3字以上，門檻70%）—— 若最高分候選不只一個，絕不自動選，
+    //    回報 multiCandidate 交由人工確認，避免誤判成藥性不同的方劑（如小柴胡湯／大柴胡湯）
+    if (query.length >= 3) {
+        const threshold = 0.7;
+        const scored = [];
+        for (const [name, data] of Object.entries(DB_KZ)) {
+            const matchedChars = [...query].filter(c => name.includes(c));
+            const score = matchedChars.length / query.length;
+            if (score > threshold) scored.push({ name, status: data[0], price: data[1], score });
+        }
+        if (scored.length) {
+            const maxScore = Math.max(...scored.map(s => s.score));
+            const top = scored.filter(s => s.score === maxScore);
+            if (top.length === 1) {
+                const c = top[0];
+                return { name: c.name, status: c.status, price: c.price, corrected: true, fuzzy: true };
+            }
+            // 平手（2個以上候選同分）：不自動選，回報多重候選
+            return { multiCandidate: true, candidates: top.map(c => c.name) };
         }
     }
 
@@ -1561,6 +1584,14 @@ function search() {
         } else {
             // 科中：使用完整匹配逻辑
             const kzResult = findBestMatchInKZ(query);
+            if (kzResult && kzResult.multiCandidate) {
+                // 模糊比對出現多個同分候選（如「柴胡湯」同時符合小柴胡湯/大柴胡湯/柴胡桂枝湯）
+                // 不自動選，直接列出候選讓人工確認，避免誤判成藥性不同的方劑
+                const outputNameMC = originalProductName + ((qty > 1 || hasUserQty) ? qty : '');
+                copyText += outputNameMC + '\t請確認：' + kzResult.candidates.join('／') + '\n';
+                results.push({ displayName: originalProductName, outputName: outputNameMC, qty, status: 'multi_candidate', source: 'none', fuzzy: true, candidates: kzResult.candidates });
+                continue;
+            }
             if (kzResult) {
                 result = { displayName: kzResult.name, status: kzResult.status, price: kzResult.price, source: 'kz', corrected: kzResult.corrected, fuzzy: kzResult.fuzzy || hasQuestionMark || (kzResult.corrected && query.length >= 3) };
                 if (kzResult.ambiguous) {
@@ -1638,7 +1669,12 @@ function search() {
         // 2026-06-27 fix: fuzzy+缺貨也顯示（帶❓有疑問標記），不再跳過
         // 用戶需要知道缺貨資訊，fuzzy 只是提醒用戶確認品名是否正確
 
-        if (item.status === 'not_found') {
+        if (item.status === 'multi_candidate') {
+            html += `<div class="result-item">
+                <div class="name">${item.outputName}<span class="fuzzy-badge">❓ 有疑問</span></div>
+                <div class="badge not-found">請確認：${item.candidates.join('／')}</div>
+            </div>`;
+        } else if (item.status === 'not_found') {
             const fuzzyBadge = item.fuzzy ? '<span class="fuzzy-badge">❓ 有疑問</span>' : '';
             html += `<div class="result-item">
                 <div class="name">${item.outputName}${fuzzyBadge}</div>
@@ -2187,4 +2223,3 @@ function getPronunciationSimilarity(text, name) {
 </script>
 </body>
 </html>
-
