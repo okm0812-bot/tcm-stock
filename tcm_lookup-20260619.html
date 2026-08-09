@@ -513,7 +513,6 @@ const TYPO_MAP = {
     '赤芍': ['赤芍'],
     '辛夷': ['辛夷'],
     '防風': ['防風', '防风'],
-    '藿香': ['藿香', '霍香'],
     '牡丹皮': ['牡丹皮'],
     '金銀花': ['金銀花', '金银花'],
     '羌活': ['羌活'],
@@ -555,7 +554,7 @@ const TYPO_MAP = {
     '黃芩': ['黃芩', '黄芩'],
     '黃柏': ['黃柏', '黄柏'],
     '黃連': ['黃連', '黄连'],
-    '紫蘇葉': ['紫蘇葉', '紫苏叶'],
+    '紫蘇葉': ['紫蘇葉', '紫苏叶', '紫蘇'],
     '番瀉葉': ['番瀉葉', '番泻叶'],
     '當歸': ['當歸', '当归'],
     '葛根': ['葛根'],
@@ -564,7 +563,7 @@ const TYPO_MAP = {
     '綿茵陳': ['綿茵陳', '绵茵陈'],
     '蒲黃': ['蒲黃', '蒲黄'],
     '蒲公英': ['蒲公英'],
-    '廣藿香': ['廣藿香', '广藿香'],
+    '廣藿香': ['廣藿香', '广藿香', '藿香', '霍香'],
     '熟地黃': ['熟地黃', '熟地黄'],
     '澤瀉': ['澤瀉', '泽泻'],
     '獨活': ['獨活', '独活'],
@@ -651,6 +650,22 @@ const parseCSV = (csvText, source = 'kezhong') => {
 // - 3+字查询：允许模糊匹配，匹配结果与输入不同显示「有疑问」
 const findBestMatchInKZ = query => {
     if (!query || !Object.keys(DB_KZ).length) return null;
+
+    // 0. 特定已知的「一詞對應多個真實庫存品項」——不猜，直接列出候選讓人工確認
+    //    例如「茵陳」在庫存表裡實際拆成「茵陳蒿」與「綿茵陳」兩個不同品項（價格也不同）
+    const AMBIGUOUS_TERMS = {
+        '茵陳': ['茵陳蒿', '綿茵陳']
+    };
+    if (AMBIGUOUS_TERMS[query]) {
+        const candidates = AMBIGUOUS_TERMS[query].filter(name => DB_KZ[name]);
+        if (candidates.length > 1) {
+            return { multiCandidate: true, candidates };
+        }
+        if (candidates.length === 1) {
+            const c = candidates[0];
+            return { name: c, status: DB_KZ[c][0], price: DB_KZ[c][1], corrected: true, fuzzy: true };
+        }
+    }
 
     // 1. 精确匹配（所有长度都执行）
     if (DB_KZ[query]) {
