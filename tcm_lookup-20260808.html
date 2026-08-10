@@ -378,7 +378,7 @@
     let allData = [];
     let filteredData = [];
     let sortColumn = 'fee';
-    let sortDir = 'asc';
+    let sortDir = 'desc';
     let currentPage = 1;
     const PAGE_SIZE = 50;
 
@@ -412,6 +412,7 @@
       });
       allData = await loadCacheData();
       document.getElementById('resultCount').textContent = allData.length;
+      hideProgress();
       applyFilters();
     }
 
@@ -546,8 +547,8 @@
       document.getElementById('statAvg').textContent = Math.round(fees.reduce((a,b)=>a+b,0)/fees.length) + '元';
       document.getElementById('statMin').textContent = Math.min(...fees) + '元';
       document.getElementById('statMax').textContent = Math.max(...fees) + '元';
+      renderFeeDistribution();
     }
-    renderFeeDistribution();
 
     // ===== 掛號費分佈統計 =====
     function renderFeeDistribution() {
@@ -675,20 +676,7 @@
     }
 
     async function onQueryClick() {
-      const county = document.getElementById('countySelect').value;
-      if (!county) {
-        alert('請先選擇縣市');
-        return;
-      }
-      const town = document.getElementById('townSelect').value || undefined;
-      const hasCache = allData.some(c => c.county === county);
-      if (hasCache) {
-        applyFilters();
-      } else {
-        document.getElementById('tableBody').innerHTML =
-          '<tr><td colspan="5" class="no-results">此縣市資料尚在建立中，請稍後再試。<br>目前快取僅包含已抓取的縣市。</td></tr>';
-        document.getElementById('feeDistribution').classList.remove('show');
-      }
+      applyFilters();
     }
 
     function onSearch() {
