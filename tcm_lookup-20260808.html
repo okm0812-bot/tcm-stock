@@ -410,7 +410,9 @@
         opt.textContent = c.name;
         countySel.appendChild(opt);
       });
-      await loadCacheData();
+      allData = await loadCacheData();
+      document.getElementById('resultCount').textContent = allData.length;
+      applyFilters();
     }
 
     // ===== 快取資料 =====
@@ -694,7 +696,8 @@
     }
 
     async function refreshData() {
-      await loadCacheData();
+      allData = await loadCacheData();
+      applyFilters();
     }
 
     init();
