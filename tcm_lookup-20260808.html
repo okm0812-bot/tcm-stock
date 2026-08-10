@@ -411,7 +411,7 @@
         countySel.appendChild(opt);
       });
       allData = await loadCacheData();
-      document.getElementById('resultCount').textContent = allData.length;
+      var rc = document.getElementById('resultCount'); if (rc) rc.textContent = allData.length;
       hideProgress();
       applyFilters();
     }
