@@ -465,16 +465,19 @@
     }
 
     function updateSortIcons() {
-      document.querySelectorAll('th').forEach(th => {
+      const table = document.getElementById('resultTable');
+      if (!table) return;
+      const ths = table.querySelectorAll('th');
+      ths.forEach(th => {
         th.classList.remove('sorted');
         const icon = th.querySelector('.sort-icon');
         if (icon) icon.textContent = '';
       });
-      const ths = document.querySelectorAll('th');
       const colIdx = ['index','county','town','name','fee'].indexOf(sortColumn);
-      if (colIdx >= 0) {
+      if (colIdx >= 0 && ths[colIdx]) {
         ths[colIdx].classList.add('sorted');
-        ths[colIdx].querySelector('.sort-icon').textContent = sortDir === 'asc' ? '▲' : '▼';
+        const icon = ths[colIdx].querySelector('.sort-icon');
+        if (icon) icon.textContent = sortDir === 'asc' ? '▲' : '▼';
       }
     }
 
@@ -542,6 +545,7 @@
         document.getElementById('statAvg').textContent = '--';
         document.getElementById('statMin').textContent = '--';
         document.getElementById('statMax').textContent = '--';
+        renderFeeDistribution();
         return;
       }
       document.getElementById('statAvg').textContent = Math.round(fees.reduce((a,b)=>a+b,0)/fees.length) + '元';
