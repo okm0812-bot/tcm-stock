@@ -410,7 +410,7 @@
         opt.textContent = c.name;
         countySel.appendChild(opt);
       });
-      allData = await loadCacheData();
+      allData = loadCacheData();
       var rc = document.getElementById('resultCount'); if (rc) rc.textContent = allData.length;
       hideProgress();
       applyFilters();
@@ -443,7 +443,7 @@
       filteredData.sort((a, b) => {
         let va = a[sortColumn], vb = b[sortColumn];
         if (sortColumn === 'index') { va = filteredData.indexOf(a); vb = filteredData.indexOf(b); }
-        if (sortColumn === 'fee') { va = a.fee ?? -2; vb = b.fee ?? -2; }
+        if (sortColumn === 'fee') { va = typeof a.fee === 'number' ? a.fee : -2; vb = typeof b.fee === 'number' ? b.fee : -2; }
         if (typeof va === 'string') { va = va.toLowerCase(); vb = (vb||'').toLowerCase(); }
         if (va < vb) return sortDir === 'asc' ? -1 : 1;
         if (va > vb) return sortDir === 'asc' ? 1 : -1;
@@ -540,7 +540,7 @@
     function applyStats() {
       const total = filteredData.length;
       document.getElementById('statTotal').textContent = total;
-      const fees = filteredData.filter(c => c.fee != null && c.fee >= 0).map(c => c.fee);
+      const fees = filteredData.filter(c => typeof c.fee === 'number' && c.fee >= 0).map(c => c.fee);
       if (fees.length === 0) {
         document.getElementById('statAvg').textContent = '--';
         document.getElementById('statMin').textContent = '--';
@@ -585,7 +585,7 @@
 
       filteredData.forEach(c => {
         if (c.fee === null || c.fee === undefined) { loadingCount++; return; }
-        if (c.fee === -1) { noneCount++; return; }
+        if (c.fee === -1 || typeof c.fee === 'string') { noneCount++; return; }
         const bucket = buckets.find(b => b.fee === c.fee);
         if (bucket) {
           counts[c.fee] = (counts[c.fee] || 0) + 1;
@@ -688,7 +688,7 @@
     }
 
     async function refreshData() {
-      allData = await loadCacheData();
+      allData = loadCacheData();
       applyFilters();
     }
 
