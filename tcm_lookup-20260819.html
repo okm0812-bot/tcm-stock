@@ -1,0 +1,1508 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>BI庫存查詢系統</title>
+    <style>
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 15px; padding: max(15px, env(safe-area-inset-top)) max(15px, env(safe-area-inset-right)) max(15px, env(safe-area-inset-bottom)) max(15px, env(safe-area-inset-left)); margin: 0; overscroll-behavior: contain; -webkit-tap-highlight-color: transparent; }
+        .container { max-width: 500px; margin: 0 auto; }
+        .header { text-align: center; color: white; margin-bottom: 20px; }
+        .header h1 { font-size: 24px; margin: 0; }
+        .header .status { font-size: 12px; opacity: 0.8; margin-top: 5px; }
+        .search-box { background: white; border-radius: 20px; padding: 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .btn-group { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+        .btn-small { background: #667eea; color: white; border: none; padding: 10px 12px; font-size: 14px; border-radius: 20px; cursor: pointer; flex: 1; min-width: 90px; height: 44px; -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none; }
+        .btn-small:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-clear { background: #dc3545; }
+        textarea { width: 100%; padding: 14px; font-size: 16px; border: 2px solid #ddd; border-radius: 12px; outline: none; height: 180px; resize: none; margin-bottom: 12px; }
+        textarea:focus { border-color: #667eea; }
+        .autoresize { min-height: 120px; max-height: 400px; overflow: hidden; transition: height 0.25s ease; }
+        .btn { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 14px; font-size: 16px; border-radius: 25px; cursor: pointer; width: 100%; font-weight: bold; height: 50px; -webkit-tap-highlight-color: transparent; touch-action: manipulation; user-select: none; }
+        .btn:disabled { background: #ccc; }
+        .result-item { background: white; border-radius: 10px; padding: 12px; margin-top: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .name { font-weight: bold; font-size: 15px; flex: 1; min-width: 120px; }
+        .original { font-size: 12px; color: #666; width: 100%; }
+        .badge { font-size: 12px; padding: 4px 10px; border-radius: 15px; white-space: nowrap; }
+        .spec { background: #e2e3e5; color: #666; }
+        .in-stock { background: #d4edda; color: #155724; }
+        .out-stock { background: #f8d7da; color: #721c24; }
+        .booking { background: #fff3cd; color: #856404; }
+        .contract { background: #cce5ff; color: #004085; }
+        .not-found { background: #e2e3e5; color: #383d41; }
+        .unknown { background: #e8e0f0; color: #553c9a; }
+        .customer-name { background: #e2e3e5; color: #888; font-style: italic; }
+        .corrected { background: #fff3cd; color: #856404; }
+        .category { margin-top: 12px; }
+        .category h3 { background: rgba(255,255,255,0.3); color: white; padding: 8px 15px; border-radius: 10px; margin: 0 0 8px 0; font-size: 14px; }
+        .price { font-size: 15px; font-weight: bold; }
+        .summary { background: white; border-radius: 15px; padding: 15px; margin-top: 12px; text-align: center; }
+        .summary .total { font-size: 26px; font-weight: bold; color: #28a745; }
+        .summary .count { color: #666; font-size: 13px; margin-top: 4px; }
+        .copy-box { background: white; border-radius: 15px; padding: 15px; margin-top: 12px; }
+        .copy-box h4 { margin: 0 0 10px 0; font-size: 14px; color: #333; }
+        .copy-content { background: #f5f5f5; border-radius: 10px; padding: 12px; font-size: 14px; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+        .copy-btn { background: #28a745; color: white; border: none; padding: 8px 15px; font-size: 13px; border-radius: 20px; cursor: pointer; margin-top: 10px; }
+        .copy-btn:hover { background: #218838; }
+        .copied { background: #17a2b8 !important; }
+        .error { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 10px; text-align: center; font-size: 13px; }
+        @media (hover: hover) {
+            .btn-small:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.2); transition: all 0.2s; }
+            .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); transition: all 0.2s; }
+            .result-item:hover { transform: translateY(-1px); }
+        }
+        .result-item { box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: transform 0.2s; }
+        .fuzzy-badge { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 10px; background: #fff3cd; color: #856404; margin-left: 6px; vertical-align: middle; }
+ 
+        /* 自動補全下拉選單樣式 */
+        .autocomplete-wrapper { position: relative; }
+        .autocomplete-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #667eea;
+            border-top: none;
+            border-radius: 0 0 12px 12px;
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .autocomplete-dropdown.show { display: block; }
+        .autocomplete-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+            font-size: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .autocomplete-item:last-child { border-bottom: none; }
+        .autocomplete-item:hover,
+        .autocomplete-item.selected {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .autocomplete-item .match-text { font-weight: bold; }
+        .autocomplete-item .stock-hint {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+        .autocomplete-item .stock-hint.in-stock { background: #d4edda; color: #155724; }
+        .autocomplete-item .stock-hint.out-stock { background: #f8d7da; color: #721c24; }
+        .autocomplete-item .stock-hint.booking { background: #fff3cd; color: #856404; }
+        .autocomplete-item .stock-hint.contract { background: #cce5ff; color: #004085; }
+        .autocomplete-item:hover .stock-hint,
+        .autocomplete-item.selected .stock-hint {
+            background: rgba(255,255,255,0.3);
+            color: white;
+        }
+        .autocomplete-empty {
+            padding: 15px;
+            text-align: center;
+            color: #999;
+            font-size: 13px;
+        }
+        .db-tag {
+            display: inline-block;
+            font-size: 10px;
+            padding: 1px 5px;
+            border-radius: 3px;
+            margin-right: 6px;
+            font-weight: bold;
+        }
+        .db-tag.db-kz {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .db-tag.db-tablet {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        .autocomplete-item:hover .db-tag,
+        .autocomplete-item.selected .db-tag {
+            background: rgba(255,255,255,0.25) !important;
+        }
+ 
+        #priceBtn.price-active {
+            background: #9333ea !important;
+            color: #fff;
+        }
+ 
+        .change-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 2000;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .change-modal {
+            background: white; border-radius: 20px; padding: 20px;
+            max-width: 460px; width: 90%; max-height: 80vh; overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .change-modal h3 { margin: 0 0 12px 0; font-size: 18px; color: #333; }
+        .change-modal .close-btn {
+            float: right; background: none; border: none; font-size: 22px;
+            cursor: pointer; color: #999; padding: 0 4px;
+        }
+        .change-modal .close-btn:hover { color: #333; }
+        .change-list { margin-top: 10px; }
+        .change-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 12px; margin: 4px 0; border-radius: 8px; font-size: 14px;
+        }
+        .change-item.added { background: #d4edda; }
+        .change-item.removed { background: #f8d7da; }
+        .change-item.status-change { background: #fff3cd; }
+        .change-item .change-name { font-weight: bold; }
+        .change-item .change-detail { font-size: 12px; color: #555; }
+        .change-empty { text-align: center; color: #999; padding: 20px; font-size: 14px; }
+        .change-date { font-size: 12px; color: #888; margin-bottom: 8px; }
+        .change-loading { text-align: center; padding: 30px; color: #667eea; font-size: 16px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🏥 BI庫存查詢系統</h1>
+        <div class="status" id="status">載入中...</div>
+    </div>
+ 
+    <div class="search-box">
+        <div class="btn-group">
+            <button class="btn-small" id="refreshBtn" onclick="loadData()">🔄 更新資料</button>
+            <button class="btn-small" id="voiceBtn" onclick="startVoiceInput()">🎤 語音輸入</button>
+        </div>
+        <div class="btn-group">
+            <button class="btn-small price-active" id="priceBtn" onclick="togglePrice()">🙈 隱藏價格</button>
+            <button class="btn-small" id="changeBtn" onclick="checkChanges()">📋 異動</button>
+            <button class="btn-small btn-clear" onclick="clearInput()">🗑️ 清除</button>
+        </div>
+        <div class="autocomplete-wrapper">
+            <textarea id="input" class="autoresize" rows="5" placeholder="每行輸入一個產品&#10;範例：&#10;@王中醫 ← 客戶名（用@開頭）&#10;羌活勝濕湯錠&#10;苦參2" oninput="autoResize(this)" onclick="scrollToCursor(this)" onkeyup="scrollToCursor(this)"></textarea>
+            <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
+        </div>
+        <button class="btn" id="searchBtn" onclick="search()">🔍 查詢庫存</button>
+    </div>
+ 
+    <div id="result"></div>
+</div>
+ 
+<script>
+// ===== 配置 =====
+const SHEET_URL_KEZHONG = 'https://docs.google.com/spreadsheets/d/1ekYUBtuQNjLB0RpWGCPJN7409sL74tqT36NfzUIM6o4/gviz/tq?tqx=out:csv';
+const SHEET_URL_TABLET = 'https://docs.google.com/spreadsheets/d/1e4EjRPC43YBAoPl4UyjZeEnS3XH7oKltgAG7k8wtfcc/gviz/tq?tqx=out:csv';
+ 
+// ===== 狀態 =====
+let DB_KZ = {};      // 科中資料庫
+let DB_TABLET = {};  // 錠劑資料庫
+let showPrice = true;
+let lastLoadTime = null;
+const STALE_MS = 5 * 60 * 1000;
+ 
+// ===== 簡轉繁對照表 =====
+const S2T_MAP = {
+    '汤': '湯', '术': '朮', '参': '參', '黄': '黃', '当': '當',
+    '归': '歸', '泻': '瀉', '鸡': '雞', '痹': '痺', '风': '風',
+    '师': '師', '钟': '鐘', '别': '別', '颗': '顆', '丝': '絲',
+    '络': '絡', '经': '經', '结': '結', '练': '練', '约': '約',
+    '红': '紅', '级': '級', '纯': '純', '纱': '紗', '纳': '納',
+    '纸': '紙', '线': '線', '组': '組', '细': '細', '织': '織',
+    '终': '終', '绝': '絕', '统': '統', '继': '繼', '绩': '績',
+    '绪': '緒', '续': '續', '鱼': '魚', '龟': '龜', '麦': '麥',
+    '盐': '鹽', '药': '藥', '芦': '蘆', '苍': '蒼', '苏': '蘇',
+    '莱': '萊', '莲': '蓮', '营': '營', '萧': '蕭', '萨': '薩',
+    '虚': '虛', '虫': '蟲', '单': '單', '传': '傳', '伤': '傷',
+    '仪': '儀', '优': '優', '侠': '俠', '侨': '僑', '俩': '倆',
+    '俭': '儉', '债': '債', '偿': '償', '备': '備', '复': '復',
+    '壶': '壺', '处': '處', '夸': '誇', '夺': '奪', '奋': '奮',
+    '妇': '婦', '孙': '孫', '学': '學', '宝': '寶', '实': '實',
+    '宽': '寬', '对': '對', '导': '導', '尽': '盡', '层': '層',
+    '届': '屆', '属': '屬', '屡': '屢', '岁': '歲', '尧': '堯',
+    '巩': '鞏', '帘': '簾', '币': '幣', '帅': '帥', '帧': '幀',
+    '帮': '幫', '带': '帶', '坛': '壇', '坏': '壞', '坠': '墜',
+    '头': '頭', '龙': '龍', '胆': '膽', '连': '連', '叶': '葉', 
+    '泽': '澤', '姜': '薑', '党': '黨', '断': '斷', '蒌': '蔞', 
+    '兰': '蘭', '贯': '貫', '栀': '梔', '翘': '翹', '银': '銀', 
+    '独': '獨', '圣': '聖', '壳': '殼', '郁': '鬱', '补': '補', 
+    '锁': '鎖', '阳': '陽', '乌': '烏', '贞': '貞', '苁': '蓯',
+    '关': '關', '树': '樹', '动': '動', '运': '運', '进': '進',
+    '转': '轉', '变': '變', '应': '應', '医': '醫', '为': '為',
+    '来': '來', '这': '這', '个': '個', '长': '長', '门': '門',
+    '间': '間', '问': '問', '闻': '聞', '时': '時', '东': '東',
+    '车': '車', '气': '氣', '会': '會', '说': '說', '还': '還',
+    '没': '沒', '现': '現', '点': '點', '么': '麼'
+};
+ 
+const toTraditional = text => {
+    if (!text) return text;
+    return [...text].map(c => S2T_MAP[c] || c).join('');
+};
+ 
+const toHalfWidthDigits = text => {
+    if (!text) return text;
+    return text.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+};
+ 
+// ===== 常見錯別字對照表 =====
+const TYPO_MAP = {
+    '一貫煎': ['一貫煎', '一罐煎', '一貫間', '一罐間', '一貫建', '一貫堅', '一貫碇', '一貫腚'],
+    '一貫煎錠': ['一貫煎錠', '一貫煎腚'],
+    '乙字湯': ['乙字湯', '以致湯', '一直湯', '一字湯', '已知湯'],
+    '二陳湯': ['二陳湯', '二沉湯', '二成湯'],
+    '八味地黃丸': ['八味地黃丸', '八味'],
+    '七寶美髯丹': ['七寶美髯丹', '七寶', '七寶美男丹'],
+    '九味羌活湯': ['九味羌活湯', '九味'],
+    '二朮湯': ['二朮湯', '二術湯'],
+    '人參養榮湯': ['人參養榮湯', '人參養榮', '人參營養湯'],
+    '十全大補湯': ['十全大補湯', '十全', '十全大補'],
+    '十味敗毒湯': ['十味敗毒湯', '十味'],
+    '十神湯': ['十神湯', '十神'],
+    '八正散': ['八正散', '八正'],
+    '八味帶下方': ['八味帶下方', '八味帶下'],
+    '八珍湯': ['八珍湯', '八珍'],
+    '大柴胡湯': ['大柴胡湯', '大柴胡'],
+    '小青龍湯': ['小青龍湯', '小青龍'],
+    '小柴胡湯': ['小柴胡湯', '小柴胡'],
+    '川芎茶調散': ['川芎茶調散', '川芎茶調', '川芎茶调散'],
+    '大黃蟅蟲丸': ['大黃蟅蟲丸', '大黃蟅蟲', '大黃庶蟲丸', '大黄蟅虫丸', '大王哲蟲丸', '大黃蟲丸', '大黃之蟲丸'],
+    '小活絡丹': ['小活絡丹', '小活絡'],
+    '小陷胸湯': ['小陷胸湯', '小陷胸'],
+    '大承氣湯': ['大承氣湯', '大承氣'],
+    '小承氣湯': ['小承氣湯', '小承氣'],
+    '女科柏子仁丸': ['女科柏子仁丸', '女科柏子仁'],
+    '小建中湯': ['小建中湯', '小建中'],
+    '三黃瀉心湯': ['三黃瀉心湯', '三黃瀉心'],
+    '三痹湯': ['三痹湯', '三痺湯', '三必湯'],
+    '三痹湯錠': ['三痹湯錠', '三痺湯錠', '三必湯錠', '三婢湯錠', '三痹汤錠', '三痺汤錠', '三婢汤錠'],
+    '大秦艽湯': ['大秦艽湯', '大秦芨湯'],
+    '五苓散': ['五苓'],
+    '六君子湯': ['六君子'],
+    '六味地黃丸': ['六味'],
+    '天王補心丹': ['天王補心'],
+    '止嗽散': ['止嗽'],
+    '少腹逐瘀湯': ['少腹逐瘀'],
+    '天麻鉤藤飲': ['天麻鉤藤', '天麻钩藤', '天麻勾藤飲', '天麻鈎藤飲'],
+    '五淋散': ['五淋'],
+    '五積散': ['五積'],
+    '木香檳榔丸': ['木香檳榔'],
+    '加味逍遙散': ['加味逍遙散', '加味逍遙', '加味逍遥'],
+    '半夏天麻白朮湯': ['半夏天麻白朮湯', '半夏天麻', '半夏天麻白術'],
+    '半夏瀉心湯': ['半夏瀉心湯', '半夏瀉心'],
+    '右歸丸': ['右歸丸', '右歸'],
+    '四物湯': ['四物湯', '四物'],
+    '左歸丸': ['左歸丸', '左歸'],
+    '甘露飲': ['甘露飲', '甘露'],
+    '甘露消毒丹': ['甘露消毒丹', '甘露消毒', '甘露消毒單', '甘露消毒丸'],
+    '生脈飲': ['生脈飲', '生脈'],
+    '仙方活命飲': ['仙方活命飲', '仙方活命'],
+    '四君子湯': ['四君子湯', '四君子'],
+    '四逆散': ['四逆散'],
+    '平胃散': ['平胃散', '平胃'],
+    '正骨紫金丹': ['正骨紫金丹', '正骨紫金'],
+    '玉泉丸': ['玉泉丸', '玉泉'],
+    '瓜蔞枳實湯': ['瓜蔞枳實湯', '瓜蔞枳實', '瓜蒌枳实汤'],
+    '甘麥大棗湯': ['甘麥大棗湯', '甘麥大棗', '甘脈大棗湯'],
+    '白虎湯': ['白虎湯', '白虎'],
+    '四逆湯': ['四逆湯'],
+    '半夏厚朴湯': ['半夏厚朴湯', '半夏厚朴'],
+    '玉女煎': ['玉女煎', '玉女'],
+    '血府逐瘀湯': ['血府逐瘀湯', '血府逐瘀'],
+    '地黃飲子': ['地黃飲子', '地黃飲'],
+    '安中散': ['安中散', '安中'],
+    '百合固金湯': ['百合固金湯', '百合固金'],
+    '炙甘草湯': ['炙甘草湯', '炙甘草', '灸甘草湯', '加工草湯'],
+    '杏蘇散': ['杏蘇散', '杏蘇'],
+    '杞菊地黃丸': ['杞菊地黃丸', '杞菊', '杞菊地黃', '杞菊丸', '桂菊地黃丸', '起菊地黃丸'],
+    '身痛逐瘀湯': ['身痛逐瘀湯', '身痛逐瘀'],
+    '辛夷清肺湯': ['辛夷清肺湯', '辛夷清肺'],
+    '辛夷散': ['辛夷散'],
+    '防風通聖散': ['防風通聖散', '防風通聖', '防风通圣'],
+    '利鼻湯': ['利鼻湯', '利鼻'],
+    '完帶湯': ['完帶湯', '完帶'],
+    '抑肝散': ['抑肝散', '抑肝'],
+    '沙參麥冬湯': ['沙參麥冬湯', '沙參麥冬'],
+    '芍藥甘草湯': ['芍藥甘草湯', '芍藥甘草', '芍药甘草', '勺藥甘草', '灼藥甘草', '芍尤甘草'],
+    '芎歸膠艾湯': ['芎歸膠艾湯', '芎歸膠艾'],
+    '折衝飲': ['折衝飲', '折衝'],
+    '防己黃耆湯': ['防己黃耆湯', '防己黃耆', '防己黄芪'],
+    '延胡索': ['延胡索', '延胡所', '延湖索'],
+    '虎潛丸': ['虎潛丸', '虎潛', '虎前丸'],
+    '定喘湯': ['定喘湯', '定喘'],
+    '知柏地黃丸': ['知柏地黃丸', '知柏', '知柏地黃'],
+    '兒科杏蘇散': ['兒科杏蘇散', '兒科杏蘇'],
+    '羌活勝濕湯': ['羌活勝濕湯', '羌活勝濕'],
+    '附子理中湯': ['附子理中湯', '附子理中'],
+    '金鎖固精丸': ['金鎖固精丸', '金鎖固精'],
+    '苓桂朮甘湯': ['苓桂朮甘湯', '苓桂朮甘', '苓桂术甘'],
+    '香砂六君子湯': ['香砂六君子湯', '香砂六君子'],
+    '苓甘五味薑辛半夏杏仁湯': ['苓甘五味薑辛半夏杏仁湯', '苓甘五味'],
+    '保和丸': ['保和丸', '保和'],
+    '胃苓湯': ['胃苓湯', '胃苓'],
+    '洗肝明目散': ['洗肝明目散', '洗肝明目'],
+    '桂枝茯苓丸': ['桂枝茯苓丸', '桂枝茯苓'],
+    '柴胡加龍骨牡蠣湯': ['柴胡加龍骨牡蠣湯', '柴龍牡', '柴胡加龍骨', '柴胡加龙骨牡蛎'],
+    '柴胡清肝湯': ['柴胡清肝湯', '柴胡清肝'],
+    '桃紅四物湯': ['桃紅四物湯', '桃紅四物'],
+    '消風散': ['消風散', '消風', '消风'],
+    '真武湯': ['真武湯', '真武'],
+    '荊防敗毒散': ['荊防敗毒散', '荊防敗毒', '荊防敗德散'],
+    '荊芥連翹湯': ['荊芥連翹湯', '荊芥連翹', '荊芥連俏湯'],
+    '桂枝芍藥知母湯': ['桂枝芍藥知母湯', '桂枝芍藥知母'],
+    '桂枝湯': ['桂枝湯'],
+    '桑菊飲': ['桑菊飲', '桑菊', '桑鞠飲'],
+    '柴胡桂枝湯': ['柴胡桂枝湯', '柴胡桂枝'],
+    '柴胡疏肝湯': ['柴胡疏肝湯', '柴胡疏肝'],
+    '柴陷湯': ['柴陷湯', '柴陷', '柴鋥'],
+    '柴葛解肌湯': ['柴葛解肌湯', '柴葛解肌'],
+    '桃仁承氣湯': ['桃仁承氣湯', '桃仁承氣', '桃仁承記'],
+    '茵陳五苓散': ['茵陳五苓散', '茵陳五苓'],
+    '栝樓薤白半夏湯': ['栝樓薤白半夏湯', '栝樓薤白', '瓜蒌薤白半夏', '葛樓薤白'],
+    '桂枝加龍骨牡蠣湯': ['桂枝加龍骨牡蠣湯', '桂枝加龍骨牡蠣', '桂枝加龍骨牡力'],
+    '桔梗湯': ['桔梗湯'],
+    '桑螵蛸散': ['桑螵蛸散', '桑螵蛸'],
+    '烏藥順氣散': ['烏藥順氣散', '烏藥順氣'],
+    '益氣聰明湯': ['益氣聰明湯', '益氣聰明', '益志聰明'],
+    '清上防風湯': ['清上防風湯', '清上防風'],
+    '清心蓮子飲': ['清心蓮子飲', '清心蓮子'],
+    '理中湯': ['理中湯', '理中', '梨中'],
+    '疏經活血湯': ['疏經活血湯', '疏經活血'],
+    '逍遙散': ['逍遙散', '逍遙', '逍遥', '消遙'],
+    '麥門冬湯': ['麥門冬湯', '麥門冬', '麥門東', '賣門冬'],
+    '麻子仁丸': ['麻子仁丸', '麻子仁', '麻紫仁'],
+    '麻杏甘石湯': ['麻杏甘石湯', '麻杏甘石'],
+    '參苓白朮散': ['參苓白朮散', '參苓白朮', '参苓白术', '參靈白朮散', '參零白朮散', '身靈白朮散', '深苓白朮散', '參林白朮散', '身苓白朮散', '森苓白朮散', '蔘苓白朮湯', '蔘苓白朮散', '參苓白朮湯', '參苓白術散'],
+    '涼膈散': ['涼膈散', '涼膈', '凉膈', '良膈'],
+    '清上蠲痛湯': ['清上蠲痛', '清上蠲痛湯'],
+    '清心利膈湯': ['清心利膈湯', '清心利膈'],
+    '清肺湯': ['清肺湯', '清肺'],
+    '清胃散': ['清胃散', '清胃'],
+    '清氣化痰丸': ['清氣化痰丸', '清氣化痰'],
+    '清燥救肺湯': ['清燥救肺湯', '清燥救肺'],
+    '麻杏薏甘湯': ['麻杏薏甘湯', '麻杏薏甘'],
+    '麻黃附子細辛湯': ['麻黃附子細辛湯', '麻黃附子細辛'],
+    '清肺飲': ['清肺飲'],
+    '參蘇飲': ['參蘇飲', '參蘇'],
+    '旋覆代赭石湯': ['旋覆代赭石湯', '旋覆代赭', '旋复代赭石'],
+    '清空膏': ['清空膏', '清空'],
+    '清暑益氣湯': ['清暑益氣湯', '清暑益氣', '青屬意氣湯', '青樹益氣湯', '清數益氣湯', '清暑一氣湯'],
+    '麻黃湯': ['麻黃湯'],
+    '清鼻湯': ['清鼻湯', '清鼻'],
+    '散腫潰堅湯': ['散腫潰堅湯', '散腫潰堅'],
+    '普濟消毒飲': ['普濟消毒飲', '普濟消毒'],
+    '紫菀湯': ['紫菀湯', '紫菀'],
+    '越婢加朮湯': ['越婢加朮湯', '越婢加朮', '越婢加术'],
+    '黃耆五物湯': ['黃耆五物湯', '黃耆五物', '黄芪五物'],
+    '鈎藤散': ['鈎藤散', '钩藤散'],
+    '鈎藤': ['钩藤'],
+    '黃耆建中湯': ['黃耆建中湯', '黃耆建中', '黄芪建中'],
+    '復元活血湯': ['復元活血湯', '復元活血'],
+    '黃連解毒湯': ['黃連解毒湯', '黃連解毒'],
+    '溫經湯': ['溫經湯', '溫經'],
+    '當歸芍藥散': ['當歸芍藥散', '當歸芍藥', '當龜勺藥散', '當歸勺藥'],
+    '葛根湯': ['葛根湯', '葛庚'],
+    '葛根黃芩黃連湯': ['葛根黃芩黃連湯', '葛根黃芩黃連', '葛根黃連湯'],
+    '補中益氣湯': ['補中益氣湯', '補中益氣', '补中益气', '不중益氣'],
+    '溫清飲': ['溫清飲', '溫清', '温清', '溫親'],
+    '當歸拈痛湯': ['當歸拈痛湯', '當歸拈痛', '当归拈痛', '當龜年痛'],
+    '當歸飲子': ['當歸飲子', '當歸飲'],
+    '補陽還五湯': ['補陽還五湯', '補陽還五', '不陽還五'],
+    '過期飲': ['過期飲', '過期'],
+    '溫膽湯': ['溫膽湯', '溫膽'],
+    '聖愈湯': ['聖愈湯', '聖愈', '聖喻'],
+    '當歸四逆湯': ['當歸四逆湯', '當歸四逆', '當龜四逆'],
+    '蒼耳散': ['蒼耳散', '倉耳'],
+    '銀翹散': ['銀翹散', '銀翹', '银翘', '銀橋'],
+    '寧嗽丸': ['寧嗽丸', '寧嗽'],
+    '膈下逐瘀湯': ['膈下逐瘀湯', '膈下逐瘀'],
+    '潤腸湯': ['潤腸湯', '潤腸'],
+    '養心湯': ['養心湯', '養心'],
+    '養陰清肺湯': ['養陰清肺湯', '養陰清肺'],
+    '獨活寄生湯': ['獨活寄生湯', '獨活寄生', '毒活寄生', '獨活紀生'],
+    '龍膽瀉肝湯': ['龍膽瀉肝湯', '龍膽瀉肝', '龙胆泻肝', '膿淡瀉肝'],
+    '豬苓湯': ['豬苓湯', '豬苓', '朱苓'],
+    '龜鹿二仙膏': ['龜鹿二仙膏', '龜鹿二仙', '歸祿二仙'],
+    '導水茯苓湯': ['導水茯苓湯', '導水茯苓'],
+    '濟生腎氣丸': ['濟生腎氣丸', '濟生腎氣'],
+    '還少丹': ['還少丹', '還少'],
+    '薏苡仁湯': ['薏苡仁湯', '薏苡仁'],
+    '歸脾湯': ['歸脾湯', '歸脾'],
+    '瀉白散': ['瀉白散', '瀉白', '泻白'],
+    '瀉黃散': ['瀉黃散', '瀉黃', '泻黄'],
+    '蘇子降氣湯': ['蘇子降氣'],
+    '藿香正氣散': ['藿香正氣', '藿香正气'],
+    '蠲痹湯': ['蠲痹', '蠲痹湯', '蠲痺', '蠲痺湯'],
+    '響聲破笛丸': ['響聲破笛'],
+    '大黃': ['大黃', '大黄'],
+    '大棗': ['大棗'],
+    '山藥': ['山藥', '山药'],
+    '川芎': ['川芎'],
+    '川牛膝': ['川牛膝'],
+    '三七': ['三七'],
+    '丹參': ['丹參', '丹参'],
+    '木香': ['木香'],
+    '生地黃': ['生地黃', '生地黄'],
+    '玉米鬚': ['玉米鬚', '玉米须'],
+    '甘草': ['甘草'],
+    '白朮': ['白朮', '白术'],
+    '白芍': ['白芍'],
+    '白芷': ['白芷'],
+    '北板藍根': ['北板藍根', '北板蓝根', '板藍根', '板蓝根'],
+    '石菖蒲': ['石菖蒲', '石昌蒲'],
+    '何首烏': ['何首烏', '何首乌'],
+    '赤芍': ['赤芍'],
+    '辛夷': ['辛夷'],
+    '防風': ['防風', '防风'],
+    '牡丹皮': ['牡丹皮'],
+    '金銀花': ['金銀花', '金银花'],
+    '羌活': ['羌活'],
+    '知母': ['知母'],
+    '香附': ['香附'],
+    '厚朴': ['厚朴'],
+    '枳實': ['枳實', '枳实'],
+    '紅花': ['紅花', '红花'],
+    '枳殼': ['枳殼', '枳壳'],
+    '苦參': ['苦參', '苦参', '苦參根', '苦参根'],
+    '柏子仁': ['柏子仁'],
+    '炮附子': ['炮附子'],
+    '穿心蓮': ['穿心蓮', '穿心莲'],
+    '威靈仙': ['威靈仙', '威灵仙'],
+    '益母草': ['益母草'],
+    '桔梗': ['桔梗', '吉梗'],
+    '柴胡': ['柴胡'],
+    '秦艽': ['秦艽'],
+    '茯苓': ['茯苓'],
+    '荊芥': ['荊芥', '荆芥'],
+    '桂枝': ['桂枝'],
+    '桑葉': ['桑葉', '桑叶'],
+    '桑白皮': ['桑白皮'],
+    '浙貝母': ['浙貝母', '浙贝母'],
+    '茵陳蒿': ['茵陳蒿', '茵陈蒿'],
+    '夏枯草': ['夏枯草'],
+    '栝樓實': ['栝樓實', '瓜蒌实'],
+    '魚腥草': ['魚腥草', '鱼腥草'],
+    '乾薑': ['乾薑', '干姜'],
+    '淫羊藿': ['淫羊藿'],
+    '陳皮': ['陳皮', '陈皮'],
+    '荷葉': ['荷葉', '荷叶'],
+    '連翹': ['連翹', '连翘'],
+    '梔子': ['梔子', '栀子', '槴子'],
+    '槴': ['槴', '梔'],
+    '槴子': ['槴子', '梔子'],
+    '菊花': ['菊花'],
+    '黃耆': ['黃耆', '黄芪'],
+    '黃芩': ['黃芩', '黄芩'],
+    '黃柏': ['黃柏', '黄柏'],
+    '黃連': ['黃連', '黄连'],
+    '紫蘇葉': ['紫蘇葉', '紫苏叶', '紫蘇'],
+    '番瀉葉': ['番瀉葉', '番泻叶'],
+    '當歸': ['當歸', '当归'],
+    '葛根': ['葛根'],
+    '蒼朮': ['蒼朮', '苍术'],
+    '蒼耳子': ['蒼耳子', '苍耳子', '苍耳', '蒼耳'],
+    '綿茵陳': ['綿茵陳', '绵茵陈'],
+    '蒲黃': ['蒲黃', '蒲黄'],
+    '蒲公英': ['蒲公英'],
+    '廣藿香': ['廣藿香', '广藿香', '藿香', '霍香'],
+    '熟地黃': ['熟地黃', '熟地黄'],
+    '澤瀉': ['澤瀉', '泽泻'],
+    '獨活': ['獨活', '独活'],
+    '龍膽': ['龍膽', '龙胆'],
+    '薑黃': ['薑黃', '姜黄'],
+    '鎖陽': ['鎖陽', '锁阳'],
+    '懷牛膝': ['懷牛膝'],
+    '黨參': ['黨參', '党参'],
+    '續斷': ['續斷', '续断'],
+    '鬱金': ['鬱金', '郁金'],
+    '麻黃': ['麻黃', '麻黄'],
+};
+ 
+// ===== 單方藥保護名單 =====
+const SINGLE_HERB_NAMES = new Set([
+    ...Object.entries(TYPO_MAP).filter(([k, v]) => Array.isArray(v) && !['湯','散','丸','飲','膏','丹','煎','劑','露','片'].some(s => k.endsWith(s))).flatMap(([k, v]) => [k, ...v.filter(a => typeof a === 'string')]),
+    '炙甘草', '炙草', '生甘草',
+    '酸棗仁', '紫菀', '桑螵蛸', '薏苡仁', '麥門冬', '麻子仁',
+]);
+ 
+// ===== 工具函數 =====
+const TABLET_SUFFIX = ['錠', '锭', '碇', '碙'];
+const parseCSVLine = line => {
+    const result = [];
+    let current = '', inQuotes = false;
+    for (const c of line) {
+        if (c === '"') inQuotes = !inQuotes;
+        else if (c === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
+        else current += c;
+    }
+    result.push(current.trim());
+    return result;
+};
+ 
+// ===== CSV 解析邏輯（含調整後的規格標籤邏輯） =====
+const parseCSV = (csvText, source = 'kezhong') => {
+    const data = {};
+    const skipWords = ['劃', '品名', '單方', '目前', '每日', '實際', '以上', '其他', '預訂', '下單', '交期', '庫存量表', '庫存均', '有庫存', '會缺貨'];
+    
+    // 追蹤每個直欄群組 (j) 當前所處的分隔列規格狀態，預設值為 '200g'
+    const groupSpec = {}; 
+
+    csvText.split('\n').slice(1).forEach(line => {
+        const row = parseCSVLine(line);
+        for (let j = 0; j < row.length; j += 4) {
+            const [name, status, price] = [row[j], row[j+1], row[j+2]];
+            if (!name) continue;
+            
+            const trimmedName = name.trim();
+
+            // 判斷是否遇到規格分隔標頭列，切換該直欄群組往後的規格狀態
+            if (trimmedName === "單方100g" || trimmedName === "單方100G") {
+                groupSpec[j] = "100g";
+                continue;
+            } else if (trimmedName === "錠劑") {
+                groupSpec[j] = "錠劑";
+                continue;
+            } else if (trimmedName === "單方200g" || trimmedName === "單方200G" || trimmedName === "複方") {
+                groupSpec[j] = "200g";
+                continue;
+            }
+
+            if (!skipWords.some(w => name.includes(w))) {
+                let stockStatus;
+                if (status === '有') {
+                    stockStatus = '有货';
+                } else if (status === '合約') {
+                    stockStatus = '合约';
+                } else if (status === '低') {
+                    stockStatus = '有货';
+                } else if (status === '無') {
+                    stockStatus = '缺货';
+                } else if (status && (status.includes('預') || status.includes('订') || status.includes('定'))) {
+                    stockStatus = '預訂';
+                } else if (status && status.trim()) {
+                    stockStatus = '?';
+                } else {
+                    stockStatus = '?';
+                }
+                
+                // 規格標籤邏輯：錠劑庫一律標「錠劑」；科中庫一律依當前狀態賦予規格標籤（預設為 200g）
+                const spec = source === 'tablet' ? '錠劑' : (groupSpec[j] || '200g');
+                data[name] = [stockStatus, price?.replace(/,/g, '') || '時價', spec];
+            }
+        }
+    });
+    return data;
+};
+ 
+// ===== 科中專用匹配函數 =====
+const findBestMatchInKZ = query => {
+    if (!query || !Object.keys(DB_KZ).length) return null;
+ 
+    const AMBIGUOUS_TERMS = {
+        '茵陳': ['茵陳蒿', '綿茵陳']
+    };
+    if (AMBIGUOUS_TERMS[query]) {
+        const candidates = AMBIGUOUS_TERMS[query].filter(name => DB_KZ[name]);
+        if (candidates.length > 1) {
+            return { multiCandidate: true, candidates };
+        }
+        if (candidates.length === 1) {
+            const c = candidates[0];
+            return { name: c, status: DB_KZ[c][0], price: DB_KZ[c][1], spec: DB_KZ[c][2], corrected: true, fuzzy: true };
+        }
+    }
+ 
+    if (DB_KZ[query]) {
+        return { name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], spec: DB_KZ[query][2], corrected: false, fuzzy: false };
+    }
+ 
+    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
+        if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
+            if (DB_KZ[correct]) {
+                const formulaSuffixes = ['湯','散','丸','飲','膏','丹','煎','劑','露','片'];
+                const correctIsFormula = formulaSuffixes.some(s => correct.endsWith(s));
+                const ambiguous = correctIsFormula && SINGLE_HERB_NAMES.has(query) && query !== correct;
+                return { name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], spec: DB_KZ[correct][2], corrected: true, fuzzy: true, original: query, ambiguous };
+            }
+        }
+    }
+ 
+    if (query.length === 2) {
+        return null;
+    }
+ 
+    if (query.length >= 3) {
+        const suffixes = ['丸', '湯', '散', '飲', '膏', '丹', '煎', '劑', '露', '片'];
+        for (const suffix of suffixes) {
+            const withSuffix = query + suffix;
+            if (DB_KZ[withSuffix]) {
+                const ambiguous = SINGLE_HERB_NAMES.has(query);
+                return { name: withSuffix, status: DB_KZ[withSuffix][0], price: DB_KZ[withSuffix][1], spec: DB_KZ[withSuffix][2], corrected: true, fuzzy: true, original: query, ambiguous };
+            }
+        }
+    }
+ 
+    if (query.length >= 3) {
+        const threshold = 0.7;
+        const scored = [];
+        for (const [name, data] of Object.entries(DB_KZ)) {
+            const matchedChars = [...query].filter(c => name.includes(c));
+            const score = matchedChars.length / Math.max(query.length, name.length);
+            if (score > threshold) scored.push({ name, status: data[0], price: data[1], spec: data[2], score });
+        }
+        if (scored.length) {
+            const maxScore = Math.max(...scored.map(s => s.score));
+            const top = scored.filter(s => s.score === maxScore);
+            if (top.length === 1) {
+                const c = top[0];
+                return { name: c.name, status: c.status, price: c.price, spec: c.spec, corrected: true, fuzzy: true };
+            }
+            return { multiCandidate: true, candidates: top.map(c => c.name) };
+        }
+    }
+ 
+    return null;
+};
+ 
+// ===== 錠劑專用匹配函數 =====
+const findBestMatchInTablet = query => {
+    if (!query || !Object.keys(DB_TABLET).length) return null;
+ 
+    if (DB_TABLET[query]) return { name: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1], corrected: false, fuzzy: false };
+ 
+    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
+        if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
+            if (DB_TABLET[correct]) return { name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1], corrected: true, fuzzy: true };
+        }
+    }
+ 
+    for (const suffix of ['湯', '散', '丸', '飲', '膏', '丹', '煎', '劑', '露']) {
+        if (query.endsWith(suffix)) {
+            const tryTablet = query.slice(0, -suffix.length) + TABLET_SUFFIX[0];
+            if (DB_TABLET[tryTablet]) return { name: tryTablet, status: DB_TABLET[tryTablet][0], price: DB_TABLET[tryTablet][1], corrected: true, fuzzy: true };
+        }
+    }
+ 
+    const queryWithoutDing = query.replace(new RegExp(`[${TABLET_SUFFIX.join('')}]$`), '').trim();
+    const tabletName = queryWithoutDing + TABLET_SUFFIX[0];
+    if (DB_TABLET[tabletName]) return { name: tabletName, status: DB_TABLET[tabletName][0], price: DB_TABLET[tabletName][1], corrected: true, fuzzy: true };
+ 
+    if (query.length >= 3) {
+        let best = null, bestScore = 0.7;
+        for (const [name, data] of Object.entries(DB_TABLET)) {
+            const matchedChars = [...query].filter(c => name.includes(c));
+            const score = matchedChars.length / query.length;
+            if (score > bestScore) {
+                bestScore = score;
+                best = { name, status: data[0], price: data[1], corrected: true, fuzzy: true };
+            }
+        }
+        if (best) return best;
+    }
+ 
+    return null;
+};
+ 
+// ===== 自動補全功能 =====
+let autocompleteIndex = -1;
+let autocompleteItems = [];
+let autocompleteVisible = false;
+
+function initAutocomplete() {
+    const textarea = document.getElementById('input');
+    textarea.addEventListener('input', handleAutocompleteInput);
+    textarea.addEventListener('keydown', handleAutocompleteKeydown);
+    textarea.addEventListener('click', () => { hideAutocomplete(); });
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.autocomplete-wrapper')) {
+            hideAutocomplete();
+        }
+    });
+}
+ 
+let autocompleteDebounceTimer = null;
+ 
+function handleAutocompleteInput(e) {
+    if (autocompleteDebounceTimer) clearTimeout(autocompleteDebounceTimer);
+    autocompleteDebounceTimer = setTimeout(() => {
+        const textarea = e.target;
+        const value = textarea.value;
+        const cursorPos = textarea.selectionStart;
+        const lines = value.substring(0, cursorPos).split('\n');
+        const currentLine = lines[lines.length - 1].trim();
+        const cleanLine = currentLine.replace(/[\s\*\-+xX/]*[\d瓶罐包盒顆粒]+$/, '').trim();
+        if (cleanLine.length >= 1 && Object.keys(DB_KZ).length > 0) {
+            showAutocompleteSuggestions(cleanLine);
+        } else {
+            hideAutocomplete();
+        }
+    }, 200);
+}
+ 
+function handleAutocompleteKeydown(e) {
+    if (!autocompleteVisible) return;
+    switch (e.key) {
+        case 'ArrowDown':
+            e.preventDefault();
+            autocompleteIndex = Math.min(autocompleteIndex + 1, autocompleteItems.length - 1);
+            updateAutocompleteSelection();
+            break;
+        case 'ArrowUp':
+            e.preventDefault();
+            autocompleteIndex = Math.max(autocompleteIndex - 1, 0);
+            updateAutocompleteSelection();
+            break;
+        case 'Enter':
+        case 'Tab':
+            if (autocompleteIndex >= 0) {
+                e.preventDefault();
+                selectAutocompleteItem(autocompleteItems[autocompleteIndex]);
+            }
+            break;
+        case 'Escape':
+            hideAutocomplete();
+            break;
+    }
+}
+ 
+function showAutocompleteSuggestions(query) {
+    const dropdown = document.getElementById('autocompleteDropdown');
+    if (!query || query.length < 1) {
+        hideAutocomplete();
+        return;
+    }
+ 
+    const matches = [];
+    const isTabletInput = TABLET_SUFFIX.some(c => query.includes(c));
+ 
+    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
+        const allNames = [correct, ...(Array.isArray(typos) ? typos : [])];
+        if (!allNames.includes(query)) continue;
+        if (DB_KZ[correct]) {
+            matches.push({ name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], score: 100, matchType: 'typo-exact', dbType: '科中' });
+        }
+        if (DB_TABLET[correct]) {
+            matches.push({ name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1], score: 100, matchType: 'typo-exact', dbType: '錠劑' });
+        }
+    }
+ 
+    if (DB_KZ[query]) matches.push({ name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], score: 100, matchType: 'exact', dbType: '科中' });
+    if (DB_TABLET[query]) matches.push({ name: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1], score: 100, matchType: 'exact', dbType: '錠劑' });
+ 
+    if (isTabletInput && !SINGLE_HERB_NAMES.has(query)) {
+        for (const suffix of ['湯','散','丸','飲','膏','丹','煎','劑','露']) {
+            if (query.endsWith(suffix)) {
+                const tryTablet = query.slice(0, -suffix.length) + '錠';
+                if (DB_TABLET[tryTablet] && !matches.some(m => m.name === tryTablet)) {
+                    matches.push({ name: tryTablet, status: DB_TABLET[tryTablet][0], price: DB_TABLET[tryTablet][1], score: 95, matchType: 'suffix-convert', dbType: '錠劑' });
+                }
+                break;
+            }
+        }
+    }
+ 
+    for (const [name, data] of Object.entries(DB_KZ)) {
+        if (matches.some(m => m.name === name)) continue;
+        if (name.includes(query) || query.includes(name)) {
+            matches.push({ name, status: data[0], price: data[1], score: 80, matchType: 'contains', dbType: '科中' });
+        }
+    }
+ 
+    for (const [name, data] of Object.entries(DB_TABLET)) {
+        if (matches.some(m => m.name === name)) continue;
+        if (name.includes(query) || query.includes(name)) {
+            matches.push({ name, status: data[0], price: data[1], score: 80, matchType: 'contains', dbType: '錠劑' });
+        }
+    }
+ 
+    if (query.length >= 3) {
+        const allKZ = Object.entries(DB_KZ);
+        const allTab = Object.entries(DB_TABLET);
+        for (const [name, data] of allKZ) {
+            if (matches.some(m => m.name === name)) continue;
+            const matchedChars = [...query].filter(c => name.includes(c));
+            const score = Math.round((matchedChars.length / query.length) * 80);
+            if (score >= 40) matches.push({ name, status: data[0], price: data[1], score, matchType: 'fuzzy', dbType: '科中' });
+        }
+        for (const [name, data] of allTab) {
+            if (matches.some(m => m.name === name)) continue;
+            const matchedChars = [...query].filter(c => name.includes(c));
+            const score = Math.round((matchedChars.length / query.length) * 80);
+            if (score >= 40) matches.push({ name, status: data[0], price: data[1], score, matchType: 'fuzzy', dbType: '錠劑' });
+        }
+    }
+ 
+    const dedupMap = new Map();
+    for (const m of matches) {
+        if (!dedupMap.has(m.name) || m.score > dedupMap.get(m.name).score) {
+            dedupMap.set(m.name, m);
+        }
+    }
+ 
+    matches.length = 0;
+    matches.push(...dedupMap.values());
+ 
+    matches.sort((a, b) => {
+        const aStartsWith = a.name.startsWith(query) ? 0 : 1;
+        const bStartsWith = b.name.startsWith(query) ? 0 : 1;
+        if (aStartsWith !== bStartsWith) return aStartsWith - bStartsWith;
+        const stockRank = (s) => s === '有货' ? 0 : s === '合约' ? 1 : s === '預訂' ? 2 : s === '缺货' ? 4 : 3;
+        const rankA = stockRank(a.status);
+        const rankB = stockRank(b.status);
+        if (rankA !== rankB) return rankA - rankB;
+        return b.score - a.score;
+    });
+ 
+    const topMatches = matches.slice(0, 48);
+ 
+    if (topMatches.length === 0) {
+        dropdown.innerHTML = '<div class="autocomplete-empty">無匹配項目</div>';
+        dropdown.classList.add('show');
+        autocompleteVisible = true;
+        autocompleteItems = [];
+        autocompleteIndex = -1;
+        return;
+    }
+ 
+    dropdown.innerHTML = topMatches.map((item, index) => {
+        const stockClass = item.status === '有货' ? 'in-stock' : item.status === '合约' ? 'contract' : item.status === '預訂' ? 'booking' : 'out-stock';
+        const stockText = item.status === '有货' ? '✅ 有貨' : item.status === '合约' ? '📋 合約' : item.status === '預訂' ? '⏳ 預訂' : '⚠️ 缺貨';
+        const dbClass = item.dbType === '科中' ? 'db-kz' : 'db-tablet';
+        const fuzzyBadge = item.score < 100 ? '<span class="fuzzy-badge">❓ 有疑問</span>' : '';
+        return `
+            <div class="autocomplete-item" data-index="${index}" data-name="${item.name}">
+                <span class="match-text">
+                    <span class="db-tag ${dbClass}">${item.dbType}</span>
+                    ${highlightMatch(item.name, query)}${fuzzyBadge}
+                </span>
+                <span class="stock-hint ${stockClass}">${stockText}</span>
+            </div>
+        `;
+    }).join('');
+ 
+    dropdown.querySelectorAll('.autocomplete-item').forEach(el => {
+        el.addEventListener('click', () => {
+            const index = parseInt(el.dataset.index);
+            selectAutocompleteItem(topMatches[index]);
+        });
+        el.addEventListener('mouseenter', () => {
+            autocompleteIndex = parseInt(el.dataset.index);
+            updateAutocompleteSelection();
+        });
+    });
+ 
+    dropdown.classList.add('show');
+    autocompleteVisible = true;
+    autocompleteItems = topMatches;
+    autocompleteIndex = -1;
+}
+ 
+function highlightMatch(name, query) {
+    if (name.startsWith(query)) {
+        return `<strong>${query}</strong>${name.slice(query.length)}`;
+    }
+    if (name.includes(query)) {
+        return name.replace(query, `<strong>${query}</strong>`);
+    }
+    if (name[0] === query[0]) {
+        return `<strong>${name[0]}</strong>${name.slice(1)}`;
+    }
+    return name;
+}
+ 
+function updateAutocompleteSelection() {
+    const dropdown = document.getElementById('autocompleteDropdown');
+    const items = dropdown.querySelectorAll('.autocomplete-item');
+    items.forEach((el, index) => {
+        if (index === autocompleteIndex) {
+            el.classList.add('selected');
+            el.scrollIntoView({ block: 'nearest' });
+        } else {
+            el.classList.remove('selected');
+        }
+    });
+}
+ 
+function selectAutocompleteItem(item) {
+    const textarea = document.getElementById('input');
+    const value = textarea.value;
+    const cursorPos = textarea.selectionStart;
+ 
+    const lines = value.replace(/\r\n/g, '\n').split('\n');
+    let lineStart = 0;
+    let lineIndex = 0;
+ 
+    for (let i = 0; i < lines.length; i++) {
+        if (lineStart + lines[i].length >= cursorPos) {
+            lineIndex = i;
+            break;
+        }
+        lineStart += lines[i].length + 1;
+    }
+ 
+    const currentLine = lines[lineIndex];
+    const numMatch = currentLine.match(/(\d+)$/);
+    const quantity = numMatch ? numMatch[1] : '';
+ 
+    lines[lineIndex] = item.name + quantity;
+ 
+    textarea.value = lines.join('\n');
+ 
+    const newPos = lineStart + item.name.length;
+    textarea.setSelectionRange(newPos, newPos);
+    textarea.focus();
+ 
+    hideAutocomplete();
+}
+ 
+function hideAutocomplete() {
+    const dropdown = document.getElementById('autocompleteDropdown');
+    dropdown.classList.remove('show');
+    autocompleteVisible = false;
+    autocompleteIndex = -1;
+    autocompleteItems = [];
+}
+ 
+// ===== 核心功能 =====
+async function loadData(isBackground = false) {
+    const btn = document.getElementById('refreshBtn');
+    const status = document.getElementById('status');
+    const searchBtn = document.getElementById('searchBtn');
+ 
+    btn.disabled = true;
+    btn.textContent = '載入中...';
+    if (!isBackground) searchBtn.disabled = true;
+ 
+    try {
+        const [res1, res2] = await Promise.all([
+            fetch(SHEET_URL_KEZHONG),
+            fetch(SHEET_URL_TABLET)
+        ]);
+ 
+        if (!res1.ok) throw new Error(`科中Sheet讀取失敗 (${res1.status})`);
+        if (!res2.ok) throw new Error(`錠劑Sheet讀取失敗 (${res2.status})`);
+ 
+        const tempKZ = parseCSV(await res1.text(), 'kezhong');
+        const tempTablet = parseCSV(await res2.text(), 'tablet');
+ 
+        const tabletSuffixChars = TABLET_SUFFIX.join('');
+        for (const [name, data] of Object.entries(tempTablet)) {
+            if (!new RegExp(`[${tabletSuffixChars}]$`).test(name)) {
+                const alias = name + TABLET_SUFFIX[0];
+                if (!tempTablet[alias]) tempTablet[alias] = data;
+            }
+        }
+ 
+        DB_KZ = tempKZ;
+        DB_TABLET = tempTablet;
+ 
+        const kzCount = Object.keys(DB_KZ).length;
+        const tabletCount = Object.keys(DB_TABLET).length;
+        lastLoadTime = Date.now();
+ 
+        const countStatus = (db) => {
+            const c = { '有货': 0, '缺货': 0, '合约': 0, '預訂': 0, '?': 0 };
+            for (const v of Object.values(db)) c[v[0]] = (c[v[0]] || 0) + 1;
+            return c;
+        };
+        const kzStat = countStatus(DB_KZ);
+        const tbStat = countStatus(DB_TABLET);
+        status.textContent = `✅ 資料已更新: ${new Date().toLocaleTimeString()} (科中${kzCount}項/錠劑${tabletCount}項)`;
+        
+        let statLine = document.getElementById('stockStats');
+        if (!statLine) {
+            statLine = document.createElement('div');
+            statLine.id = 'stockStats';
+            statLine.style.cssText = 'font-size:13px;margin-top:6px;line-height:2;';
+            status.parentNode.insertBefore(statLine, status.nextSibling);
+        }
+        const pill = (label, value, bg, fg) =>
+            `<span style="display:inline-block;background:${bg};color:${fg};font-weight:700;padding:2px 8px;border-radius:10px;margin-right:4px;">${label} ${value}</span>`;
+        statLine.innerHTML =
+            `<span style="color:#555;margin-right:4px;">科中：</span>`
+            + pill('有貨', kzStat['有货'], '#00e676', '#00390f')
+            + pill('缺貨', kzStat['缺货'], '#ff5252', '#4a0000')
+            + pill('合約', kzStat['合约'], '#ffc400', '#4a3700')
+            + pill('預訂', kzStat['預訂'], '#7c4dff', '#1a0057')
+            + `<br><span style="color:#555;margin-right:4px;">錠劑：</span>`
+            + pill('有貨', tbStat['有货'], '#00e676', '#00390f')
+            + pill('缺貨', tbStat['缺货'], '#ff5252', '#4a0000')
+            + pill('合約', tbStat['合约'], '#ffc400', '#4a3700')
+            + pill('預訂', tbStat['預訂'], '#7c4dff', '#1a0057');
+ 
+    } catch (e) {
+        console.error('載入失敗:', e);
+        const errMsg = e.message || '未知錯誤';
+        status.textContent = '❌ 載入失敗：' + errMsg;
+        status.style.color = '#ff4444';
+        if (!Object.keys(DB_KZ).length) {
+            document.getElementById('result').innerHTML = `<div class="error">❌ 載入失敗：${errMsg}<br>請確認 Google Sheet 仍是「任何人可檢視」<br><small>${SHEET_URL_KEZHONG.match(/\/d\/[\w-]+/)?.[0]}</small></div>`;
+        }
+    }
+ 
+    btn.textContent = '更新資料';
+    btn.disabled = false;
+    searchBtn.disabled = false;
+}
+ 
+// ===== 異動偵測功能 =====
+const CHANGE_GAS_URL = 'https://script.google.com/macros/s/AKfycbzF7UJKkAotK9CRZEctUSUqd5FB4Fmy4KipujO-A5wzXPEnGxenCZphAloAqJKKZJds/exec';
+ 
+function postToGAS(payload) {
+    let iframe = document.getElementById('gas-iframe');
+    if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.id = 'gas-iframe';
+        iframe.name = 'gas-iframe';
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+    }
+    let form = document.getElementById('gas-form');
+    if (form) form.remove();
+    form = document.createElement('form');
+    form.id = 'gas-form';
+    form.method = 'POST';
+    form.action = CHANGE_GAS_URL;
+    form.target = 'gas-iframe';
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'payload';
+    input.value = JSON.stringify(payload);
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+}
+ 
+async function checkChanges() {
+    const btn = document.getElementById('changeBtn');
+    btn.disabled = true;
+    btn.textContent = '比對中...';
+ 
+    if (!Object.keys(DB_KZ).length && !Object.keys(DB_TABLET).length) {
+        await loadData();
+    }
+ 
+    try {
+        if (!CHANGE_GAS_URL) {
+            showChangeModal(await computeLocalChanges());
+        } else {
+            const res = await fetch(CHANGE_GAS_URL + '?action=getsnapshot');
+            if (!res.ok) throw new Error('快照讀取失敗 (' + res.status + ')');
+            const data = await res.json();
+            const snapshot = data.snapshot || {};
+            const snapshotDate = data.date || '';
+            const today = new Date().toISOString().slice(0, 10);
+            const isFirstRun = !snapshotDate;
+ 
+            if (isFirstRun) {
+                postToGAS({
+                    action: 'record',
+                    date: today,
+                    changes: { added: [], removed: [], statusChanged: [] },
+                    snapshot: buildCurrentSnapshot()
+                });
+                showChangeModal({ added: [], removed: [], statusChanged: [], firstRun: true });
+            } else {
+                const changes = computeChanges(DB_KZ, DB_TABLET, snapshot);
+                if (snapshotDate !== today && (changes.added.length || changes.removed.length || changes.statusChanged.length)) {
+                    postToGAS({
+                        action: 'record',
+                        date: today,
+                        changes: changes,
+                        snapshot: buildCurrentSnapshot()
+                    });
+                }
+                showChangeModal(changes, snapshotDate);
+            }
+        }
+    } catch (e) {
+        console.error('異動偵測失敗:', e);
+        showChangeModal({ added: [], removed: [], statusChanged: [], error: e.message });
+    }
+ 
+    btn.disabled = false;
+    btn.textContent = '📋 異動';
+}
+ 
+function buildCurrentSnapshot() {
+    const snap = {};
+    for (const [name, data] of Object.entries(DB_KZ)) snap['KZ:' + name] = data[0];
+    for (const [name, data] of Object.entries(DB_TABLET)) snap['TB:' + name] = data[0];
+    return snap;
+}
+ 
+function computeChanges(currentKZ, currentTB, snapshot) {
+    const current = {};
+    for (const [name, data] of Object.entries(currentKZ)) current['KZ:' + name] = data[0];
+    for (const [name, data] of Object.entries(currentTB)) current['TB:' + name] = data[0];
+ 
+    const added = [];
+    const removed = [];
+    const statusChanged = [];
+ 
+    for (const [key, status] of Object.entries(current)) {
+        if (!(key in snapshot)) {
+            added.push({ name: key.replace(/^(KZ:|TB:)/, ''), status, db: key.startsWith('TB:') ? '錠劑' : '科中' });
+        } else if (snapshot[key] !== status) {
+            statusChanged.push({ name: key.replace(/^(KZ:|TB:)/, ''), oldStatus: snapshot[key], newStatus: status, db: key.startsWith('TB:') ? '錠劑' : '科中' });
+        }
+    }
+ 
+    for (const [key, status] of Object.entries(snapshot)) {
+        if (!(key in current)) {
+            removed.push({ name: key.replace(/^(KZ:|TB:)/, ''), status, db: key.startsWith('TB:') ? '錠劑' : '科中' });
+        }
+    }
+ 
+    return { added, removed, statusChanged };
+}
+ 
+async function computeLocalChanges() {
+    const STORAGE_KEY = 'tcm_snapshot';
+    const DATE_KEY = 'tcm_snapshot_date';
+    const today = new Date().toISOString().slice(0, 10);
+    const current = buildCurrentSnapshot();
+ 
+    const savedRaw = localStorage.getItem(STORAGE_KEY);
+    const savedDate = localStorage.getItem(DATE_KEY) || '';
+ 
+    if (!savedRaw) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+        localStorage.setItem(DATE_KEY, today);
+        return { added: [], removed: [], statusChanged: [], firstRun: true };
+    }
+ 
+    const snapshot = JSON.parse(savedRaw);
+    const changes = computeChanges(DB_KZ, DB_TABLET, snapshot);
+ 
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+    localStorage.setItem(DATE_KEY, today);
+ 
+    return { ...changes, snapshotDate: savedDate };
+}
+ 
+function showChangeModal(changes, snapshotDate) {
+    const old = document.querySelector('.change-overlay');
+    if (old) old.remove();
+ 
+    const overlay = document.createElement('div');
+    overlay.className = 'change-overlay';
+    overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+ 
+    let html = '<div class="change-modal">';
+    html += '<button class="close-btn" onclick="this.closest(\'.change-overlay\').remove()">&times;</button>';
+ 
+    if (changes.error) {
+        html += '<h3>❌ 異動偵測失敗</h3>';
+        html += '<div class="change-empty">' + changes.error + '</div>';
+    } else if (changes.firstRun) {
+        html += '<h3>📋 庫存異動</h3>';
+        html += '<div class="change-empty">首次使用，已儲存快照基準。<br>下次比對即可看到異動。</div>';
+    } else {
+        const total = changes.added.length + changes.removed.length + changes.statusChanged.length;
+        html += '<h3>📋 庫存異動</h3>';
+        if (snapshotDate) html += '<div class="change-date">基準日：' + snapshotDate + ' → 今天</div>';
+        if (total === 0) {
+            html += '<div class="change-empty">✅ 無異動</div>';
+        } else {
+            html += '<div class="change-list">';
+            if (changes.added.length) {
+                html += '<div style="font-size:13px;color:#155724;font-weight:bold;margin:8px 0 4px">🆕 新增品項</div>';
+                for (const item of changes.added) {
+                    html += '<div class="change-item added"><span class="change-name">' + item.name + '</span><span class="change-detail">' + item.db + ' · ' + statusLabel(item.status) + '</span></div>';
+                }
+            }
+            if (changes.removed.length) {
+                html += '<div style="font-size:13px;color:#721c24;font-weight:bold;margin:8px 0 4px">🗑️ 消失品項</div>';
+                for (const item of changes.removed) {
+                    html += '<div class="change-item removed"><span class="change-name">' + item.name + '</span><span class="change-detail">' + item.db + ' · ' + statusLabel(item.status) + '</span></div>';
+                }
+            }
+            if (changes.statusChanged.length) {
+                html += '<div style="font-size:13px;color:#856404;font-weight:bold;margin:8px 0 4px">🔄 狀態變化</div>';
+                for (const item of changes.statusChanged) {
+                    html += '<div class="change-item status-change"><span class="change-name">' + item.name + '</span><span class="change-detail">' + statusLabel(item.oldStatus) + ' → ' + statusLabel(item.newStatus) + '</span></div>';
+                }
+            }
+            html += '</div>';
+            html += '<div style="text-align:center;margin-top:10px;font-size:13px;color:#888">共 ' + total + ' 項異動</div>';
+        }
+    }
+ 
+    html += '</div>';
+    overlay.innerHTML = html;
+    document.body.appendChild(overlay);
+}
+ 
+function statusLabel(status) {
+    if (status === '有货') return '有貨';
+    if (status === '合约') return '合約';
+    if (status === '缺货' || status === '无') return '缺貨';
+    if (/預|订|定/.test(status)) return '預訂';
+    if (status === '?') return '未知';
+    return status;
+}
+
+function autoResize(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(Math.max(textarea.scrollHeight, 120), 400) + 'px';
+}
+
+function scrollToCursor(textarea) {
+    const cursorPos = textarea.selectionStart;
+    const textBeforeCursor = textarea.value.substring(0, cursorPos);
+    const lineCount = textBeforeCursor.split('\n').length;
+    const lineHeight = 20; // 估算每列高度
+    textarea.scrollTop = (lineCount - 3) * lineHeight;
+}
+
+function clearInput() {
+    const input = document.getElementById('input');
+    input.value = '';
+    autoResize(input);
+    document.getElementById('result').innerHTML = '';
+    hideAutocomplete();
+}
+
+function togglePrice() {
+    showPrice = !showPrice;
+    const btn = document.getElementById('priceBtn');
+    if (showPrice) {
+        btn.textContent = '🙈 隱藏價格';
+        btn.classList.add('price-active');
+    } else {
+        btn.textContent = '👁️ 顯示價格';
+        btn.classList.remove('price-active');
+    }
+    const resultDiv = document.getElementById('result');
+    if (resultDiv.innerHTML !== '') {
+        search();
+    }
+}
+
+// ===== 頁面載入自動處理 =====
+window.addEventListener('load', function() {
+    loadData();
+    initAutocomplete();
+    const ta = document.getElementById('input');
+    if (ta) autoResize(ta);
+});
+ 
+window.addEventListener('beforeunload', function() {
+    if (typeof isListening !== 'undefined' && isListening && typeof recognition !== 'undefined' && recognition) {
+        recognition.stop();
+        recognition = null;
+        isListening = false;
+    }
+});
+ 
+document.addEventListener('visibilitychange', function() {
+    if (document.hidden && typeof isListening !== 'undefined' && isListening && typeof recognition !== 'undefined' && recognition) {
+        recognition.stop();
+        recognition = null;
+        isListening = false;
+        const voiceBtn = document.getElementById('voiceBtn');
+        if (voiceBtn) {
+            voiceBtn.textContent = '🎤 語音輸入';
+            voiceBtn.style.background = '#667eea';
+        }
+    }
+});
+
+function search() {
+    if (typeof isListening !== 'undefined' && isListening && typeof recognition !== 'undefined' && recognition) {
+        recognition.stop();
+        recognition = null;
+        isListening = false;
+        const voiceBtn = document.getElementById('voiceBtn');
+        if (voiceBtn) {
+            voiceBtn.textContent = '🎤 語音輸入';
+            voiceBtn.style.background = '#667eea';
+        }
+    }
+ 
+    const isStale = !lastLoadTime || (Date.now() - lastLoadTime > STALE_MS);
+    const needsLoad = !Object.keys(DB_KZ).length || !Object.keys(DB_TABLET).length;
+ 
+    if (needsLoad) {
+        document.getElementById('result').innerHTML = '<div class="error">請先點「🔄 更新資料」載入庫存資料</div>';
+        return;
+    }
+    if (isStale) {
+        loadData(true);
+    }
+ 
+    const inputEl = document.getElementById('input');
+    const lines = inputEl.value.replace(/\r\n/g, '\n').trim().split('\n').map(l => toHalfWidthDigits(l.trim())).filter(Boolean);
+ 
+    if (!lines.length) {
+        inputEl.focus();
+        return;
+    }
+ 
+    const GE_REG = /^各(\d{1,3})$/;
+    const SPEC_KW_PRE = /^(100G|200G|單方|複方|錠劑|科中)/i;
+
+    const isLikelyCustomerOrRemark = (s) => {
+        const t = s.trim();
+        if (t.startsWith('@') || GE_REG.test(t) || SPEC_KW_PRE.test(t)) return false;
+        if (/[\d瓶罐包盒顆粒]/.test(t)) return false;
+        const trad = toTraditional(t);
+        if (DB_KZ[trad] || DB_TABLET[trad]) return false;
+        for (const [correct, typos] of Object.entries(TYPO_MAP)) {
+            if (trad === correct || (Array.isArray(typos) && typos.includes(trad))) return false;
+        }
+        const formulaSuffixes = ['湯','散','丸','飲','膏','丹','煎','劑','露','片'];
+        for (const suffix of formulaSuffixes) {
+            if (DB_KZ[trad + suffix] || DB_TABLET[trad + suffix]) return false;
+        }
+        return true;
+    };
+
+    const gePositions = [];
+    for (let i = 0; i < lines.length; i++) {
+        const geMatch = lines[i].match(GE_REG);
+        if (geMatch) gePositions.push({ index: i, qty: geMatch[1] });
+    }
+
+    for (let g = gePositions.length - 1; g >= 0; g--) {
+        const { index: geIdx, qty: geQty } = gePositions[g];
+        const prevGeIdx = g > 0 ? gePositions[g - 1].index : -1;
+        let j = geIdx - 1;
+        while (j > prevGeIdx) {
+            const lj = lines[j].trim();
+            if (lj.startsWith('@')) break;
+            if (SPEC_KW_PRE.test(lj)) break;
+            if (isLikelyCustomerOrRemark(lj)) break;
+            if (!/\d{1,3}(?:[瓶罐包盒顆粒]?)$/.test(lj)) {
+                lines[j] = lj + geQty;
+            }
+            j--;
+        }
+    }
+
+    const processedLines = lines.filter(l => !GE_REG.test(l.trim()));
+
+    let html = '';
+    let totalPrice = 0;
+    let totalCount = 0;
+    let copyText = '';
+    let currentCustomer = '';
+
+    processedLines.forEach(line => {
+        const rawLine = line.trim();
+        if (!rawLine) return;
+
+        if (rawLine.startsWith('@') || isLikelyCustomerOrRemark(rawLine)) {
+            currentCustomer = rawLine.replace(/^@/, '');
+            html += `<div class="result-item customer-name">👤 客戶/備註：${currentCustomer}</div>`;
+            copyText += `【${currentCustomer}】\n`;
+            return;
+        }
+
+        const numMatch = rawLine.match(/(\d+)\s*([瓶罐包盒顆粒]?)$/);
+        let qty = 1;
+        let nameQuery = rawLine;
+
+        if (numMatch) {
+            qty = parseInt(numMatch[1], 10);
+            nameQuery = rawLine.slice(0, rawLine.lastIndexOf(numMatch[0])).trim();
+        }
+
+        const tradQuery = toTraditional(nameQuery);
+        const isTablet = TABLET_SUFFIX.some(s => tradQuery.includes(s));
+        
+        let match = isTablet ? findBestMatchInTablet(tradQuery) : findBestMatchInKZ(tradQuery);
+
+        if (!match && !isTablet) {
+            match = findBestMatchInTablet(tradQuery);
+        }
+
+        if (match) {
+            if (match.multiCandidate) {
+                html += `
+                    <div class="result-item">
+                        <div class="name">❓ ${rawLine} (多項匹配)</div>
+                        <div class="original">請確認要查詢的品項：${match.candidates.join(' / ')}</div>
+                    </div>`;
+            } else {
+                const itemPrice = match.price !== '時價' ? parseFloat(match.price) : 0;
+                const linePrice = itemPrice * qty;
+                totalPrice += linePrice;
+                totalCount += qty;
+
+                const stockBadge = match.status === '有货' 
+                    ? '<span class="badge in-stock">✅ 有貨</span>' 
+                    : match.status === '合约' 
+                    ? '<span class="badge contract">📋 合約</span>' 
+                    : match.status === '預訂' 
+                    ? '<span class="badge booking">⏳ 預訂</span>' 
+                    : '<span class="badge out-stock">⚠️ 缺貨</span>';
+
+                const specBadge = match.spec ? `<span class="badge spec">${match.spec}</span>` : '';
+                const displayPrice = showPrice ? (match.price !== '時價' ? `$${match.price} x ${qty} = $${linePrice}` : '時價') : '';
+                const correctedBadge = match.corrected ? '<span class="badge corrected">❓ 有疑問</span>' : '';
+
+                html += `
+                    <div class="result-item">
+                        <div class="name">${match.name} ${match.spec ? `(${match.spec})` : ''} x${qty}</div>
+                        <div>
+                            ${specBadge}
+                            ${stockBadge}
+                            ${correctedBadge}
+                        </div>
+                        ${showPrice ? `<div class="price">${displayPrice}</div>` : ''}
+                    </div>`;
+
+                copyText += `${match.name} ${match.spec ? `(${match.spec})` : ''} x${qty} - ${statusLabel(match.status)}\n`;
+            }
+        } else {
+            html += `
+                <div class="result-item">
+                    <div class="name">${rawLine}</div>
+                    <div><span class="badge not-found">❌ 無生產</span></div>
+                </div>`;
+            copyText += `${rawLine} - 無生產\n`;
+        }
+    });
+
+    if (totalCount > 0 && showPrice) {
+        html += `
+            <div class="summary">
+                <div class="total">總計：$${totalPrice}</div>
+                <div class="count">共 ${totalCount} 件商品</div>
+            </div>`;
+    }
+
+    if (copyText) {
+        html += `
+            <div class="copy-box">
+                <h4>📋 查詢結果複製</h4>
+                <div class="copy-content" id="copyContent">${copyText}</div>
+                <button class="copy-btn" onclick="copyResult()">複製結果</button>
+            </div>`;
+    }
+
+    document.getElementById('result').innerHTML = html;
+}
+
+function copyResult() {
+    const text = document.getElementById('copyContent').innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = document.querySelector('.copy-btn');
+        btn.textContent = '✅ 已複製！';
+        btn.classList.add('copied');
+        setTimeout(() => {
+            btn.textContent = '複製結果';
+            btn.classList.remove('copied');
+        }, 2000);
+    });
+}
+</script>
+</body>
+</html>
