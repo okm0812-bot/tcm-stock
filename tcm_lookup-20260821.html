@@ -8,7 +8,7 @@
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 15px; padding: max(15px, env(safe-area-inset-top)) max(15px, env(safe-area-inset-right)) max(15px, env(safe-area-inset-bottom)) max(15px, env(safe-area-inset-left)); margin: 0; overscroll-behavior: contain; -webkit-tap-highlight-color: transparent; }
         .container { max-width: 500px; margin: 0 auto; }
-.container { max-width: 500px; margin: 0 auto; }
+
         .header { text-align: center; color: white; margin-bottom: 20px; }
         .header h1 { font-size: 24px; margin: 0; }
         .header .status { font-size: 12px; opacity: 0.8; margin-top: 5px; }
@@ -540,7 +540,7 @@ const TYPO_MAP = {
     '浙貝母': ['浙貝母', '浙贝母'],
     '茵陳蒿': ['茵陳蒿', '茵陈蒿'],
     '夏枯草': ['夏枯草'],
-    '栝樓實': ['栝樓實', '瓜蒌实'],
+    '栝樓實': ['栝樓實', '瓜蒌实', '栝蔞實', '瓜蔞實', '瓜婁實', '栝楼实', '瓜娄实', '栝蔞实', '瓜蔞实', '瓜婁实', '瓜蔞', '栝蔞', '瓜婁', '栝樓'],
     '魚腥草': ['魚腥草', '鱼腥草'],
     '乾薑': ['乾薑', '干姜'],
     '淫羊藿': ['淫羊藿'],
@@ -1575,9 +1575,9 @@ function search() {
     let lineIndex = 0;
     for (const line of lines) {
         lineIndex++;
-        // 跳过规格行
+        // 跳过规格行（仍保留到 results，排序後再輸出）
         if (skipKeywords.includes(line.toLowerCase())) {
-            copyText += line + '\n';
+            results.push({ displayName: line.trim(), outputName: line.trim(), qty: 1, status: 'specification', source: 'spec' });
             continue;
         }
  
@@ -1587,14 +1587,14 @@ function search() {
         if (line.trim().startsWith('@')) {
             const customerName = line.trim().substring(1).trim();
             if (customerName) {
-                copyText += `[${customerName}] \n`;
+                // copyText 改由排序後統一組裝
                 results.push({ displayName: customerName, outputName: customerName, qty: 1, status: 'customer-name', source: 'note' });
                 continue;
             }
         }
         // 入口2：第一行無@前缀，但看起來是客戶名
         if (lineIndex === 1 && isLikelyCustomerOrRemark(line.trim())) {
-            copyText += `[${line.trim()}] \n`;
+            // copyText 改由排序後統一組裝
             results.push({ displayName: line.trim(), outputName: line.trim(), qty: 1, status: 'customer-name', source: 'note' });
             continue;
         }
@@ -1608,7 +1608,7 @@ function search() {
         
         if (isSpecification) {
             // 规格关键词直接输出，不进行产品匹配
-            copyText += line + '\n';
+            // copyText 改由排序後統一組裝
             const specQtyMatch = line.match(/\+?(\d+)$/);
             const specQty = specQtyMatch ? parseInt(specQtyMatch[1]) : 1;
             results.push({ displayName: line.trim(), outputName: line.trim(), qty: specQty, status: 'specification', source: 'spec' });
@@ -1618,20 +1618,20 @@ function search() {
         // 用戶主動點選候選 = 確認，不標記有疑問
  
         // 解析产品名和数量（提早計算，供麻黃特殊處理使用）
-        // 1. 先從原始行抓出結尾的「符號+數量」（如 /3、*3、-3、x12、x 12）允許數字後接瓶/罐等單位字
-        const trailingMatch = line.match(/[\s\*\-\+\/xX]*(\d+)(?:[瓶罐包盒顆粒]|\s|$)/i);
-        const qty = trailingMatch ? parseInt(trailingMatch[1]) : 1;
+        // 只取「行尾」數量：品名後特殊符號／空格一律忽略；未寫數量則預設 1（所有規格相同）
+        const trailingMatch = line.match(/(?:[\s\*\-\+\/xX×∗：:．.、，,　\t]+)(\d+)(?:[瓶罐包盒顆粒])?\s*$/i)
+            || line.match(/(\d+)(?:[瓶罐包盒顆粒])?\s*$/);
+        const qty = trailingMatch ? parseInt(trailingMatch[1], 10) : 1;
         const hasUserQty = !!trailingMatch;
  
-        // 2. 清除：移除常見單位詞、前綴 x/×/∗、結尾的 符號（只留數字）
+        // 清除：單位詞、結尾的特殊符號與空格（只留數字）。不整行刪 x，以免誤傷品名
         let cleanLine = line
-            .replace(/[x×∗]/gi, '')                                    // 前綴 x/×/∗
-            .replace(/[瓶罐包盒顆粒]+\s*$/, '')                          // 單位（僅限結尾，避免誤刪品名中間的字，如「一罐煎」）
-            .replace(/^\+/, '')                                         // 前置 +
-            .replace(/[\s\*\-+xX/：:\s]+(\d+)(\s*)$/i, '$1$2').trim(); // 結尾 符號/冒號+數字 → 只留數字
+            .replace(/[瓶罐包盒顆粒]+\s*$/, '')
+            .replace(/^\+/, '')
+            .replace(/[\s\*\-\+\/xX×∗：:．.、，,　\t]+(\d+)(\s*)$/i, '$1$2')
+            .trim();
  
-        // 3. 移除末尾殘留的數字得到產品名
-        const originalProductName = cleanLine.replace(/\d+$/, '').trim();
+        const originalProductName = cleanLine.replace(/\d+$/, '').replace(/[\s\*\-\+\/xX×∗：:．.、，,　\t]+$/g, '').trim();
  
         // 正式解析產品名和數量；200g/100g 是包裝規格，不等於購買數量
         const query = toTraditional(originalProductName);  // 簡轉繁再匹配
@@ -1642,7 +1642,7 @@ function search() {
         const hasQuestionMark = line.includes('?');
  
         // 判断是锭劑还是科中
-        const isTabletInput = TABLET_SUFFIX.some(c => query.includes(c));
+        const isTabletInput = TABLET_SUFFIX.some(c => query.endsWith(c));
  
         let result = null;
         let ambiguousAlt = null;  // 歧義時的備選結果
@@ -1651,8 +1651,8 @@ function search() {
             // 锭劑：3个字以上进行模糊匹配锭劑库
             const tabletResult = findBestMatchInTablet(query);
             if (tabletResult && tabletResult.multiCandidate) {
-                const outputNameMC = originalProductName + ((qty > 1 || hasUserQty) ? qty : '');
-                copyText += outputNameMC + '\t請確認：' + tabletResult.candidates.join('／') + '\n';
+                const outputNameMC = originalProductName + ' ' + qty;
+                // copyText 改由排序後統一組裝
                 results.push({ displayName: originalProductName, outputName: outputNameMC, qty, status: 'multi_candidate', source: 'none', fuzzy: true, candidates: tabletResult.candidates });
                 continue;
             }
@@ -1666,8 +1666,8 @@ function search() {
             if (kzResult && kzResult.multiCandidate) {
                 // 模糊比對出現多個同分候選（如「柴胡湯」同時符合小柴胡湯/大柴胡湯/柴胡桂枝湯）
                 // 不自動選，直接列出候選讓人工確認，避免誤判成藥性不同的方劑
-                const outputNameMC = originalProductName + ((qty > 1 || hasUserQty) ? qty : '');
-                copyText += outputNameMC + '\t請確認：' + kzResult.candidates.join('／') + '\n';
+                const outputNameMC = originalProductName + ' ' + qty;
+                // copyText 改由排序後統一組裝
                 results.push({ displayName: originalProductName, outputName: outputNameMC, qty, status: 'multi_candidate', source: 'none', fuzzy: true, candidates: kzResult.candidates });
                 continue;
             }
@@ -1676,7 +1676,7 @@ function search() {
                 if (kzResult.ambiguous) {
                     result.ambiguous = true;
                     // 精確匹配不存在時的歧義提醒：匹配到方劑，備選是單方（用戶原始輸入）
-                    ambiguousAlt = { displayName: query, outputName: query + ((qty > 1 || hasUserQty) ? qty : ''), qty, status: '單方', source: 'kz', isBooking: false, isContract: false, isInStock: false, isUnknown: false, unitPrice: 0, totalPrice: 0, fuzzy: false, hasUserQty };
+                    ambiguousAlt = { displayName: query, outputName: query + ' ' + qty, qty, status: '單方', source: 'kz', isBooking: false, isContract: false, isInStock: false, isUnknown: false, unitPrice: 0, totalPrice: 0, fuzzy: false, hasUserQty };
                 }
             }
         }
@@ -1710,38 +1710,79 @@ function search() {
                 stats.outStockItems++;
             }
  
-            // 输出时组合：产品名 + 数量（qty > 1 或用户明确输入数量时显示） + 規格標註（100g/200g/錠劑，複方不標）
+            // 输出时组合：产品名 + 空格 + 数量 + 規格標註
+            // 規則：未輸入數量時預設為 1，適用所有規格（科中／錠劑皆同），一律顯示數量
             const specSuffix = spec ? `（${spec}）` : '';
-            const outputName = displayName + ((qty > 1 || hasUserQty) ? qty : '') + specSuffix;
+            const qtyPart = ' ' + qty;  // 無論是否有輸入、無論規格，皆顯示數量（預設 1）
+            const outputName = displayName + qtyPart + specSuffix;
  
-            // 复制文本 - 歧義雙選時主項也帶狀態
-            const mainStatusHint = isBooking ? '預訂' : isContract ? '合約' : isInStock ? '有貨' : '缺貨';
-            if (result.ambiguous) {
-                copyText += outputName + '（' + mainStatusHint + '）';
-            } else if (isInStock) {
-                copyText += outputName + '\n';
-            } else if (isContract) {
-                copyText += outputName + '（合約）\n';
-            } else if (isBooking) {
-                copyText += outputName + '（預）\n';
-            }
-            // 歧義雙選：追加備選項
-            if (result.ambiguous && ambiguousAlt) {
-                const altOutputName = ambiguousAlt.displayName + ((qty > 1 || hasUserQty) ? qty : '');
-                const altStatusHint = ambiguousAlt.status === '單方' ? '單方' : (ambiguousAlt.isInStock ? '有貨' : ambiguousAlt.isBooking ? '預訂' : ambiguousAlt.isContract ? '合約' : '缺貨');
-                copyText += ' 或 ' + altOutputName + '（' + altStatusHint + '）\n';
-            }
+            // 注意：copyText 改由排序後統一組裝，此處不再寫入，避免順序錯亂
  
-            // 保存结果
-            results.push({ displayName, outputName, qty, status, price, isBooking, isContract, isInStock, isUnknown, unitPrice, totalPrice, source, fuzzy, hasUserQty, ambiguous: result.ambiguous, ambiguousAlt });
+            // 保存结果（含 spec 供後續排序使用）
+            results.push({ displayName, outputName, qty, status, price, isBooking, isContract, isInStock, isUnknown, unitPrice, totalPrice, source, fuzzy, hasUserQty, ambiguous: result.ambiguous, ambiguousAlt, spec });
         } else {
-            const outputNameForNotFound = originalProductName + ((qty > 1 || hasUserQty) ? qty : '');
-            copyText += outputNameForNotFound + '\t無生產\n';
+            const outputNameForNotFound = originalProductName + ' ' + qty;
+            // copyText 改由排序後統一組裝
             results.push({ displayName: originalProductName, outputName: outputNameForNotFound, qty: qty, status: 'not_found', source: 'none', fuzzy: hasQuestionMark });
         }
     }
  
-    // 构建HTML（保持输入顺序）
+    // ===== 依包裝規格排序：客戶名 → 200g → 100g → 錠劑 → 其他（同類內保持原輸入順序） =====
+    results.forEach((item, i) => { item._ord = i; });
+    const specRank = (item) => {
+        if (item.status === 'customer-name') return -2;
+        if (item.spec === '200g') return 0;
+        if (item.spec === '100g') return 1;
+        if (item.spec === '錠劑' || item.source === 'tablet') return 2;
+        if (item.status === 'specification') {
+            const n = String(item.outputName || '').toLowerCase();
+            if (/200/.test(n)) return 0;
+            if (/100/.test(n)) return 1;
+            if (/錠/.test(n)) return 2;
+        }
+        return 3;
+    };
+    results.sort((a, b) => specRank(a) - specRank(b) || a._ord - b._ord);
+ 
+    // 依排序結果重新組裝 copyText（一行一項，無多餘前導空白）
+    // 規則：客戶名 → 200g → 100g → 錠劑 → 其他；只輸出有貨／合約／預訂（缺貨、無生產另處理）
+    copyText = '';
+    for (const item of results) {
+        if (item.status === 'customer-name') {
+            copyText += `[${item.displayName}]\n`;
+            continue;
+        }
+        if (item.status === 'specification') {
+            copyText += item.outputName + '\n';
+            continue;
+        }
+        if (item.status === 'multi_candidate') {
+            copyText += item.outputName + '\t請確認：' + (item.candidates || []).join('／') + '\n';
+            continue;
+        }
+        if (item.status === 'not_found') {
+            copyText += item.outputName + '\t無生產\n';
+            continue;
+        }
+        // 一般品項
+        if (item.ambiguous && item.ambiguousAlt) {
+            const mainStatusHint = item.isBooking ? '預訂' : item.isContract ? '合約' : item.isInStock ? '有貨' : '缺貨';
+            copyText += item.outputName + '（' + mainStatusHint + '）';
+            const alt = item.ambiguousAlt;
+            const altStatusHint = alt.status === '單方' ? '單方' : (alt.isInStock ? '有貨' : alt.isBooking ? '預訂' : alt.isContract ? '合約' : '缺貨');
+            const altOutputName = alt.displayName + ' ' + item.qty;
+            copyText += ' 或 ' + altOutputName + '（' + altStatusHint + '）\n';
+        } else if (item.isInStock) {
+            copyText += item.outputName + '\n';
+        } else if (item.isContract) {
+            copyText += item.outputName + '（合約）\n';
+        } else if (item.isBooking) {
+            copyText += item.outputName + '（預）\n';
+        }
+        // 缺貨：不放入可複製文字（與原邏輯一致）
+    }
+ 
+    // 构建HTML（已依規格排序）
     let html = '';
  
     for (const item of results) {
@@ -1763,7 +1804,7 @@ function search() {
         } else if (item.status === 'specification') {
             // 规格关键词：直接显示，不加状态
             html += `<div class="result-item">
-                <div class="name">${item.outputName}</div>
+                <div class="name">${escapeHTML(item.outputName)}</div>
                 <div class="badge spec">規格</div>
             </div>`;
         } else if (item.status === 'customer-name') {
@@ -2022,7 +2063,7 @@ function smartMatchProduct(text) {
     const query = toTraditional(productName);
     
     // 0. 检测是否可能是锭劑（包含「錠」的同音字：罐、堅、定、訂、碇、腚、䦺）
-    const isLikelyTablet = TABLET_SUFFIX.some(c => productName.includes(c));
+    const isLikelyTablet = TABLET_SUFFIX.some(c => productName.endsWith(c));
     // 1. 如果可能是锭劑（包含同音字），优先在锭劑库匹配
     if (isLikelyTablet) {
         const tabletResult = findBestMatchInTablet(query);
