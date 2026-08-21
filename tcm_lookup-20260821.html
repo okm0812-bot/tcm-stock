@@ -1516,7 +1516,18 @@ function search() {
  
     const inputEl = document.getElementById('input');
     // 處理貼上時可能攜帶的 \r\n 換行符
-    const lines = inputEl.value.replace(/\r\n/g, '\n').trim().split('\n').map(l => toHalfWidthDigits(l.trim())).filter(Boolean);
+    // 先保留所有行，用於偵測「其它」分隔關鍵字：「其它」行以後的品項不做庫存比對，直接輸出
+    const rawLines = inputEl.value.replace(/\r\n/g, '\n').trim().split('\n').map(l => toHalfWidthDigits(l.trim()));
+    let passthroughLines = [];
+    // 偵測「其它」（也兼容「其他」）作為分隔標記
+    const separatorIdx = rawLines.findIndex(l => /^(其它|其他)\s*$/i.test(l));
+    let lines;
+    if (separatorIdx !== -1) {
+        lines = rawLines.slice(0, separatorIdx).filter(Boolean);
+        passthroughLines = rawLines.slice(separatorIdx + 1).filter(Boolean);
+    } else {
+        lines = rawLines.filter(Boolean);
+    }
  
     if (!lines.length) {
         inputEl.focus();
@@ -1781,7 +1792,20 @@ function search() {
         }
         // 缺貨：不放入可複製文字（與原邏輯一致）
     }
- 
+
+    // ===== 直通品項：「其它」分隔後的品項，不做庫存比對，直接追加到複製文字末尾 =====
+    if (passthroughLines.length > 0) {
+        copyText += '其它\n';  // 輸出「其它」標題行
+        for (const ptLine of passthroughLines) {
+            // 解析品名與數量（與主流程相同的行尾數量規則），未寫數量預設 1
+            const ptTrailing = ptLine.match(/(?:[\s\*\-\+\/xX×∗：:．.、，,　\t]+)(\d+)(?:[瓶罐包盒顆粒])?\s*$/i)
+                || ptLine.match(/(\d+)(?:[瓶罐包盒顆粒])?\s*$/);
+            const ptQty = ptTrailing ? parseInt(ptTrailing[1], 10) : 1;
+            const ptName = ptLine.replace(/[瓶罐包盒顆粒]+\s*$/, '').replace(/\d+$/, '').replace(/[\s\*\-\+\/xX×∗：:．.、，,　\t]+$/g, '').trim();
+            copyText += `${ptName} ${ptQty}\n`;
+        }
+    }
+
     // 构建HTML（已依規格排序）
     let html = '';
  
@@ -1849,7 +1873,23 @@ function search() {
             </div>`;
         }
     }
- 
+
+    // ===== 直通品項：圖形化顯示（不做庫存比對，標示為「其它」） =====
+    if (passthroughLines.length > 0) {
+        html += `<div class="category"><h3>其它</h3></div>`;
+        for (const ptLine of passthroughLines) {
+            const ptTrailing = ptLine.match(/(?:[\s\*\-\+\/xX×∗：:．.、，,　\t]+)(\d+)(?:[瓶罐包盒顆粒])?\s*$/i)
+                || ptLine.match(/(\d+)(?:[瓶罐包盒顆粒])?\s*$/);
+            const ptQty = ptTrailing ? parseInt(ptTrailing[1], 10) : 1;
+            const ptName = ptLine.replace(/[瓶罐包盒顆粒]+\s*$/, '').replace(/\d+$/, '').replace(/[\s\*\-\+\/xX×∗：:．.、，,　\t]+$/g, '').trim();
+            html += `<div class="result-item">
+                <div class="name">${escapeHTML(ptName)} ${ptQty}</div>
+                <div class="badge spec">直通</div>
+                <div class="price"></div>
+            </div>`;
+        }
+    }
+
     // 汇总统计
     html += `<div class="summary">
         <div class="total">${showPrice && stats.total > 0 ? stats.total + ' 元' : '查詢完成'}</div>
