@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>BI庫存查詢系統</title>
+    <title>BI庫存查詢系統 V2.1</title>
     <style>
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 15px; padding: max(15px, env(safe-area-inset-top)) max(15px, env(safe-area-inset-right)) max(15px, env(safe-area-inset-bottom)) max(15px, env(safe-area-inset-left)); margin: 0; overscroll-behavior: contain; -webkit-tap-highlight-color: transparent; }
@@ -817,54 +817,116 @@ function normalizeSearchText(text) {
 
 
 // ------------------------------------------------------------
-// 建立搜尋用名稱
+// 建立搜尋用名稱 + 啟動時建立一次索引
 // ------------------------------------------------------------
+// 舊版 getSearchAliases 每次查詢都會重新掃 TYPO_MAP。
+// V2.1 改成：頁面載入資料後只建立一次反查索引。
+// 查詢時 typo -> 正式品名為 O(1)，不再「每個品項 × 每個 TYPO」重算。
+let SEARCH_INDEX = [];
+let SEARCH_ALIAS_INDEX = new Map();
+let SEARCH_NAME_INDEX = new Map();
+
 function getSearchAliases(name) {
-    const aliases = new Set();
-
     const normalized = normalizeSearchText(name);
-
     if (!normalized) return [];
-
-    aliases.add(normalized);
-
-    // TYPO_MAP
-    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
-        const correctN = normalizeSearchText(correct);
-
-        if (correctN === normalized) {
-            aliases.add(correctN);
-
-            if (Array.isArray(typos)) {
-                typos.forEach(t => {
-                    const n = normalizeSearchText(t);
-                    if (n) aliases.add(n);
-                });
-            }
-        }
-
-        if (Array.isArray(typos)) {
-            for (const typo of typos) {
-                if (normalizeSearchText(typo) === normalized) {
-                    aliases.add(correctN);
-
-                    typos.forEach(t => {
-                        const n = normalizeSearchText(t);
-                        if (n) aliases.add(n);
-                    });
-
-                    break;
-                }
-            }
-        }
-    }
-
-    return [...aliases];
+    const cached = SEARCH_NAME_INDEX.get(normalized);
+    return cached ? cached.aliases : [normalized];
 }
 
+function buildSearchIndexes() {
+    const entries = [];
+    const aliasIndex = new Map();
+    const nameIndex = new Map();
+
+    const addAlias = (alias, entry) => {
+        const a = normalizeSearchText(alias);
+        if (!a) return;
+        let list = aliasIndex.get(a);
+        if (!list) {
+            list = [];
+            aliasIndex.set(a, list);
+        }
+        if (!list.some(x => x.name === entry.name && x.source === entry.source)) {
+            list.push(entry);
+        }
+    };
+
+    const addDb = (db, source) => {
+        for (const [rawName, data] of Object.entries(db || {})) {
+            const name = normalizeSearchText(rawName);
+            if (!name) continue;
+
+            const entry = {
+                name: rawName,
+                normalized: name,
+                data,
+                source,
+                aliases: [name]
+            };
+
+            const typoCorrect = Object.prototype.hasOwnProperty.call(TYPO_MAP, rawName)
+                ? rawName
+                : Object.keys(TYPO_MAP).find(correct => normalizeSearchText(correct) === name);
+
+            if (typoCorrect) {
+                const typos = TYPO_MAP[typoCorrect];
+                if (Array.isArray(typos)) {
+                    for (const typo of typos) {
+                        const n = normalizeSearchText(typo);
+                        if (n && !entry.aliases.includes(n)) entry.aliases.push(n);
+                    }
+                }
+            }
+
+            entries.push(entry);
+            nameIndex.set(name, entry);
+            for (const alias of entry.aliases) addAlias(alias, entry);
+        }
+    };
+
+    addDb(DB_KZ, 'kezhong');
+    addDb(DB_TABLET, 'tablet');
+
+    SEARCH_INDEX = entries;
+    SEARCH_ALIAS_INDEX = aliasIndex;
+    SEARCH_NAME_INDEX = nameIndex;
+}
+
+// 取得某個查詢的 O(1) typo / exact 命中
+function getIndexedExactHits(q) {
+    const hits = [];
+    const seen = new Set();
+
+    const push = (entry, score, matchType) => {
+        const key = entry.source + '|' + entry.name;
+        if (seen.has(key)) return;
+        seen.add(key);
+        hits.push({
+            name: entry.name,
+            status: entry.data[0],
+            price: entry.data[1],
+            spec: entry.data[2],
+            source: entry.source,
+            score,
+            matchType
+        });
+    };
+
+    const exactName = SEARCH_NAME_INDEX.get(q);
+    if (exactName) push(exactName, 10000, 'exact');
+
+    const aliases = SEARCH_ALIAS_INDEX.get(q) || [];
+    for (const entry of aliases) {
+        if (entry.normalized === q) continue;
+        push(entry, 9800, 'typo-exact');
+    }
+
+    return hits;
+}
 
 // ------------------------------------------------------------
 // Levenshtein 距離
+
 // ------------------------------------------------------------
 function levenshteinDistance(a, b) {
     if (a === b) return 0;
@@ -903,51 +965,33 @@ function levenshteinDistance(a, b) {
 
 
 // ------------------------------------------------------------
-// 字元集合相似度
+// 字元集合相似度（查詢階段只對真正進入 fuzzy 的候選使用）
 // ------------------------------------------------------------
 function uniqueCharMatchScore(a, b) {
     a = normalizeSearchText(a);
     b = normalizeSearchText(b);
-
     if (!a || !b) return 0;
-
     if (a === b) return 1;
-
     const setA = new Set([...a]);
     const setB = new Set([...b]);
-
     let same = 0;
-
-    for (const c of setA) {
-        if (setB.has(c)) same++;
-    }
-
+    for (const c of setA) if (setB.has(c)) same++;
     const denominator = Math.max(setA.size, setB.size);
-
     return denominator ? same / denominator : 0;
 }
 
-
-// ------------------------------------------------------------
-// 編輯距離相似度
-// ------------------------------------------------------------
 function editSimilarity(a, b) {
     a = normalizeSearchText(a);
     b = normalizeSearchText(b);
-
     if (!a || !b) return 0;
-
     if (a === b) return 1;
-
     const distance = levenshteinDistance(a, b);
     const maxLen = Math.max(a.length, b.length);
-
     return maxLen ? 1 - distance / maxLen : 0;
 }
 
-
 // ------------------------------------------------------------
-// 舊版相容：containsMatchScore（部分語音邏輯仍可能引用）
+// 舊版相容：containsMatchScore
 // ------------------------------------------------------------
 const containsMatchScore = (query, name) => {
     query = normalizeSearchText(query);
@@ -957,150 +1001,141 @@ const containsMatchScore = (query, name) => {
     return queryChars.filter(c => name.includes(c)).length / queryChars.length;
 };
 
-
 // ------------------------------------------------------------
 // 搜尋名稱評分
 // ------------------------------------------------------------
 function scoreSearchCandidate(query, name) {
-
     query = normalizeSearchText(query);
     name = normalizeSearchText(name);
-
     if (!query || !name) return 0;
 
-    // 1. 完全相同
-    if (query === name) {
-        return 10000;
-    }
+    if (query === name) return 10000;
+    if (name.startsWith(query)) return 9000 + query.length * 10;
+    if (name.includes(query)) return 8000 + query.length * 10;
+    if (query.includes(name)) return 7600 + name.length * 10;
 
-    // 2. 開頭完全符合
-    if (name.startsWith(query)) {
-        return 9000 + query.length * 10;
-    }
-
-    // 3. 名稱包含查詢
-    if (name.includes(query)) {
-        return 8000 + query.length * 10;
-    }
-
-    // 4. 查詢包含完整產品名稱
-    if (query.includes(name)) {
-        return 7600 + name.length * 10;
-    }
-
-    // 5. 去除常見方劑後綴再比較
     for (const suffix of SEARCH_SUFFIXES) {
         if (name.endsWith(suffix)) {
             const base = name.slice(0, -suffix.length);
-
-            if (base === query) {
-                return 9500;
-            }
-
-            if (base.startsWith(query)) {
-                return 8500 + query.length * 10;
-            }
+            if (base === query) return 9500;
+            if (base.startsWith(query)) return 8500 + query.length * 10;
         }
     }
 
-    // 6. 編輯距離
     const editScore = editSimilarity(query, name);
-
-    // 7. 字元集合
     const charScore = uniqueCharMatchScore(query, name);
-
-    // 8. 長度差
     const lengthDiff = Math.abs(query.length - name.length);
 
-    // 短字串嚴格限制
     if (query.length <= 2) {
-        if (editScore >= 0.9 && lengthDiff <= 1) {
-            return 6000 + editScore * 500;
-        }
-
+        if (editScore >= 0.9 && lengthDiff <= 1) return 6000 + editScore * 500;
         return 0;
     }
-
-    // 3 字以上
-    if (editScore >= 0.78) {
-        return 5000 + editScore * 1000 - lengthDiff * 30;
-    }
-
-    if (charScore >= 0.75) {
-        return 4000 + charScore * 1000 - lengthDiff * 30;
-    }
-
+    if (editScore >= 0.78) return 5000 + editScore * 1000 - lengthDiff * 30;
+    if (charScore >= 0.75) return 4000 + charScore * 1000 - lengthDiff * 30;
     return 0;
 }
 
-
 // ------------------------------------------------------------
-// 從資料庫搜尋
+// 從資料庫搜尋 V2.1
+// 搜尋順序：
+// 1. exact / typo 反查 O(1)
+// 2. prefix / contains
+// 3. 最後才 fuzzy / Levenshtein
+// 不再對每個品項建立 alias，也不對 alias 重複計算編輯距離。
 // ------------------------------------------------------------
 function searchDatabaseV2(query, db, source) {
-
-    if (!query || !db || !Object.keys(db).length) {
-        return [];
-    }
-
+    if (!query || !db || !Object.keys(db).length) return [];
     const q = normalizeSearchText(query);
+    if (!q) return [];
 
     const results = [];
+    const seen = new Set();
+    const add = (entry, score, matchType) => {
+        const key = entry.source + '|' + entry.name;
+        if (seen.has(key)) return;
+        seen.add(key);
+        results.push({
+            name: entry.name,
+            status: entry.data[0],
+            price: entry.data[1],
+            spec: entry.data[2],
+            source: entry.source,
+            score,
+            matchType
+        });
+    };
 
-    for (const [rawName, data] of Object.entries(db)) {
+    // A. O(1) exact / typo
+    const exactHits = getIndexedExactHits(q).filter(x => x.source === source);
+    for (const hit of exactHits) {
+        const entry = SEARCH_NAME_INDEX.get(normalizeSearchText(hit.name));
+        if (entry && entry.source === source) add(entry, hit.score, hit.matchType);
+    }
+    if (results.length) return results;
 
-        const name = normalizeSearchText(rawName);
-
-        if (!name) continue;
-
-        let score = scoreSearchCandidate(q, name);
-
-        // TYPO_MAP 額外加分（不加在正式品名自己身上，避免錯字分比精確匹配還高）
-        const aliases = getSearchAliases(rawName);
-
-        for (const alias of aliases) {
-            if (alias === name) continue;
-
-            if (alias === q) {
-                score = Math.max(score, 9800);
-            }
-
-            const aliasScore = scoreSearchCandidate(q, alias);
-
-            if (aliasScore > 0) {
-                score = Math.max(score, aliasScore + 300);
+    // B. 後綴省略：例如「四物」→「四物湯」
+    for (const entry of SEARCH_INDEX) {
+        if (entry.source !== source) continue;
+        const name = entry.normalized;
+        for (const suffix of SEARCH_SUFFIXES) {
+            if (name.endsWith(suffix)) {
+                const base = name.slice(0, -suffix.length);
+                if (base === q) {
+                    add(entry, 9500, 'suffix');
+                    break;
+                }
+                if (base.startsWith(q)) {
+                    add(entry, 8500 + q.length * 10, 'suffix-prefix');
+                    break;
+                }
             }
         }
+    }
+    if (results.length) return results.sort((a,b) => b.score-a.score);
 
-        if (score <= 0) continue;
-
-        results.push({
-            name: rawName,
-            status: data[0],
-            price: data[1],
-            spec: data[2],
-            source,
-            score
-        });
+    // C. 便宜的 prefix / contains，完全不算 Levenshtein
+    for (const entry of SEARCH_INDEX) {
+        if (entry.source !== source) continue;
+        const name = entry.normalized;
+        if (name.startsWith(q)) {
+            add(entry, 9000 + q.length * 10, 'prefix');
+        } else if (name.includes(q) || q.includes(name)) {
+            add(entry, name.includes(q) ? 8000 + q.length * 10 : 7600 + name.length * 10, 'contains');
+        }
+    }
+    if (results.length) {
+        results.sort((a,b) => b.score - a.score || a.name.length - b.name.length);
+        return results;
     }
 
-    results.sort((a, b) => {
+    // D. 最後才 fuzzy：只對正式品名算一次距離，不再對 TYPO alias 算距離
+    // 短字串仍保持嚴格，避免「苦」之類輸入亂配。
+    if (q.length < 3) return [];
 
-        if (b.score !== a.score) {
-            return b.score - a.score;
-        }
+    for (const entry of SEARCH_INDEX) {
+        if (entry.source !== source) continue;
+        const name = entry.normalized;
+        const lengthDiff = Math.abs(q.length - name.length);
+        if (lengthDiff > Math.max(2, Math.ceil(q.length * 0.4))) continue;
 
-        // 同分時，名稱較短優先
-        if (a.name.length !== b.name.length) {
-            return a.name.length - b.name.length;
-        }
+        // 第一字完全不同時，先用字元交集作廉價預篩，降低 Levenshtein 次數。
+        if (q[0] !== name[0] && !name.includes(q[0]) && !q.includes(name[0])) continue;
 
+        const editScore = editSimilarity(q, name);
+        const charScore = uniqueCharMatchScore(q, name);
+        let score = 0;
+        if (editScore >= 0.78) score = 5000 + editScore * 1000 - lengthDiff * 30;
+        else if (charScore >= 0.75) score = 4000 + charScore * 1000 - lengthDiff * 30;
+        if (score > 0) add(entry, score, 'fuzzy');
+    }
+
+    results.sort((a,b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        if (a.name.length !== b.name.length) return a.name.length - b.name.length;
         return a.name.localeCompare(b.name, 'zh-Hant');
     });
-
     return results;
 }
-
 
 // ------------------------------------------------------------
 // 選最佳結果（查詢按鈕 / 科中 / 錠劑共用）
@@ -1167,12 +1202,8 @@ function selectBestFromScored(query, scored) {
         return buildMatchResult(exact[0], query, q);
     }
 
-    const typoHits = all.filter(x => {
-        const aliases = getSearchAliases(x.name);
-        return aliases.some(a => a === q);
-    });
-
-    const prefixHits = all.filter(x => normalizeSearchText(x.name).startsWith(q));
+    const typoHits = all.filter(x => x.matchType === 'typo-exact');
+    const prefixHits = all.filter(x => x.matchType === 'prefix' || x.matchType === 'suffix-prefix' || normalizeSearchText(x.name).startsWith(q));
 
     // 1～2 字：只允許精確或「唯一」TYPO；有多家前綴就列出候選，絕不自動猜
     if (q.length <= 2) {
@@ -1243,6 +1274,7 @@ const findBestMatchInKZ = query => {
     const q = normalizeSearchText(query);
 
     if (!q) return null;
+    if (!SEARCH_INDEX.length) buildSearchIndexes();
 
     const amb = resolveAmbiguousTerms(q);
     if (amb) return amb;
@@ -1278,6 +1310,7 @@ function findBestMatchV2(query) {
     const q = normalizeSearchText(query);
 
     if (!q) return null;
+    if (!SEARCH_INDEX.length) buildSearchIndexes();
 
     const amb = resolveAmbiguousTerms(q);
     if (amb) return amb;
@@ -1391,68 +1424,80 @@ function handleAutocompleteKeydown(e) {
 // 顯示補全建議
 function showAutocompleteSuggestions(query) {
     const dropdown = document.getElementById('autocompleteDropdown');
- 
- 
     if (!query || query.length < 1) {
         hideAutocomplete();
         return;
     }
- 
-    // V2：自動補全與正式查詢共用同一套搜尋引擎
-    const matches = [];
+
     const q = normalizeSearchText(query);
-
-    const kzHits = searchDatabaseV2(q, DB_KZ, 'kezhong');
-    const tabHits = searchDatabaseV2(q, DB_TABLET, 'tablet');
-
-    for (const item of kzHits) {
-        matches.push({
-            name: item.name,
-            status: item.status,
-            price: item.price,
-            score: item.score,
-            matchType: item.score >= 9800 ? 'exact' : (item.score >= 8000 ? 'prefix-contains' : 'fuzzy'),
-            dbType: '科中'
-        });
-    }
-    for (const item of tabHits) {
-        matches.push({
-            name: item.name,
-            status: item.status,
-            price: item.price,
-            score: item.score,
-            matchType: item.score >= 9800 ? 'exact' : (item.score >= 8000 ? 'prefix-contains' : 'fuzzy'),
-            dbType: '錠劑'
-        });
+    if (!q || !SEARCH_INDEX.length) {
+        hideAutocomplete();
+        return;
     }
 
-    // 去重：同名只保留最高分
-    const dedupMap = new Map();
-    for (const m of matches) {
-        if (!dedupMap.has(m.name) || m.score > dedupMap.get(m.name).score) {
-            dedupMap.set(m.name, m);
+    // 自動補全刻意不做 fuzzy / Levenshtein。
+    // 只使用 O(1) exact/typo + 開頭符合，避免每打一個字都跑完整搜尋。
+    const map = new Map();
+    const add = (entry, score, matchType) => {
+        const key = entry.source + '|' + entry.name;
+        const old = map.get(key);
+        if (!old || score > old.score) {
+            map.set(key, {
+                name: entry.name,
+                status: entry.data[0],
+                price: entry.data[1],
+                spec: entry.data[2],
+                score,
+                matchType,
+                dbType: entry.source === 'kezhong' ? '科中' : '錠劑'
+            });
         }
-    }
-    matches.length = 0;
-    matches.push(...dedupMap.values());
+    };
 
-    // 排序：開頭匹配 > 有貨優先 > 分數
+    // 1. exact / typo 反查
+    const exactHits = SEARCH_ALIAS_INDEX.get(q) || [];
+    for (const entry of exactHits) add(entry, entry.normalized === q ? 10000 : 9800, entry.normalized === q ? 'exact' : 'typo-exact');
+
+    // 2. prefix；只有幾百筆，單純 startsWith 很輕，手機也遠比 fuzzy 快
+    for (const entry of SEARCH_INDEX) {
+        if (entry.normalized.startsWith(q)) add(entry, 9000 + q.length * 10, 'prefix');
+    }
+
+    let matches = [...map.values()];
+    // 候選單排序規則：
+    // 1. 200g 科中
+    // 2. 100g 單方
+    // 3. 錠劑
+    // 同規格內再依：exact/typo → 開頭匹配 → 庫存狀態 → 分數 → 名稱長度
+    const specRank = item => {
+        if (item.dbType === '錠劑' || item.spec === '錠劑') return 2;
+        if (item.spec === '100g') return 1;
+        if (item.spec === '200g') return 0;
+        // 資料庫若暫時沒有規格資訊，放在最後，不干擾正常排序
+        return 3;
+    };
+
     matches.sort((a, b) => {
-        const aStartsWith = normalizeSearchText(a.name).startsWith(q) ? 0 : 1;
-        const bStartsWith = normalizeSearchText(b.name).startsWith(q) ? 0 : 1;
-        if (aStartsWith !== bStartsWith) return aStartsWith - bStartsWith;
-        const stockRank = (s) => s === '有货' ? 0 : s === '合约' ? 1 : s === '預訂' ? 2 : s === '缺货' ? 4 : 3;
-        const rankA = stockRank(a.status);
-        const rankB = stockRank(b.status);
-        if (rankA !== rankB) return rankA - rankB;
-        return b.score - a.score;
+        const sr = specRank(a) - specRank(b);
+        if (sr) return sr;
+
+        const aExact = a.matchType === 'exact' ? 0 : 1;
+        const bExact = b.matchType === 'exact' ? 0 : 1;
+        if (aExact !== bExact) return aExact - bExact;
+
+        const aPrefix = a.matchType === 'prefix' ? 0 : 1;
+        const bPrefix = b.matchType === 'prefix' ? 0 : 1;
+        if (aPrefix !== bPrefix) return aPrefix - bPrefix;
+
+        const stockRank = s => s === '有货' ? 0 : s === '合约' ? 1 : s === '預訂' ? 2 : s === '缺货' ? 4 : 3;
+        const stockDiff = stockRank(a.status) - stockRank(b.status);
+        if (stockDiff) return stockDiff;
+
+        return b.score - a.score || a.name.length - b.name.length || a.name.localeCompare(b.name, 'zh-Hant');
     });
 
     const topMatches = matches.slice(0, 48);
-
- 
- 
-    if (topMatches.length === 0) {
+    if (!topMatches.length) {
         dropdown.innerHTML = '<div class="autocomplete-empty">無匹配項目</div>';
         dropdown.classList.add('show');
         autocompleteVisible = true;
@@ -1460,59 +1505,53 @@ function showAutocompleteSuggestions(query) {
         autocompleteIndex = -1;
         return;
     }
- 
-    // 構建下拉選單
+
     dropdown.innerHTML = topMatches.map((item, index) => {
         const stockClass = item.status === '有货' ? 'in-stock' : item.status === '合约' ? 'contract' : item.status === '預訂' ? 'booking' : 'out-stock';
-        const stockText = item.status === '有货' ? '✅ 有貨' : item.status === '合约' ? '📋 合約' : item.status === '預訂' ? '⏳ 預訂' : '⚠️ 缺貨';
+        const stockText = item.status === '有货' ? '有貨' : item.status === '合约' ? '合約' : item.status === '預訂' ? '預訂' : '缺貨';
         const dbClass = item.dbType === '科中' ? 'db-kz' : 'db-tablet';
-        // 非高置信匹配（score < 9000）顯示有疑問 badge
-        const fuzzyBadge = item.score < 9000 ? '<span class="fuzzy-badge">❓ 有疑問</span>' : '';
+        const fuzzyBadge = item.matchType === 'typo-exact' ? '<span class="fuzzy-badge">校正</span>' : '';
         return `
-            <div class="autocomplete-item" data-index="${index}" data-name="${item.name}">
+            <div class="autocomplete-item" data-index="${index}">
                 <span class="match-text">
                     <span class="db-tag ${dbClass}">${item.dbType}</span>
                     ${highlightMatch(item.name, query)}${fuzzyBadge}
                 </span>
                 <span class="stock-hint ${stockClass}">${stockText}</span>
-            </div>
-        `;
+            </div>`;
     }).join('');
- 
-    // 綁定點擊事件
+
     dropdown.querySelectorAll('.autocomplete-item').forEach(el => {
-        el.addEventListener('click', () => {
-            const index = parseInt(el.dataset.index);
-            selectAutocompleteItem(topMatches[index]);
-        });
+        el.addEventListener('click', () => selectAutocompleteItem(topMatches[parseInt(el.dataset.index)]));
         el.addEventListener('mouseenter', () => {
             autocompleteIndex = parseInt(el.dataset.index);
             updateAutocompleteSelection();
         });
     });
- 
+
     dropdown.classList.add('show');
     autocompleteVisible = true;
     autocompleteItems = topMatches;
     autocompleteIndex = -1;
- 
 }
- 
- 
- 
+
 // 高亮匹配部分
 function highlightMatch(name, query) {
+    const safeName = escapeHTML(name);
+    const safeQuery = escapeHTML(query);
+
     if (name.startsWith(query)) {
-        return `<strong>${query}</strong>${name.slice(query.length)}`;
+        return `<strong>${safeQuery}</strong>${safeName.slice(String(query).length)}`;
     }
     if (name.includes(query)) {
-        return name.replace(query, `<strong>${query}</strong>`);
+        const idx = name.indexOf(query);
+        return `${safeName.slice(0, idx)}<strong>${safeQuery}</strong>${safeName.slice(idx + String(query).length)}`;
     }
     // 首字匹配時高亮首字
     if (name[0] === query[0]) {
-        return `<strong>${name[0]}</strong>${name.slice(1)}`;
+        return `<strong>${escapeHTML(name[0])}</strong>${escapeHTML(name.slice(1))}`;
     }
-    return name;
+    return safeName;
 }
  
 // 更新選中狀態
@@ -1623,6 +1662,10 @@ async function loadData(isBackground = false) {
  
         DB_KZ = tempKZ;
         DB_TABLET = tempTablet;
+
+        // 資料更新後立刻重建搜尋索引。
+        // 這裡只做一次，讓正式查詢與自動補全都直接使用快取索引。
+        buildSearchIndexes();
  
         const kzCount = Object.keys(DB_KZ).length;
         const tabletCount = Object.keys(DB_TABLET).length;
@@ -1984,10 +2027,8 @@ function search() {
         if (/[\d瓶罐包盒顆粒錠]/.test(t)) return false; // 含數量或單位 → 不是客戶名
         const trad = toTraditional(t);
         if (DB_KZ[trad] || DB_TABLET[trad]) return false; // 庫存有此品項 → 不是客戶名
-        // TYPO_MAP 也查：只要在 TYPO_MAP 中找到（不管 DB 有無），就不是客戶名
-        for (const [correct, typos] of Object.entries(TYPO_MAP)) {
-            if (trad === correct || (Array.isArray(typos) && typos.includes(trad))) return false;
-        }
+        // TYPO 改用啟動時建立的反查索引，避免每一行重新掃整張 TYPO_MAP。
+        if (SEARCH_ALIAS_INDEX.has(normalizeSearchText(trad))) return false;
         // 後綴匹配也查：加上方劑後綴能在 DB 中找到 → 不是客戶名
         const formulaSuffixes = ['湯','散','丸','飲','膏','丹','煎','劑','露','片'];
         for (const suffix of formulaSuffixes) {
