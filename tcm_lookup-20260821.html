@@ -651,9 +651,15 @@ function resolveAmbiguousTerms(q) {
 // ===== 單方藥保護名單 =====
 // 這些名稱是單方藥，不應被後綴匹配自動轉成方劑（如「炙甘草」→「炙甘草湯」）
 // 包含 TYPO_MAP 單方區的所有名稱 + 額外已知單方藥
+// 少數複方名稱不是以常見的複方字尾（湯/散/丸/飲…）結尾，例如「地黃飲子」結尾是「子」，
+// 只用「字尾判斷」會被誤判成單方藥，需要額外排除
+const FORMULA_NAME_EXCEPTIONS = new Set(['地黃飲子']);
+const isFormulaName = name => FORMULA_NAME_EXCEPTIONS.has(name)
+    || ['湯','散','丸','飲','膏','丹','煎','劑','露','片','錠','錠劑'].some(s => name.endsWith(s));
+
 const SINGLE_HERB_NAMES = new Set([
     // 從 TYPO_MAP 單方區自動收集
-    ...Object.entries(TYPO_MAP).filter(([k, v]) => Array.isArray(v) && !['湯','散','丸','飲','膏','丹','煎','劑','露','片','錠','錠劑'].some(s => k.endsWith(s))).flatMap(([k, v]) => [k, ...v.filter(a => typeof a === 'string')]),
+    ...Object.entries(TYPO_MAP).filter(([k, v]) => Array.isArray(v) && !isFormulaName(k)).flatMap(([k, v]) => [k, ...v.filter(a => typeof a === 'string')]),
     // 額外保護：目前無庫存但確實是單方藥的名稱（會被後綴匹配誤配成方劑）
     '炙甘草', '炙草', '生甘草',
     '酸棗仁', '紫菀', '桑螵蛸', '薏苡仁', '麥門冬', '麻子仁',
@@ -662,6 +668,15 @@ const SINGLE_HERB_NAMES = new Set([
 // ===== 工具函数 =====
 // 判断是否为锭劑（包含"锭"或同音字）
 const TABLET_SUFFIX = ['錠', '锭', '碇', '碙'];
+
+// 避免 Google Sheet 或使用者輸入內容直接進入 innerHTML
+const escapeHTML = value => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
 const parseCSVLine = line => {
     const result = [];
     let current = '';
@@ -687,6 +702,53 @@ const parseCSVLine = line => {
 
     result.push(current.trim());
     return result;
+};
+
+// 單方200g例外名單：這些品項雖是單方藥材，但實際包裝規格是200g（目前僅麻黃）
+const SINGLE_HERB_200G_EXCEPTIONS = new Set(['麻黃']);
+
+// 依「品名本身」判斷包裝規格：單方藥材 → 100g；複方（含麻黃）→ 200g
+const specForName = name => (SINGLE_HERB_NAMES.has(name) && !SINGLE_HERB_200G_EXCEPTIONS.has(name)) ? '100g' : '200g';
+
+// 將 Google Sheet 匯出的 CSV 解析成 { 品名: [庫存狀態, 價格, 規格] } 的物件
+const parseCSV = (csvText, source = 'kezhong') => {
+    const data = {};
+    const skipWords = ['劃', '品名', '單方', '複方', '目前', '每日', '實際', '以上', '其他', '預訂', '下單', '交期', '庫存量表', '庫存均', '有庫存', '會缺貨'];
+
+    csvText.split('\n').slice(1).forEach(line => {
+        const row = parseCSVLine(line);
+        for (let j = 0; j < row.length; j += 4) {
+            const [name, status, price] = [row[j], row[j+1], row[j+2]];
+            if (!name) continue;
+
+            if (!skipWords.some(w => name.includes(w))) {
+                // ===== 庫存狀態轉換規則 =====
+                // 科中庫（source='kezhong'）：有 → 有貨，無 → 缺貨
+                // 錠劑庫（source='tablet'）：低 → 有貨，無 → 缺貨
+                // 共用：含「預/订/定」→ 預訂
+                let stockStatus;
+                if (status === '有') {
+                    stockStatus = '有货';
+                } else if (status === '合約') {
+                    stockStatus = '合约';
+                } else if (status === '低') {
+                    stockStatus = '有货';
+                } else if (status === '無') {
+                    stockStatus = '缺货';
+                } else if (status && (status.includes('預') || status.includes('订') || status.includes('定'))) {
+                    stockStatus = '預訂';
+                } else if (status && status.trim()) {
+                    stockStatus = '?';
+                } else {
+                    stockStatus = '?';
+                }
+                // 規格標記：錠劑庫一律標「錠劑」；科中庫依品名本身判斷單方(100g)／複方(200g)
+                const spec = source === 'tablet' ? '錠劑' : specForName(name);
+                data[name] = [stockStatus, price?.replace(/,/g, '') || '時價', spec];
+            }
+        }
+    });
+    return data;
 };
 
 // ============================================================
@@ -1063,8 +1125,7 @@ function dedupeSearchResults(items) {
 function buildMatchResult(best, query, q) {
     const bestN = normalizeSearchText(best.name);
     const corrected = bestN !== q;
-    const herbFormulaSuffixes = ['湯','散','丸','飲','膏','丹','煎','劑','露','片'];
-    const bestIsHerbFormula = herbFormulaSuffixes.some(s => bestN.endsWith(s));
+    const bestIsHerbFormula = isFormulaName(bestN);
     const ambiguous =
         best.source !== 'tablet' &&
         bestIsHerbFormula &&
@@ -1285,7 +1346,7 @@ function handleAutocompleteInput(e) {
         const cursorPos = textarea.selectionStart;
         const lines = value.substring(0, cursorPos).split('\n');
         const currentLine = lines[lines.length - 1].trim();
-        const cleanLine = currentLine.replace(/[\s\*\-+xX/]*[\d瓶罐包盒顆粒]+$/, '').trim();
+        const cleanLine = currentLine.replace(/[\s\*\-+xX/]*[\d瓶罐包盒顆粒錠]+$/, '').trim();
         if (cleanLine.length >= 1 && Object.keys(DB_KZ).length > 0) {
             showAutocompleteSuggestions(cleanLine);
         } else {
@@ -1527,12 +1588,21 @@ async function loadData(isBackground = false) {
     btn.disabled = true;
     btn.textContent = '載入中...';
     if (!isBackground) searchBtn.disabled = true;
+    status.style.color = '';
+    if (!isBackground) status.textContent = '載入中（讀取 Google Sheet）...';
+
+    const fetchWithTimeout = (url, ms = 20000) => {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), ms);
+        return fetch(url, { signal: ctrl.signal, cache: 'no-store' })
+            .finally(() => clearTimeout(timer));
+    };
  
     try {
-        // 同时加载两个 Sheet
+        // 同时加载两个 Sheet（逾時 20 秒，避免一直卡在「載入中」）
         const [res1, res2] = await Promise.all([
-            fetch(SHEET_URL_KEZHONG),
-            fetch(SHEET_URL_TABLET)
+            fetchWithTimeout(SHEET_URL_KEZHONG),
+            fetchWithTimeout(SHEET_URL_TABLET)
         ]);
  
         if (!res1.ok) throw new Error(`科中Sheet讀取失敗 (${res1.status})`);
@@ -1557,6 +1627,10 @@ async function loadData(isBackground = false) {
         const kzCount = Object.keys(DB_KZ).length;
         const tabletCount = Object.keys(DB_TABLET).length;
         lastLoadTime = Date.now();  // 记录加载时间
+
+        if (!kzCount && !tabletCount) {
+            throw new Error('Sheet 讀到 0 筆資料，請確認權限為「任何人可檢視」');
+        }
  
         // 統計各庫存狀態數量
         const countStatus = (db) => {
@@ -1591,18 +1665,23 @@ async function loadData(isBackground = false) {
  
     } catch (e) {
         console.error('載入失敗:', e);
-        const errMsg = e.message || '未知錯誤';
+        let errMsg = e.message || '未知錯誤';
+        if (e.name === 'AbortError') errMsg = '連線逾時（20秒），請檢查網路後再按「更新資料」';
+        if (/Failed to fetch|NetworkError|Load failed/i.test(errMsg)) {
+            errMsg = '無法連線 Google Sheet（網路或權限問題）。請用 https 網頁開啟，不要直接用本機檔案雙擊開啟';
+        }
         status.textContent = '❌ 載入失敗：' + errMsg;
         status.style.color = '#ff4444';
         // 只有初次載入（DB 是空的）才覆蓋 result div，避免背景刷新失敗時清掉用戶查詢結果
         if (!Object.keys(DB_KZ).length) {
-            document.getElementById('result').innerHTML = `<div class="error">❌ 載入失敗：${errMsg}<br>請確認 Google Sheet 仍是「任何人可檢視」<br><small>${escapeHTML(SHEET_URL_KEZHONG.match(/\/d\/[\w-]+/)?.[0] || '')}</small></div>`;
+            const sheetId = (SHEET_URL_KEZHONG.match(/\/d\/[\w-]+/) || [''])[0];
+            document.getElementById('result').innerHTML = `<div class="error">❌ 載入失敗：${escapeHTML(errMsg)}<br>請確認 Google Sheet 仍是「任何人可檢視」<br><small>${escapeHTML(sheetId)}</small></div>`;
         }
+    } finally {
+        btn.textContent = '更新資料';
+        btn.disabled = false;
+        searchBtn.disabled = false;
     }
- 
-    btn.textContent = '更新資料';
-    btn.disabled = false;
-    searchBtn.disabled = false;
 }
  
 // ===== 異動偵測功能 =====
@@ -1902,7 +1981,7 @@ function search() {
     const isLikelyCustomerOrRemark = (s) => {
         const t = s.trim();
         if (t.startsWith('@') || GE_REG.test(t) || SPEC_KW_PRE.test(t)) return false;
-        if (/[\d瓶罐包盒顆粒]/.test(t)) return false; // 含數量或單位 → 不是客戶名
+        if (/[\d瓶罐包盒顆粒錠]/.test(t)) return false; // 含數量或單位 → 不是客戶名
         const trad = toTraditional(t);
         if (DB_KZ[trad] || DB_TABLET[trad]) return false; // 庫存有此品項 → 不是客戶名
         // TYPO_MAP 也查：只要在 TYPO_MAP 中找到（不管 DB 有無），就不是客戶名
@@ -1932,7 +2011,7 @@ function search() {
             if (lj.startsWith('@')) break;      // 碰到 @客戶名，停止
             if (SPEC_KW_PRE.test(lj)) break;    // 碰到規格行，停止
             if (isLikelyCustomerOrRemark(lj)) break;  // 碰到非@客戶名/備註，停止
-            if (!/\d{1,3}(?:[瓶罐包盒顆粒]|\s|$)/.test(lj)) {
+            if (!/\d{1,3}(?:[瓶罐包盒顆粒錠]|\s|$)/.test(lj)) {
                 lines[j] = lj + ' ' + geQty;    // 追加數量（空格分隔）
             }
             j--;
@@ -1989,16 +2068,21 @@ function search() {
  
         // 用戶主動點選候選 = 確認，不標記有疑問
  
+        // 检查是否有「?／？」，有則標記為有疑問（先偵測，再從解析用文字中剔除，
+        // 避免「?」被當成品名的一部分而讓精確/模糊比對失敗）
+        const hasQuestionMark = /[?？]/.test(line);
+        const lineForParse = line.replace(/[?？]/g, '').trim();
+ 
         // 解析产品名和数量（提早計算，供麻黃特殊處理使用）
         // 只取「行尾」數量：品名後特殊符號／空格一律忽略；未寫數量則預設 1（所有規格相同）
-        const trailingMatch = line.match(/(?:[\s\*\-\+\/xX×∗：:．.、，,　\t]+)(\d+)(?:[瓶罐包盒顆粒])?\s*$/i)
-            || line.match(/(\d+)(?:[瓶罐包盒顆粒])?\s*$/);
+        const trailingMatch = lineForParse.match(/(?:[\s\*\-\+\/xX×∗：:．.、，,　\t]+)(\d+)\s*(?:[瓶罐包盒顆粒錠])?\s*$/i)
+            || lineForParse.match(/(\d+)\s*(?:[瓶罐包盒顆粒錠])?\s*$/);
         const qty = trailingMatch ? parseInt(trailingMatch[1], 10) : 1;
         const hasUserQty = !!trailingMatch;
  
         // 清除：單位詞、結尾的特殊符號與空格（只留數字）。不整行刪 x，以免誤傷品名
-        let cleanLine = line
-            .replace(/[瓶罐包盒顆粒]+\s*$/, '')
+        let cleanLine = lineForParse
+            .replace(/[瓶罐包盒顆粒錠]+\s*$/, '')
             .replace(/^\+/, '')
             .replace(/[\s\*\-\+\/xX×∗：:．.、，,　\t]+(\d+)(\s*)$/i, '$1$2')
             .trim();
@@ -2009,9 +2093,6 @@ function search() {
         const query = normalizeSearchText(originalProductName);  // 正規化（簡繁／全半形／空白）再匹配
  
         if (!query) continue;
- 
-        // 检查是否有「?」，有則標記為有疑問
-        const hasQuestionMark = line.includes('?');
  
         // V2 統一搜尋（科中 + 錠劑同一引擎）
         let result = null;
@@ -2147,10 +2228,10 @@ function search() {
         copyText += '其它\n';  // 輸出「其它」標題行
         for (const ptLine of passthroughLines) {
             // 解析品名與數量（與主流程相同的行尾數量規則），未寫數量預設 1
-            const ptTrailing = ptLine.match(/(?:[\s\*\-\+\/xX×∗：:．.、，,　\t]+)(\d+)(?:[瓶罐包盒顆粒])?\s*$/i)
-                || ptLine.match(/(\d+)(?:[瓶罐包盒顆粒])?\s*$/);
+            const ptTrailing = ptLine.match(/(?:[\s\*\-\+\/xX×∗：:．.、，,　\t]+)(\d+)\s*(?:[瓶罐包盒顆粒錠])?\s*$/i)
+                || ptLine.match(/(\d+)\s*(?:[瓶罐包盒顆粒錠])?\s*$/);
             const ptQty = ptTrailing ? parseInt(ptTrailing[1], 10) : 1;
-            const ptName = ptLine.replace(/[瓶罐包盒顆粒]+\s*$/, '').replace(/\d+$/, '').replace(/[\s\*\-\+\/xX×∗：:．.、，,　\t]+$/g, '').trim();
+            const ptName = ptLine.replace(/[瓶罐包盒顆粒錠]+\s*$/, '').replace(/\d+$/, '').replace(/[\s\*\-\+\/xX×∗：:．.、，,　\t]+$/g, '').trim();
             copyText += `${ptName} ${ptQty}\n`;
         }
     }
@@ -2227,10 +2308,10 @@ function search() {
     if (passthroughLines.length > 0) {
         html += `<div class="category"><h3>其它</h3></div>`;
         for (const ptLine of passthroughLines) {
-            const ptTrailing = ptLine.match(/(?:[\s\*\-\+\/xX×∗：:．.、，,　\t]+)(\d+)(?:[瓶罐包盒顆粒])?\s*$/i)
-                || ptLine.match(/(\d+)(?:[瓶罐包盒顆粒])?\s*$/);
+            const ptTrailing = ptLine.match(/(?:[\s\*\-\+\/xX×∗：:．.、，,　\t]+)(\d+)\s*(?:[瓶罐包盒顆粒錠])?\s*$/i)
+                || ptLine.match(/(\d+)\s*(?:[瓶罐包盒顆粒錠])?\s*$/);
             const ptQty = ptTrailing ? parseInt(ptTrailing[1], 10) : 1;
-            const ptName = ptLine.replace(/[瓶罐包盒顆粒]+\s*$/, '').replace(/\d+$/, '').replace(/[\s\*\-\+\/xX×∗：:．.、，,　\t]+$/g, '').trim();
+            const ptName = ptLine.replace(/[瓶罐包盒顆粒錠]+\s*$/, '').replace(/\d+$/, '').replace(/[\s\*\-\+\/xX×∗：:．.、，,　\t]+$/g, '').trim();
             html += `<div class="result-item">
                 <div class="name">${escapeHTML(ptName)} ${ptQty}</div>
                 <div class="badge spec">直通</div>
@@ -2378,7 +2459,7 @@ function startVoiceInput() {
                 // ✅ 語音寫入後顯示候選單，讓用戶選擇（不自動查詢）
                 const lines = textarea.value.split('\n');
                 const currentLine = lines[lines.length - 1].trim();
-                const cleanLine = currentLine.replace(/[\s\*\-+xX/]*[\d瓶罐包盒顆粒]+$/, '').trim();
+                const cleanLine = currentLine.replace(/[\s\*\-+xX/]*[\d瓶罐包盒顆粒錠]+$/, '').trim();
                 if (cleanLine.length >= 1 && Object.keys(DB_KZ).length > 0) {
                     showAutocompleteSuggestions(cleanLine);
                 }
@@ -2403,7 +2484,7 @@ function startVoiceInput() {
                     // ❌ interim 也不顯示 autocomplete，避免任何自動查詢可能
                     const lines = textarea.value.split('\n');
                     const currentLine = lines[lines.length - 1].trim();
-                    const cleanLine = currentLine.replace(/[\s\*\-+xX/]*[\d瓶罐包盒顆粒]+$/, '').trim();
+                    const cleanLine = currentLine.replace(/[\s\*\-+xX/]*[\d瓶罐包盒顆粒錠]+$/, '').trim();
                     // ✅ interim 也顯示候選單
                     if (cleanLine.length >= 1 && Object.keys(DB_KZ).length > 0) {
                         showAutocompleteSuggestions(cleanLine);
