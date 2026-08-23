@@ -244,7 +244,7 @@ const S2T_MAP = {
     '贯': '貫', '栀': '梔', '翘': '翹', '银': '銀', '独': '獨',
     '圣': '聖',
     '壳': '殼', '郁': '鬱', '补': '補', '锁': '鎖', '阳': '陽',
-    '乌': '烏', '贞': '貞', '苁': '蓯',
+    '乌': '烏', '贞': '貞', '苁': '蓯', '锭': '錠',
     // 補充：常見一般用字（避免整句夾雜簡體字時漏轉）
     '关': '關', '树': '樹', '动': '動', '运': '運', '进': '進',
     '转': '轉', '变': '變', '应': '應', '医': '醫', '为': '為',
@@ -272,12 +272,12 @@ const toHalfWidthDigits = text => {
 const TYPO_MAP = {
     // === 1劃 ===
     '一貫煎': ['一貫煎', '一罐煎', '一貫間', '一罐間', '一貫建', '一貫堅', '一貫碇', '一貫腚'],
-    '一貫煎錠': ['一貫煎錠', '一貫煎腚'],
+    '一貫煎錠': ['一貫煎錠', '一貫煎腚', '一貫煎碇', '一貫煎锭'],
     '乙字湯': ['乙字湯', '以致湯', '一直湯', '一字湯', '已知湯'],
  
     // === 2劃 ===
     '二陳湯': ['二陳湯', '二沉湯', '二成湯'],
-    '八味地黃丸': ['八味地黃丸', '八味'],
+    '八味地黃丸': ['八味地黃丸'],
     '七寶美髯丹': ['七寶美髯丹', '七寶', '七寶美男丹'],
     '九味羌活湯': ['九味羌活湯', '九味'],
     '二朮湯': ['二朮湯', '二術湯'],
@@ -325,7 +325,7 @@ const TYPO_MAP = {
     '右歸丸': ['右歸丸', '右歸'],
     '四物湯': ['四物湯', '四物'],
     '左歸丸': ['左歸丸', '左歸'],
-    '甘露飲': ['甘露飲', '甘露'],
+    '甘露飲': ['甘露飲'],
     '甘露消毒丹': ['甘露消毒丹', '甘露消毒', '甘露消毒單', '甘露消毒丸'],
     '生脈飲': ['生脈飲', '生脈'],
     '仙方活命飲': ['仙方活命飲', '仙方活命'],
@@ -342,11 +342,11 @@ const TYPO_MAP = {
     '玉女煎': ['玉女煎', '玉女'],
  
     // === 6劃 ===
-    '血府逐瘀湯': ['血府逐瘀湯', '血府逐瘀'],
+    '血府逐瘀湯': ['血府逐瘀湯', '血府逐瘀', '血府逐淤'],
     '地黃飲子': ['地黃飲子', '地黃飲'],
     '安中散': ['安中散', '安中'],
     '百合固金湯': ['百合固金湯', '百合固金'],
-    '炙甘草湯': ['炙甘草湯', '炙甘草', '灸甘草湯', '加工草湯'],
+    '炙甘草湯': ['炙甘草湯', '灸甘草湯', '加工草湯'],
  
     // === 7劃 ===
     '杏蘇散': ['杏蘇散', '杏蘇'],
@@ -363,7 +363,7 @@ const TYPO_MAP = {
     '芎歸膠艾湯': ['芎歸膠艾湯', '芎歸膠艾'],
     '折衝飲': ['折衝飲', '折衝'],
     '防己黃耆湯': ['防己黃耆湯', '防己黃耆', '防己黄芪'],
-    '延胡索': ['延胡索', '延胡所', '延湖索'],
+    '延胡索': ['延胡索', '延胡所', '延湖索', '元胡', '玄胡索'],
     '虎潛丸': ['虎潛丸', '虎潛', '虎前丸'],
  
     // === 8劃 ===
@@ -403,7 +403,7 @@ const TYPO_MAP = {
     '栝樓薤白半夏湯': ['栝樓薤白半夏湯', '栝樓薤白', '瓜蒌薤白半夏', '葛樓薤白'],
     '桂枝加龍骨牡蠣湯': ['桂枝加龍骨牡蠣湯', '桂枝加龍骨牡蠣', '桂枝加龍骨牡力'],
     '桔梗湯': ['桔梗湯'],
-    '桑螵蛸散': ['桑螵蛸散', '桑螵蛸'],
+    '桑螵蛸散': ['桑螵蛸散'],
     '烏藥順氣散': ['烏藥順氣散', '烏藥順氣'],
     '益氣聰明湯': ['益氣聰明湯', '益氣聰明', '益志聰明'],
  
@@ -413,8 +413,8 @@ const TYPO_MAP = {
     '理中湯': ['理中湯', '理中', '梨中'],
     '疏經活血湯': ['疏經活血湯', '疏經活血'],
     '逍遙散': ['逍遙散', '逍遙', '逍遥', '消遙'],
-    '麥門冬湯': ['麥門冬湯', '麥門冬', '麥門東', '賣門冬'],
-    '麻子仁丸': ['麻子仁丸', '麻子仁', '麻紫仁'],
+    '麥門冬湯': ['麥門冬湯', '麥門東', '賣門冬'],
+    '麻子仁丸': ['麻子仁丸', '麻紫仁'],
     '麻杏甘石湯': ['麻杏甘石湯', '麻杏甘石'],
     '參苓白朮散': ['參苓白朮散', '參苓白朮', '参苓白术', '參靈白朮散', '參零白朮散', '身靈白朮散', '深苓白朮散', '參林白朮散', '身苓白朮散', '森苓白朮散', '蔘苓白朮湯', '蔘苓白朮散', '參苓白朮湯', '參苓白術散'],
     '涼膈散': ['涼膈散', '涼膈', '凉膈', '良膈'],
@@ -422,7 +422,7 @@ const TYPO_MAP = {
  
     // === 12劃 ===
     '清心利膈湯': ['清心利膈湯', '清心利膈'],
-    '清肺湯': ['清肺湯', '清肺'],
+    '清肺湯': ['清肺湯'],
     '清胃散': ['清胃散', '清胃'],
     '清氣化痰丸': ['清氣化痰丸', '清氣化痰'],
     '清燥救肺湯': ['清燥救肺湯', '清燥救肺'],
@@ -433,11 +433,11 @@ const TYPO_MAP = {
     '旋覆代赭石湯': ['旋覆代赭石湯', '旋覆代赭', '旋复代赭石'],
     '清空膏': ['清空膏', '清空'],
     '清暑益氣湯': ['清暑益氣湯', '清暑益氣', '青屬意氣湯', '青樹益氣湯', '清數益氣湯', '清暑一氣湯'],
-    '麻黃湯': ['麻黃湯'],
+    '麻黃湯': ['麻黃湯', '馬黃湯'],
     '清鼻湯': ['清鼻湯', '清鼻'],
     '散腫潰堅湯': ['散腫潰堅湯', '散腫潰堅'],
     '普濟消毒飲': ['普濟消毒飲', '普濟消毒'],
-    '紫菀湯': ['紫菀湯', '紫菀'],
+    '紫菀湯': ['紫菀湯'],
     '越婢加朮湯': ['越婢加朮湯', '越婢加朮', '越婢加术'],
     '黃耆五物湯': ['黃耆五物湯', '黃耆五物', '黄芪五物'],
     '鈎藤散': ['鈎藤散', '钩藤散'],
@@ -449,9 +449,9 @@ const TYPO_MAP = {
     // === 13劃 ===
     '溫經湯': ['溫經湯', '溫經'],
     '當歸芍藥散': ['當歸芍藥散', '當歸芍藥', '當龜勺藥散', '當歸勺藥'],
-    '葛根湯': ['葛根湯', '葛庚'],
+    '葛根湯': ['葛根湯', '葛庚', '隔根湯'],
     '葛根黃芩黃連湯': ['葛根黃芩黃連湯', '葛根黃芩黃連', '葛根黃連湯'],
-    '補中益氣湯': ['補中益氣湯', '補中益氣', '补中益气', '不중益氣'],
+    '補中益氣湯': ['補中益氣湯', '補中益氣', '补中益气', '不중益氣', '不中益氣'],
     '溫清飲': ['溫清飲', '溫清', '温清', '溫親'],
     '當歸拈痛湯': ['當歸拈痛湯', '當歸拈痛', '当归拈痛', '當龜年痛'],
     '當歸飲子': ['當歸飲子', '當歸飲'],
@@ -471,7 +471,7 @@ const TYPO_MAP = {
     '養心湯': ['養心湯', '養心'],
     '養陰清肺湯': ['養陰清肺湯', '養陰清肺'],
     '獨活寄生湯': ['獨活寄生湯', '獨活寄生', '毒活寄生', '獨活紀生'],
-    '龍膽瀉肝湯': ['龍膽瀉肝湯', '龍膽瀉肝', '龙胆泻肝', '膿淡瀉肝'],
+    '龍膽瀉肝湯': ['龍膽瀉肝湯', '龍膽瀉肝', '龙胆泻肝', '膿淡瀉肝', '膿膽瀉肝'],
     '豬苓湯': ['豬苓湯', '豬苓', '朱苓'],
     '龜鹿二仙膏': ['龜鹿二仙膏', '龜鹿二仙', '歸祿二仙'],
     '導水茯苓湯': ['導水茯苓湯', '導水茯苓'],
@@ -479,14 +479,14 @@ const TYPO_MAP = {
     // === 15劃 ===
     '濟生腎氣丸': ['濟生腎氣丸', '濟生腎氣'],
     '還少丹': ['還少丹', '還少'],
-    '薏苡仁湯': ['薏苡仁湯', '薏苡仁'],
-    '歸脾湯': ['歸脾湯', '歸脾'],
+    '薏苡仁湯': ['薏苡仁湯'],
+    '歸脾湯': ['歸脾湯', '歸脾', '歸皮湯'],
     '瀉白散': ['瀉白散', '瀉白', '泻白'],
     '瀉黃散': ['瀉黃散', '瀉黃', '泻黄'],
  
     // === 16劃 ===
     '蘇子降氣湯': ['蘇子降氣'],
-    '藿香正氣散': ['藿香正氣', '藿香正气'],
+    '藿香正氣散': ['藿香正氣', '藿香正气', '霍香正氣'],
     '蠲痹湯': ['蠲痹', '蠲痹湯', '蠲痺', '蠲痺湯'],
     '響聲破笛丸': ['響聲破笛'],
  
@@ -497,15 +497,15 @@ const TYPO_MAP = {
     '大黃': ['大黃', '大黄'],
     '大棗': ['大棗'],
     '山藥': ['山藥', '山药'],
-    '川芎': ['川芎'],
+    '川芎': ['川芎', '川穹'],
     '川牛膝': ['川牛膝'],
     '三七': ['三七'],
-    '丹參': ['丹參', '丹参'],
+    '丹參': ['丹參', '丹参', '丹身'],
     '木香': ['木香'],
     '生地黃': ['生地黃', '生地黄'],
     '玉米鬚': ['玉米鬚', '玉米须'],
     '甘草': ['甘草'],
-    '白朮': ['白朮', '白术'],
+    '白朮': ['白朮', '白术', '白術'],
     '白芍': ['白芍'],
     '白芷': ['白芷'],
     '北板藍根': ['北板藍根', '北板蓝根', '板藍根', '板蓝根'],
@@ -516,7 +516,7 @@ const TYPO_MAP = {
     '防風': ['防風', '防风'],
     '牡丹皮': ['牡丹皮'],
     '金銀花': ['金銀花', '金银花'],
-    '羌活': ['羌活'],
+    '羌活': ['羌活', '槍活'],
     '知母': ['知母'],
     '香附': ['香附'],
     '厚朴': ['厚朴'],
@@ -529,10 +529,10 @@ const TYPO_MAP = {
     '穿心蓮': ['穿心蓮', '穿心莲'],
     '威靈仙': ['威靈仙', '威灵仙'],
     '益母草': ['益母草'],
-    '桔梗': ['桔梗', '吉梗'],
-    '柴胡': ['柴胡'],
+    '桔梗': ['桔梗', '吉梗', '結梗'],
+    '柴胡': ['柴胡', '才胡', '裁胡'],
     '秦艽': ['秦艽'],
-    '茯苓': ['茯苓'],
+    '茯苓': ['茯苓', '伏苓', '茯零'],
     '荊芥': ['荊芥', '荆芥'],
     '桂枝': ['桂枝'],
     '桑葉': ['桑葉', '桑叶'],
@@ -540,7 +540,7 @@ const TYPO_MAP = {
     '浙貝母': ['浙貝母', '浙贝母'],
     '茵陳蒿': ['茵陳蒿', '茵陈蒿'],
     '夏枯草': ['夏枯草'],
-    '栝樓實': ['栝樓實', '瓜蒌实', '栝蔞實', '瓜蔞實', '瓜婁實', '栝楼实', '瓜娄实', '栝蔞实', '瓜蔞实', '瓜婁实', '瓜蔞', '栝蔞', '瓜婁', '栝樓'],
+    '栝樓實': ['栝樓實', '瓜蒌实', '栝蔞實', '瓜蔞實', '瓜婁實', '栝楼实', '瓜娄实', '栝蔞实', '瓜蔞实', '瓜婁实'],
     '魚腥草': ['魚腥草', '鱼腥草'],
     '乾薑': ['乾薑', '干姜'],
     '淫羊藿': ['淫羊藿'],
@@ -551,7 +551,7 @@ const TYPO_MAP = {
     '槴': ['槴', '梔'],
     '槴子': ['槴子', '梔子'],
     '菊花': ['菊花'],
-    '黃耆': ['黃耆', '黄芪'],
+    '黃耆': ['黃耆', '黄芪', '黃芪', '黃棋', '黃奇'],
     '黃芩': ['黃芩', '黄芩'],
     '黃柏': ['黃柏', '黄柏'],
     '黃連': ['黃連', '黄连'],
@@ -559,33 +559,101 @@ const TYPO_MAP = {
     '番瀉葉': ['番瀉葉', '番泻叶'],
     '當歸': ['當歸', '当归'],
     '葛根': ['葛根'],
-    '蒼朮': ['蒼朮', '苍术'],
-    '蒼耳子': ['蒼耳子', '苍耳子', '苍耳', '蒼耳'],
+    '蒼朮': ['蒼朮', '苍术', '蒼術'],
+    '蒼耳子': ['蒼耳子', '苍耳子'],
     '綿茵陳': ['綿茵陳', '绵茵陈'],
     '蒲黃': ['蒲黃', '蒲黄'],
     '蒲公英': ['蒲公英'],
-    '廣藿香': ['廣藿香', '广藿香', '藿香', '霍香'],
+    '廣藿香': ['廣藿香', '广藿香'],
     '熟地黃': ['熟地黃', '熟地黄'],
-    '澤瀉': ['澤瀉', '泽泻'],
-    '獨活': ['獨活', '独活'],
+    '澤瀉': ['澤瀉', '泽泻', '澤寫'],
+    '獨活': ['獨活', '独活', '毒活'],
     '龍膽': ['龍膽', '龙胆'],
     '薑黃': ['薑黃', '姜黄'],
     '鎖陽': ['鎖陽', '锁阳'],
     '懷牛膝': ['懷牛膝'],
-    '黨參': ['黨參', '党参'],
+    '黨參': ['黨參', '党参', '黨身'],
     '續斷': ['續斷', '续断'],
     '鬱金': ['鬱金', '郁金'],
  
     // === 單方 200g ===
     '麻黃': ['麻黃', '麻黄'],
 };
- 
+
+// ===== 一音多藥（不自動猜）=====
+// 查詢字本身對到兩個以上庫存品時，一律列出候選。
+const AMBIGUOUS_TERMS = {
+    '茵陳': ['茵陳蒿', '綿茵陳'],
+    '四逆': ['四逆湯', '四逆散'],
+    '八味': ['八味地黃丸', '八味帶下方'],
+    '清肺': ['清肺湯', '清肺飲'],
+    '柴胡湯': ['小柴胡湯', '大柴胡湯'],
+    '蒼耳': ['蒼耳子', '蒼耳散'],
+    '藿香': ['廣藿香', '藿香正氣散'],
+    '霍香': ['廣藿香', '藿香正氣散'],
+    '瓜蔞': ['栝樓實', '瓜蔞枳實湯', '栝樓薤白半夏湯'],
+    '栝樓': ['栝樓實', '瓜蔞枳實湯', '栝樓薤白半夏湯'],
+    '栝蔞': ['栝樓實', '瓜蔞枳實湯', '栝樓薤白半夏湯'],
+    '瓜婁': ['栝樓實', '瓜蔞枳實湯', '栝樓薤白半夏湯'],
+    '薏苡仁': ['薏苡仁', '薏苡仁湯'],
+    '麥門冬': ['麥門冬', '麥門冬湯'],
+    '麻子仁': ['麻子仁', '麻子仁丸'],
+    '炙甘草': ['炙甘草', '炙甘草湯'],
+    '紫菀': ['紫菀', '紫菀湯'],
+    '桑螵蛸': ['桑螵蛸', '桑螵蛸散'],
+    '酸棗仁': ['酸棗仁', '酸棗仁湯'],
+    '甘露': ['甘露飲', '甘露消毒丹']
+};
+
+function resolveAmbiguousTerms(q) {
+    const names = AMBIGUOUS_TERMS[q];
+    if (!names || !names.length) return null;
+
+    const candidates = [];
+    const seen = new Set();
+    for (const name of names) {
+        if (seen.has(name)) continue;
+        if (typeof DB_KZ !== 'undefined' && DB_KZ[name]) {
+            seen.add(name);
+            candidates.push(name);
+            continue;
+        }
+        if (typeof DB_TABLET !== 'undefined' && DB_TABLET[name]) {
+            seen.add(name);
+            candidates.push(name);
+        }
+    }
+
+    if (candidates.length > 1) {
+        return { multiCandidate: true, candidates };
+    }
+
+    if (candidates.length === 1) {
+        const name = candidates[0];
+        const inKz = typeof DB_KZ !== 'undefined' && DB_KZ[name];
+        const data = inKz ? DB_KZ[name] : DB_TABLET[name];
+        return {
+            name,
+            status: data[0],
+            price: data[1],
+            spec: data[2],
+            source: inKz ? 'kezhong' : 'tablet',
+            corrected: normalizeSearchText(name) !== q,
+            fuzzy: true,
+            original: q,
+            ambiguous: true
+        };
+    }
+
+    return null;
+}
+
 // ===== 單方藥保護名單 =====
 // 這些名稱是單方藥，不應被後綴匹配自動轉成方劑（如「炙甘草」→「炙甘草湯」）
 // 包含 TYPO_MAP 單方區的所有名稱 + 額外已知單方藥
 const SINGLE_HERB_NAMES = new Set([
     // 從 TYPO_MAP 單方區自動收集
-    ...Object.entries(TYPO_MAP).filter(([k, v]) => Array.isArray(v) && !['湯','散','丸','飲','膏','丹','煎','劑','露','片'].some(s => k.endsWith(s))).flatMap(([k, v]) => [k, ...v.filter(a => typeof a === 'string')]),
+    ...Object.entries(TYPO_MAP).filter(([k, v]) => Array.isArray(v) && !['湯','散','丸','飲','膏','丹','煎','劑','露','片','錠','錠劑'].some(s => k.endsWith(s))).flatMap(([k, v]) => [k, ...v.filter(a => typeof a === 'string')]),
     // 額外保護：目前無庫存但確實是單方藥的名稱（會被後綴匹配誤配成方劑）
     '炙甘草', '炙草', '生甘草',
     '酸棗仁', '紫菀', '桑螵蛸', '薏苡仁', '麥門冬', '麻子仁',
@@ -621,221 +689,561 @@ const parseCSVLine = line => {
     return result;
 };
 
-// ===== 模糊匹配共用評分 =====
-// 以「不同字元」計算，避免查詢字串重複同一字元時被重複加分。
-const uniqueCharMatchScore = (query, name) => {
-    const queryChars = [...new Set(query)];
-    if (!queryChars.length) return 0;
-    const matched = queryChars.filter(c => name.includes(c)).length;
-    return matched / Math.max(queryChars.length, [...name].length);
-};
+// ============================================================
+// V2 搜尋核心
+// 目的：
+// 1. 科中、錠劑共用同一套搜尋邏輯
+// 2. 完全匹配優先
+// 3. 簡繁轉換
+// 4. 空白、全形符號正規化
+// 5. TYPO_MAP 錯字修正
+// 6. 後綴省略
+// 7. 包含匹配
+// 8. 字元相似度模糊匹配
+// 9. 避免短字串亂配
+// 10. 自動補全與正式查詢可以共用
+// ============================================================
 
+const SEARCH_SUFFIXES = [
+    '錠劑',
+    '錠',
+    '丸',
+    '湯',
+    '散',
+    '飲',
+    '膏',
+    '丹',
+    '煎',
+    '劑',
+    '露',
+    '片'
+];
+
+function normalizeSearchText(text) {
+    if (!text) return '';
+
+    let s = String(text);
+
+    // 簡體 → 繁體
+    s = toTraditional(s);
+
+    // 全形英數 → 半形
+    s = s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, c => {
+        return String.fromCharCode(c.charCodeAt(0) - 0xFEE0);
+    });
+
+    // 全形空白
+    s = s.replace(/　/g, ' ');
+
+    // 常見乘號、分隔符號統一
+    s = s.replace(/[×＊∗]/g, 'x');
+
+    // 簡體「锭」→「錠」
+    s = s.replace(/锭/g, '錠');
+
+    // 輸入法殘留標點
+    s = s.replace(/[?？、，,。．.·•]/g, '');
+
+    // 移除前後空白
+    s = s.trim();
+
+    // 移除中間空白
+    s = s.replace(/\s+/g, '');
+
+    return s;
+}
+
+
+// ------------------------------------------------------------
+// 建立搜尋用名稱
+// ------------------------------------------------------------
+function getSearchAliases(name) {
+    const aliases = new Set();
+
+    const normalized = normalizeSearchText(name);
+
+    if (!normalized) return [];
+
+    aliases.add(normalized);
+
+    // TYPO_MAP
+    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
+        const correctN = normalizeSearchText(correct);
+
+        if (correctN === normalized) {
+            aliases.add(correctN);
+
+            if (Array.isArray(typos)) {
+                typos.forEach(t => {
+                    const n = normalizeSearchText(t);
+                    if (n) aliases.add(n);
+                });
+            }
+        }
+
+        if (Array.isArray(typos)) {
+            for (const typo of typos) {
+                if (normalizeSearchText(typo) === normalized) {
+                    aliases.add(correctN);
+
+                    typos.forEach(t => {
+                        const n = normalizeSearchText(t);
+                        if (n) aliases.add(n);
+                    });
+
+                    break;
+                }
+            }
+        }
+    }
+
+    return [...aliases];
+}
+
+
+// ------------------------------------------------------------
+// Levenshtein 距離
+// ------------------------------------------------------------
+function levenshteinDistance(a, b) {
+    if (a === b) return 0;
+
+    if (!a) return b.length;
+    if (!b) return a.length;
+
+    const prev = new Array(b.length + 1);
+
+    for (let j = 0; j <= b.length; j++) {
+        prev[j] = j;
+    }
+
+    for (let i = 1; i <= a.length; i++) {
+        let current = new Array(b.length + 1);
+
+        current[0] = i;
+
+        for (let j = 1; j <= b.length; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+
+            current[j] = Math.min(
+                current[j - 1] + 1,
+                prev[j] + 1,
+                prev[j - 1] + cost
+            );
+        }
+
+        for (let j = 0; j <= b.length; j++) {
+            prev[j] = current[j];
+        }
+    }
+
+    return prev[b.length];
+}
+
+
+// ------------------------------------------------------------
+// 字元集合相似度
+// ------------------------------------------------------------
+function uniqueCharMatchScore(a, b) {
+    a = normalizeSearchText(a);
+    b = normalizeSearchText(b);
+
+    if (!a || !b) return 0;
+
+    if (a === b) return 1;
+
+    const setA = new Set([...a]);
+    const setB = new Set([...b]);
+
+    let same = 0;
+
+    for (const c of setA) {
+        if (setB.has(c)) same++;
+    }
+
+    const denominator = Math.max(setA.size, setB.size);
+
+    return denominator ? same / denominator : 0;
+}
+
+
+// ------------------------------------------------------------
+// 編輯距離相似度
+// ------------------------------------------------------------
+function editSimilarity(a, b) {
+    a = normalizeSearchText(a);
+    b = normalizeSearchText(b);
+
+    if (!a || !b) return 0;
+
+    if (a === b) return 1;
+
+    const distance = levenshteinDistance(a, b);
+    const maxLen = Math.max(a.length, b.length);
+
+    return maxLen ? 1 - distance / maxLen : 0;
+}
+
+
+// ------------------------------------------------------------
+// 舊版相容：containsMatchScore（部分語音邏輯仍可能引用）
+// ------------------------------------------------------------
 const containsMatchScore = (query, name) => {
+    query = normalizeSearchText(query);
+    name = normalizeSearchText(name);
     const queryChars = [...new Set(query)];
     if (!queryChars.length) return 0;
     return queryChars.filter(c => name.includes(c)).length / queryChars.length;
 };
 
-// 避免 Google Sheet 或使用者輸入內容直接進入 innerHTML。
-const escapeHTML = value => String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
- 
-const parseCSV = (csvText, source = 'kezhong') => {
-    const data = {};
-    const skipWords = ['劃', '品名', '單方', '目前', '每日', '實際', '以上', '其他', '預訂', '下單', '交期', '庫存量表', '庫存均', '有庫存', '會缺貨'];
-    const groupSpec = {}; // 記錄每個直欄群組目前規格：預設 200g；進入單方100g區塊後改為100g
- 
-    csvText.split('\n').slice(1).forEach(line => {
-        const row = parseCSVLine(line);
-        for (let j = 0; j < row.length; j += 4) {
-            const [name, status, price] = [row[j], row[j+1], row[j+2]];
-            if (!name) continue;
- 
-            // 規格分隔列（如「單方100g」「單方200g」）：更新該欄位群組往後的規格狀態，本身不當品項儲存
-            const specMarker = name.match(/^單方\s*(100|200)\s*[Gg]/);
-            if (specMarker) {
-                groupSpec[j] = specMarker[1] + 'g';
-                continue;
-            }
- 
-            if (!skipWords.some(w => name.includes(w))) {
-                // ===== 庫存狀態轉換規則 =====
-                // 科中庫（source='kezhong'）：
-                //   有 → 有貨，無 → 缺貨
-                // 錠劑庫（source='tablet'）：
-                //   低 → 有貨，無 → 缺貨
-                // 共用：含「預/订/定」→ 預訂
-                let stockStatus;
-                if (status === '有') {
-                    stockStatus = '有货';
-                } else if (status === '合約') {
-                    stockStatus = '合约';
-                } else if (status === '低') {
-                    stockStatus = '有货';
-                } else if (status === '無') {
-                    stockStatus = '缺货';
-                } else if (status && (status.includes('預') || status.includes('订') || status.includes('定'))) {
-                    stockStatus = '預訂';
-                } else if (status && status.trim()) {
-                    // 有值但不在已知狀態列表 → 顯示未知，不當有貨
-                    stockStatus = '?';
-                } else {
-                    stockStatus = '?'; // 空狀態 → 未知
-                }
-                // 規格標記：錠劑庫一律標「錠劑」；科中庫只有「單方100g」區塊標100g，其餘全部預設200g（含所有複方）
-                const spec = source === 'tablet' ? '錠劑' : (groupSpec[j] || '200g');
-                data[name] = [stockStatus, price?.replace(/,/g, '') || '時價', spec];
-            }
-        }
-    });
-    return data;
-};
- 
-// ===== 科中专用匹配函数 =====
-// 匹配规则：
-// - 2字查询：只做精确比对，無生產显示「無生產」
-// - 3+字查询：允许模糊匹配，匹配结果与输入不同显示「有疑问」
-const findBestMatchInKZ = query => {
-    if (!query || !Object.keys(DB_KZ).length) return null;
- 
-    // 0. 特定已知的「一詞對應多個真實庫存品項」——不猜，直接列出候選讓人工確認
-    //    例如「茵陳」在庫存表裡實際拆成「茵陳蒿」與「綿茵陳」兩個不同品項（價格也不同）
-    const AMBIGUOUS_TERMS = {
-        '茵陳': ['茵陳蒿', '綿茵陳']
-    };
-    if (AMBIGUOUS_TERMS[query]) {
-        const candidates = AMBIGUOUS_TERMS[query].filter(name => DB_KZ[name]);
-        if (candidates.length > 1) {
-            return { multiCandidate: true, candidates };
-        }
-        if (candidates.length === 1) {
-            const c = candidates[0];
-            return { name: c, status: DB_KZ[c][0], price: DB_KZ[c][1], spec: DB_KZ[c][2], corrected: true, fuzzy: true };
-        }
+
+// ------------------------------------------------------------
+// 搜尋名稱評分
+// ------------------------------------------------------------
+function scoreSearchCandidate(query, name) {
+
+    query = normalizeSearchText(query);
+    name = normalizeSearchText(name);
+
+    if (!query || !name) return 0;
+
+    // 1. 完全相同
+    if (query === name) {
+        return 10000;
     }
- 
-    // 1. 精确匹配（所有长度都执行）
-    if (DB_KZ[query]) {
-        // 精確匹配存在時不做歧義提醒——用戶輸入「炙甘草」有精確匹配就直接顯示
-        return { name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], spec: DB_KZ[query][2], corrected: false, fuzzy: false };
+
+    // 2. 開頭完全符合
+    if (name.startsWith(query)) {
+        return 9000 + query.length * 10;
     }
- 
-    // 2. 错别字匹配
-    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
-        if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
-            if (DB_KZ[correct]) {
-                // 歧義判斷：query 是單方藥名但 correct 是方劑 → 用戶可能指單方
-                const formulaSuffixes = ['湯','散','丸','飲','膏','丹','煎','劑','露','片'];
-                const correctIsFormula = formulaSuffixes.some(s => correct.endsWith(s));
-                const ambiguous = correctIsFormula && SINGLE_HERB_NAMES.has(query) && query !== correct;
-                return { name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], spec: DB_KZ[correct][2], corrected: true, fuzzy: true, original: query, ambiguous };
+
+    // 3. 名稱包含查詢
+    if (name.includes(query)) {
+        return 8000 + query.length * 10;
+    }
+
+    // 4. 查詢包含完整產品名稱
+    if (query.includes(name)) {
+        return 7600 + name.length * 10;
+    }
+
+    // 5. 去除常見方劑後綴再比較
+    for (const suffix of SEARCH_SUFFIXES) {
+        if (name.endsWith(suffix)) {
+            const base = name.slice(0, -suffix.length);
+
+            if (base === query) {
+                return 9500;
+            }
+
+            if (base.startsWith(query)) {
+                return 8500 + query.length * 10;
             }
         }
     }
- 
-    // 3. 2字查詢只做精確比對，無生產就返回null（防止短名稱錯配到長品項，如「酸棗仁」配到「酸棗仁湯」）
-    if (query.length === 2) {
-        return null;
+
+    // 6. 編輯距離
+    const editScore = editSimilarity(query, name);
+
+    // 7. 字元集合
+    const charScore = uniqueCharMatchScore(query, name);
+
+    // 8. 長度差
+    const lengthDiff = Math.abs(query.length - name.length);
+
+    // 短字串嚴格限制
+    if (query.length <= 2) {
+        if (editScore >= 0.9 && lengthDiff <= 1) {
+            return 6000 + editScore * 500;
+        }
+
+        return 0;
     }
- 
-    // 4. 3+字查詢：僅限 TYPO_MAP 映射 + 精確匹配 + 後綴匹配，不做包含匹配/模糊匹配
-    // 4. 後綴匹配（處理常見省略：「八味地黃」→「八味地黃丸」、「九味羌活」→「九味羌活湯」等）
-    // 若 query 可能同時是單方藥名（如「炙甘草」），標記 ambiguous 供 search() 雙選顯示
-    if (query.length >= 3) {
-        const suffixes = ['丸', '湯', '散', '飲', '膏', '丹', '煎', '劑', '露', '片'];
-        for (const suffix of suffixes) {
-            const withSuffix = query + suffix;
-            if (DB_KZ[withSuffix]) {
-                // 歧義判斷：query 是已知單方藥名 → 可能指單方，標記歧義
-                const ambiguous = SINGLE_HERB_NAMES.has(query);
-                return { name: withSuffix, status: DB_KZ[withSuffix][0], price: DB_KZ[withSuffix][1], spec: DB_KZ[withSuffix][2], corrected: true, fuzzy: true, original: query, ambiguous };
+
+    // 3 字以上
+    if (editScore >= 0.78) {
+        return 5000 + editScore * 1000 - lengthDiff * 30;
+    }
+
+    if (charScore >= 0.75) {
+        return 4000 + charScore * 1000 - lengthDiff * 30;
+    }
+
+    return 0;
+}
+
+
+// ------------------------------------------------------------
+// 從資料庫搜尋
+// ------------------------------------------------------------
+function searchDatabaseV2(query, db, source) {
+
+    if (!query || !db || !Object.keys(db).length) {
+        return [];
+    }
+
+    const q = normalizeSearchText(query);
+
+    const results = [];
+
+    for (const [rawName, data] of Object.entries(db)) {
+
+        const name = normalizeSearchText(rawName);
+
+        if (!name) continue;
+
+        let score = scoreSearchCandidate(q, name);
+
+        // TYPO_MAP 額外加分（不加在正式品名自己身上，避免錯字分比精確匹配還高）
+        const aliases = getSearchAliases(rawName);
+
+        for (const alias of aliases) {
+            if (alias === name) continue;
+
+            if (alias === q) {
+                score = Math.max(score, 9800);
             }
-        }
-    }
- 
-    // 5. 模糊匹配（僅3字以上，門檻70%）—— 若最高分候選不只一個，絕不自動選，
-    //    回報 multiCandidate 交由人工確認，避免誤判成藥性不同的方劑（如小柴胡湯／大柴胡湯）
-    //    分母採 max(query長度, 候選長度)，避免「較短查詢」被字數更多、只是剛好包含全部字的無關長方名蓋掉
-    //    （例如「瓜蔞實」不該被誤配到完全不同的「瓜蔞枳實湯」）
-    if (query.length >= 3) {
-        const threshold = 0.7;
-        const scored = [];
-        for (const [name, data] of Object.entries(DB_KZ)) {
-            const score = uniqueCharMatchScore(query, name);
-            if (score > threshold) scored.push({ name, status: data[0], price: data[1], spec: data[2], score });
-        }
-        if (scored.length) {
-            const maxScore = Math.max(...scored.map(s => s.score));
-            const top = scored.filter(s => s.score === maxScore);
-            if (top.length === 1) {
-                const c = top[0];
-                return { name: c.name, status: c.status, price: c.price, spec: c.spec, corrected: true, fuzzy: true };
-            }
-            // 平手（2個以上候選同分）：不自動選，回報多重候選
-            return { multiCandidate: true, candidates: top.map(c => c.name) };
-        }
-    }
- 
-    return null;  // 無生產精確匹配，回報「無生產」
-};
- 
-// ===== 锭劑专用匹配函数 =====
-// 规则：与科中相同的匹配规则，但只在锭劑库中匹配
-const findBestMatchInTablet = query => {
-    if (!query || !Object.keys(DB_TABLET).length) return null;
- 
-    // 1. 精确匹配
-    if (DB_TABLET[query]) return { name: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1], corrected: false, fuzzy: false };
- 
-    // 2. 错别字匹配（锭劑专用，顯示有疑問讓客戶確認）
-    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
-        if (query === correct || (Array.isArray(typos) && typos.includes(query))) {
-            if (DB_TABLET[correct]) return { name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1], corrected: true, fuzzy: true };
-        }
-    }
- 
-    // 3. 移除末尾常見後綴後加上「錠」比對
-    for (const suffix of ['湯', '散', '丸', '飲', '膏', '丹', '煎', '劑', '露']) {
-        if (query.endsWith(suffix)) {
-            const tryTablet = query.slice(0, -suffix.length) + TABLET_SUFFIX[0];
-            if (DB_TABLET[tryTablet]) return { name: tryTablet, status: DB_TABLET[tryTablet][0], price: DB_TABLET[tryTablet][1], corrected: true, fuzzy: true };
-        }
-    }
- 
-    // 4. 移除"錠"後精確匹配（顯示有疑問）
-    const queryWithoutDing = query.replace(new RegExp(`[${TABLET_SUFFIX.join('')}]$`), '').trim();
-    const tabletName = queryWithoutDing + TABLET_SUFFIX[0];
-    if (DB_TABLET[tabletName]) return { name: tabletName, status: DB_TABLET[tabletName][0], price: DB_TABLET[tabletName][1], corrected: true, fuzzy: true };
- 
-    // 5. 模糊匹配（僅3字以上，門檻70%，同分不自動猜）
-    if (query.length >= 3) {
-        const threshold = 0.7;
-        const scored = [];
-        for (const [name, data] of Object.entries(DB_TABLET)) {
-            const score = containsMatchScore(query, name);
-            if (score >= threshold) {
-                scored.push({ name, status: data[0], price: data[1], score });
+
+            const aliasScore = scoreSearchCandidate(q, alias);
+
+            if (aliasScore > 0) {
+                score = Math.max(score, aliasScore + 300);
             }
         }
 
-        if (scored.length) {
-            const maxScore = Math.max(...scored.map(s => s.score));
-            const top = scored.filter(s => s.score === maxScore);
-            if (top.length === 1) {
-                const c = top[0];
-                return { name: c.name, status: c.status, price: c.price, corrected: true, fuzzy: true };
-            }
-            return { multiCandidate: true, candidates: top.map(c => c.name) };
+        if (score <= 0) continue;
+
+        results.push({
+            name: rawName,
+            status: data[0],
+            price: data[1],
+            spec: data[2],
+            source,
+            score
+        });
+    }
+
+    results.sort((a, b) => {
+
+        if (b.score !== a.score) {
+            return b.score - a.score;
+        }
+
+        // 同分時，名稱較短優先
+        if (a.name.length !== b.name.length) {
+            return a.name.length - b.name.length;
+        }
+
+        return a.name.localeCompare(b.name, 'zh-Hant');
+    });
+
+    return results;
+}
+
+
+// ------------------------------------------------------------
+// 選最佳結果（查詢按鈕 / 科中 / 錠劑共用）
+// ------------------------------------------------------------
+function looksLikeTabletQuery(q) {
+    return q.endsWith('錠') || q.endsWith('錠劑') || q.endsWith('腚');
+}
+
+function dedupeSearchResults(items) {
+    const map = new Map();
+    for (const x of items) {
+        const prev = map.get(x.name);
+        if (!prev || x.score > prev.score) map.set(x.name, x);
+    }
+    return [...map.values()].sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        if (a.name.length !== b.name.length) return a.name.length - b.name.length;
+        return a.name.localeCompare(b.name, 'zh-Hant');
+    });
+}
+
+function buildMatchResult(best, query, q) {
+    const bestN = normalizeSearchText(best.name);
+    const corrected = bestN !== q;
+    const herbFormulaSuffixes = ['湯','散','丸','飲','膏','丹','煎','劑','露','片'];
+    const bestIsHerbFormula = herbFormulaSuffixes.some(s => bestN.endsWith(s));
+    const ambiguous =
+        best.source !== 'tablet' &&
+        bestIsHerbFormula &&
+        typeof SINGLE_HERB_NAMES !== 'undefined' &&
+        SINGLE_HERB_NAMES.has(q) &&
+        q !== bestN;
+
+    return {
+        name: best.name,
+        status: best.status,
+        price: best.price,
+        spec: best.spec,
+        source: best.source,
+        corrected,
+        fuzzy: corrected || best.score < 9000,
+        original: corrected ? query : undefined,
+        score: best.score,
+        ambiguous
+    };
+}
+
+function selectBestFromScored(query, scored) {
+    const q = normalizeSearchText(query);
+    if (!q || !scored || !scored.length) return null;
+
+    const all = dedupeSearchResults(scored);
+
+    const exact = all.filter(x => normalizeSearchText(x.name) === q);
+    if (exact.length === 1) {
+        return buildMatchResult(exact[0], query, q);
+    }
+    if (exact.length > 1) {
+        if (looksLikeTabletQuery(q)) {
+            const t = exact.find(x => x.source === 'tablet');
+            if (t) return buildMatchResult(t, query, q);
+        }
+        const k = exact.find(x => x.source === 'kezhong');
+        if (k) return buildMatchResult(k, query, q);
+        return buildMatchResult(exact[0], query, q);
+    }
+
+    const typoHits = all.filter(x => {
+        const aliases = getSearchAliases(x.name);
+        return aliases.some(a => a === q);
+    });
+
+    const prefixHits = all.filter(x => normalizeSearchText(x.name).startsWith(q));
+
+    // 1～2 字：只允許精確或「唯一」TYPO；有多家前綴就列出候選，絕不自動猜
+    if (q.length <= 2) {
+        const shortMap = new Map();
+        for (const x of [...typoHits, ...prefixHits, ...all.filter(s => s.score >= 9000)]) {
+            if (!shortMap.has(x.name)) shortMap.set(x.name, x);
+        }
+        const shortCands = [...shortMap.values()].sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            return a.name.length - b.name.length;
+        });
+
+        if (typoHits.length === 1 && prefixHits.every(p => p.name === typoHits[0].name)) {
+            return buildMatchResult(typoHits[0], query, q);
+        }
+        if (shortCands.length === 1) {
+            return buildMatchResult(shortCands[0], query, q);
+        }
+        if (shortCands.length > 1) {
+            return {
+                multiCandidate: true,
+                candidates: shortCands.slice(0, 8).map(x => x.name)
+            };
+        }
+        return null;
+    }
+
+    const best = all[0];
+    const close = all.filter(x => x.score >= best.score - 150);
+    const closeNames = [...new Set(close.map(x => x.name))];
+
+    const strong = all.filter(x => x.score >= 9800);
+    const strongNames = [...new Set(strong.map(x => x.name))];
+
+    if (strongNames.length === 1) {
+        const winner = strong.find(x => x.name === strongNames[0]);
+        const rivals = closeNames.filter(n => n !== winner.name);
+        if (!rivals.length) {
+            return buildMatchResult(winner, query, q);
+        }
+        // 強命中仍有接近的不同品項 → 問人
+        return {
+            multiCandidate: true,
+            candidates: closeNames.slice(0, 8)
+        };
+    }
+
+    if (closeNames.length > 1) {
+        return {
+            multiCandidate: true,
+            candidates: closeNames.slice(0, 8)
+        };
+    }
+
+    return buildMatchResult(best, query, q);
+}
+
+
+// ------------------------------------------------------------
+// 找最佳匹配：科中（保留介面相容，決策與 V2 相同）
+// ------------------------------------------------------------
+const findBestMatchInKZ = query => {
+
+    if (!query || !Object.keys(DB_KZ).length) {
+        return null;
+    }
+
+    const q = normalizeSearchText(query);
+
+    if (!q) return null;
+
+    const amb = resolveAmbiguousTerms(q);
+    if (amb) return amb;
+
+    return selectBestFromScored(
+        q,
+        searchDatabaseV2(q, DB_KZ, 'kezhong')
+    );
+};
+
+
+// ------------------------------------------------------------
+// 錠劑匹配（介面相容，決策與 V2 相同）
+// ------------------------------------------------------------
+const findBestMatchInTablet = query => {
+    if (!query || !Object.keys(DB_TABLET).length) return null;
+
+    const q = normalizeSearchText(query);
+    if (!q) return null;
+
+    return selectBestFromScored(
+        q,
+        searchDatabaseV2(q, DB_TABLET, 'tablet')
+    );
+};
+
+
+// ------------------------------------------------------------
+// V2：科中 + 錠劑統一搜尋
+// ------------------------------------------------------------
+function findBestMatchV2(query) {
+
+    const q = normalizeSearchText(query);
+
+    if (!q) return null;
+
+    const amb = resolveAmbiguousTerms(q);
+    if (amb) return amb;
+
+    const kz = searchDatabaseV2(
+        q,
+        DB_KZ,
+        'kezhong'
+    );
+
+    const tablet = searchDatabaseV2(
+        q,
+        DB_TABLET,
+        'tablet'
+    );
+
+    // 明確像錠劑時，只給「結尾是錠/腚」加分，避免「一貫碇」被誤加成錠劑
+    if (looksLikeTabletQuery(q)) {
+        for (const t of tablet) {
+            t.score += 200;
         }
     }
- 
-    return null;
+
+    return selectBestFromScored(q, [...kz, ...tablet]);
 };
- 
+
+
 // ===== 自動補全功能（科中資料庫）=====
 let autocompleteIndex = -1;
 let autocompleteItems = [];
@@ -929,77 +1337,34 @@ function showAutocompleteSuggestions(query) {
         return;
     }
  
-    // 從 DB_KZ 和 DB_TABLET 中搜尋匹配項
-    // 策略：與 main query 完全一致的匹配邏輯
-    // 1. 先用 typo map + 精確匹配（最高分）
-    // 2. 再用包含匹配（高分）
-    // 3. 最後 fuzzy 匹配（門檻 50%）
+    // V2：自動補全與正式查詢共用同一套搜尋引擎
     const matches = [];
-    const isTabletInput = TABLET_SUFFIX.some(c => query.includes(c));
- 
-    // 步驟A：Typo map 精確匹配（兩庫都查，取最高分）
-    for (const [correct, typos] of Object.entries(TYPO_MAP)) {
-        const allNames = [correct, ...(Array.isArray(typos) ? typos : [])];
-        if (!allNames.includes(query)) continue;
-        // KZ 精確匹配
-        if (DB_KZ[correct]) {
-            matches.push({ name: correct, status: DB_KZ[correct][0], price: DB_KZ[correct][1], score: 100, matchType: 'typo-exact', dbType: '科中' });
-        }
-        // Tablet 精確匹配
-        if (DB_TABLET[correct]) {
-            matches.push({ name: correct, status: DB_TABLET[correct][0], price: DB_TABLET[correct][1], score: 100, matchType: 'typo-exact', dbType: '錠劑' });
-        }
+    const q = normalizeSearchText(query);
+
+    const kzHits = searchDatabaseV2(q, DB_KZ, 'kezhong');
+    const tabHits = searchDatabaseV2(q, DB_TABLET, 'tablet');
+
+    for (const item of kzHits) {
+        matches.push({
+            name: item.name,
+            status: item.status,
+            price: item.price,
+            score: item.score,
+            matchType: item.score >= 9800 ? 'exact' : (item.score >= 8000 ? 'prefix-contains' : 'fuzzy'),
+            dbType: '科中'
+        });
     }
- 
-    // 步驟B：直接精確匹配
-    if (DB_KZ[query]) matches.push({ name: query, status: DB_KZ[query][0], price: DB_KZ[query][1], score: 100, matchType: 'exact', dbType: '科中' });
-    if (DB_TABLET[query]) matches.push({ name: query, status: DB_TABLET[query][0], price: DB_TABLET[query][1], score: 100, matchType: 'exact', dbType: '錠劑' });
- 
-    // 步驟C：移除後綴 + 加「錠」匹配（Tablet suffix 時使用，與 main query 一致）
-    // 單方藥保護：若 query 是單方藥名，跳過後綴轉換
-    if (isTabletInput && !SINGLE_HERB_NAMES.has(query)) {
-        for (const suffix of ['湯','散','丸','飲','膏','丹','煎','劑','露']) {
-            if (query.endsWith(suffix)) {
-                const tryTablet = query.slice(0, -suffix.length) + '錠';
-                if (DB_TABLET[tryTablet] && !matches.some(m => m.name === tryTablet)) {
-                    matches.push({ name: tryTablet, status: DB_TABLET[tryTablet][0], price: DB_TABLET[tryTablet][1], score: 95, matchType: 'suffix-convert', dbType: '錠劑' });
-                }
-                break;
-            }
-        }
+    for (const item of tabHits) {
+        matches.push({
+            name: item.name,
+            status: item.status,
+            price: item.price,
+            score: item.score,
+            matchType: item.score >= 9800 ? 'exact' : (item.score >= 8000 ? 'prefix-contains' : 'fuzzy'),
+            dbType: '錠劑'
+        });
     }
- 
-    // 步驟D：包含匹配（key 包含 query 或 query 包含 key）
-    for (const [name, data] of Object.entries(DB_KZ)) {
-        if (matches.some(m => m.name === name)) continue;
-        if (name.includes(query) || query.includes(name)) {
-            matches.push({ name, status: data[0], price: data[1], score: 80, matchType: 'contains', dbType: '科中' });
-        }
-    }
- 
-    for (const [name, data] of Object.entries(DB_TABLET)) {
-        if (matches.some(m => m.name === name)) continue;
-        if (name.includes(query) || query.includes(name)) {
-            matches.push({ name, status: data[0], price: data[1], score: 80, matchType: 'contains', dbType: '錠劑' });
-        }
-    }
- 
-    // 步驟E：模糊匹配（門檻 50%，query ≥ 3 字）
-    if (query.length >= 3) {
-        const allKZ = Object.entries(DB_KZ);
-        const allTab = Object.entries(DB_TABLET);
-        for (const [name, data] of allKZ) {
-            if (matches.some(m => m.name === name)) continue;
-            const score = Math.round(containsMatchScore(query, name) * 80);
-            if (score >= 40) matches.push({ name, status: data[0], price: data[1], score, matchType: 'fuzzy', dbType: '科中' });
-        }
-        for (const [name, data] of allTab) {
-            if (matches.some(m => m.name === name)) continue;
-            const score = Math.round(containsMatchScore(query, name) * 80);
-            if (score >= 40) matches.push({ name, status: data[0], price: data[1], score, matchType: 'fuzzy', dbType: '錠劑' });
-        }
-    }
- 
+
     // 去重：同名只保留最高分
     const dedupMap = new Map();
     for (const m of matches) {
@@ -1007,27 +1372,23 @@ function showAutocompleteSuggestions(query) {
             dedupMap.set(m.name, m);
         }
     }
- 
-    // 用 deduped 替換 matches 後面的排序
     matches.length = 0;
     matches.push(...dedupMap.values());
- 
-    // 按匹配度排序
+
+    // 排序：開頭匹配 > 有貨優先 > 分數
     matches.sort((a, b) => {
-        // 1. 最高優先：名稱開頭匹配 query（用戶最可能要找的）
-        const aStartsWith = a.name.startsWith(query) ? 0 : 1;
-        const bStartsWith = b.name.startsWith(query) ? 0 : 1;
+        const aStartsWith = normalizeSearchText(a.name).startsWith(q) ? 0 : 1;
+        const bStartsWith = normalizeSearchText(b.name).startsWith(q) ? 0 : 1;
         if (aStartsWith !== bStartsWith) return aStartsWith - bStartsWith;
-        // 2. 次優先：有貨 > 預訂 > 其他 > 缺貨
         const stockRank = (s) => s === '有货' ? 0 : s === '合约' ? 1 : s === '預訂' ? 2 : s === '缺货' ? 4 : 3;
         const rankA = stockRank(a.status);
         const rankB = stockRank(b.status);
         if (rankA !== rankB) return rankA - rankB;
-        // 3. 同狀態，優先分數高
         return b.score - a.score;
     });
- 
+
     const topMatches = matches.slice(0, 48);
+
  
  
     if (topMatches.length === 0) {
@@ -1044,8 +1405,8 @@ function showAutocompleteSuggestions(query) {
         const stockClass = item.status === '有货' ? 'in-stock' : item.status === '合约' ? 'contract' : item.status === '預訂' ? 'booking' : 'out-stock';
         const stockText = item.status === '有货' ? '✅ 有貨' : item.status === '合约' ? '📋 合約' : item.status === '預訂' ? '⏳ 預訂' : '⚠️ 缺貨';
         const dbClass = item.dbType === '科中' ? 'db-kz' : 'db-tablet';
-        // 非精確匹配（score < 100）顯示有疑問 badge
-        const fuzzyBadge = item.score < 100 ? '<span class="fuzzy-badge">❓ 有疑問</span>' : '';
+        // 非高置信匹配（score < 9000）顯示有疑問 badge
+        const fuzzyBadge = item.score < 9000 ? '<span class="fuzzy-badge">❓ 有疑問</span>' : '';
         return `
             <div class="autocomplete-item" data-index="${index}" data-name="${item.name}">
                 <span class="match-text">
@@ -1645,50 +2006,38 @@ function search() {
         const originalProductName = cleanLine.replace(/\d+$/, '').replace(/[\s\*\-\+\/xX×∗：:．.、，,　\t]+$/g, '').trim();
  
         // 正式解析產品名和數量；200g/100g 是包裝規格，不等於購買數量
-        const query = toTraditional(originalProductName);  // 簡轉繁再匹配
+        const query = normalizeSearchText(originalProductName);  // 正規化（簡繁／全半形／空白）再匹配
  
         if (!query) continue;
  
         // 检查是否有「?」，有則標記為有疑問
         const hasQuestionMark = line.includes('?');
  
-        // 判断是锭劑还是科中
-        const isTabletInput = TABLET_SUFFIX.some(c => query.endsWith(c));
- 
+        // V2 統一搜尋（科中 + 錠劑同一引擎）
         let result = null;
         let ambiguousAlt = null;  // 歧義時的備選結果
  
-        if (isTabletInput) {
-            // 锭劑：3个字以上进行模糊匹配锭劑库
-            const tabletResult = findBestMatchInTablet(query);
-            if (tabletResult && tabletResult.multiCandidate) {
-                const outputNameMC = originalProductName + ' ' + qty;
-                // copyText 改由排序後統一組裝
-                results.push({ displayName: originalProductName, outputName: outputNameMC, qty, status: 'multi_candidate', source: 'none', fuzzy: true, candidates: tabletResult.candidates });
-                continue;
-            }
-            if (tabletResult) {
-                result = { displayName: tabletResult.name, status: tabletResult.status, price: tabletResult.price, spec: '錠劑', source: 'tablet', corrected: tabletResult.corrected, fuzzy: tabletResult.fuzzy || hasQuestionMark || (tabletResult.corrected && query.length >= 3) };
-                if (tabletResult.ambiguous) result.ambiguous = true;
-            }
-        } else {
-            // 科中：使用完整匹配逻辑
-            const kzResult = findBestMatchInKZ(query);
-            if (kzResult && kzResult.multiCandidate) {
-                // 模糊比對出現多個同分候選（如「柴胡湯」同時符合小柴胡湯/大柴胡湯/柴胡桂枝湯）
-                // 不自動選，直接列出候選讓人工確認，避免誤判成藥性不同的方劑
-                const outputNameMC = originalProductName + ' ' + qty;
-                // copyText 改由排序後統一組裝
-                results.push({ displayName: originalProductName, outputName: outputNameMC, qty, status: 'multi_candidate', source: 'none', fuzzy: true, candidates: kzResult.candidates });
-                continue;
-            }
-            if (kzResult) {
-                result = { displayName: kzResult.name, status: kzResult.status, price: kzResult.price, spec: kzResult.spec, source: 'kz', corrected: kzResult.corrected, fuzzy: kzResult.fuzzy || hasQuestionMark || (kzResult.corrected && query.length >= 3) };
-                if (kzResult.ambiguous) {
-                    result.ambiguous = true;
-                    // 精確匹配不存在時的歧義提醒：匹配到方劑，備選是單方（用戶原始輸入）
-                    ambiguousAlt = { displayName: query, outputName: query + ' ' + qty, qty, status: '單方', source: 'kz', isBooking: false, isContract: false, isInStock: false, isUnknown: false, unitPrice: 0, totalPrice: 0, fuzzy: false, hasUserQty };
-                }
+        const match = findBestMatchV2(query);
+        if (match && match.multiCandidate) {
+            const outputNameMC = originalProductName + ' ' + qty;
+            results.push({ displayName: originalProductName, outputName: outputNameMC, qty, status: 'multi_candidate', source: 'none', fuzzy: true, candidates: match.candidates });
+            continue;
+        }
+        if (match) {
+            const src = match.source === 'tablet' ? 'tablet' : 'kz';
+            const spec = match.source === 'tablet' ? '錠劑' : (match.spec || '200g');
+            result = {
+                displayName: match.name,
+                status: match.status,
+                price: match.price,
+                spec,
+                source: src,
+                corrected: match.corrected,
+                fuzzy: match.fuzzy || hasQuestionMark || (match.corrected && normalizeSearchText(query).length >= 3)
+            };
+            if (match.ambiguous) {
+                result.ambiguous = true;
+                ambiguousAlt = { displayName: query, outputName: query + ' ' + qty, qty, status: '單方', source: 'kz', isBooking: false, isContract: false, isInStock: false, isUnknown: false, unitPrice: 0, totalPrice: 0, fuzzy: false, hasUserQty };
             }
         }
  
@@ -2091,91 +2440,29 @@ function startVoiceInput() {
 // 智能匹配产品（用于语音和图片输入）
 function smartMatchProduct(text) {
     if (!text || text.length < 2) return null;
-    
+
     // 清理文本
     const cleanedText = text.replace(/[^\u4e00-\u9fa50-9]/g, '');
     if (!cleanedText) return null;
-    
+
     // 提取数量
     const numMatch = cleanedText.match(/(\d+)$/);
     const qty = numMatch ? numMatch[1] : '';
     const productName = numMatch ? cleanedText.slice(0, -numMatch[1].length) : cleanedText;
-    const query = toTraditional(productName);
-    
-    // 0. 检测是否可能是锭劑（包含「錠」的同音字：罐、堅、定、訂、碇、腚、䦺）
-    const isLikelyTablet = TABLET_SUFFIX.some(c => productName.endsWith(c));
-    // 1. 如果可能是锭劑（包含同音字），优先在锭劑库匹配
-    if (isLikelyTablet) {
-        const tabletResult = findBestMatchInTablet(query);
-        if (tabletResult) {
-            return tabletResult.name + qty;
-        }
-        return null;  // 锭劑库没找到就返回null，不到科中库
+    const query = normalizeSearchText(productName);
+
+    // V2 統一搜尋（與查詢按鈕、自動補全同一引擎）
+    const match = findBestMatchV2(query);
+    if (match && match.multiCandidate) {
+        return null;
     }
-    
-    // 2. 不包含「錠」，在科中库匹配
-    // 先尝试精确匹配
-    const directMatch = findBestMatchInKZ(query);
-    if (directMatch) {
-        return directMatch.name + qty;
+    if (match && match.name) {
+        return match.name + qty;
     }
-    
-    // 科中库模糊匹配
-    let bestMatch = null;
-    let maxScore = 0.5;
-    
-    for (const name of Object.keys(DB_KZ)) {
-        const chars = [...query];
-        const nameChars = [...name];
-        
-        // 计算精确匹配字符数
-        let exactCount = 0;
-        for (const c of chars) {
-            if (nameChars.includes(c)) exactCount++;
-        }
-        
-        // 计算相似字符匹配数
-        let similarCount = 0;
-        for (const c of chars) {
-            if (!nameChars.includes(c)) {
-                const similarChars = getSimilarChars(c);
-                for (const sc of similarChars) {
-                    if (nameChars.includes(sc)) {
-                        similarCount += 0.7;
-                        break;
-                    }
-                }
-            }
-        }
-        
-        // 相似度
-        const charScore = (exactCount + similarCount) / Math.max(chars.length, nameChars.length);
-        
-        // 【5字3匹配规则】
-        let bonus = 0;
-        if (chars.length >= 5 && exactCount >= 3) {
-            bonus = 0.15 + (exactCount - 3) * 0.05;
-        }
-        
-        // 发音相似度
-        const pronScore = getPronunciationSimilarity(query, name);
-        
-        const finalScore = Math.max(charScore, pronScore) + bonus;
-        
-        if (finalScore > maxScore) {
-            maxScore = finalScore;
-            bestMatch = name;
-        }
-    }
-    
-    if (bestMatch) {
-        return bestMatch + qty;
-    }
-    
+
     return null;
 }
- 
-// 获取相似字符列表
+
 function getSimilarChars(char) {
     const similarMap = {
         // === 锭/定 同音异字 ===
