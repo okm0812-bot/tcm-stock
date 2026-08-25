@@ -698,6 +698,96 @@ const parseCSVLine = line => {
     return result;
 };
 
+// ===== Google Sheet CSV 解析 =====
+// 科中 Sheet：每 4 欄為一組「品名／狀態／價格／備註」。
+// 100g 單方區塊只用來建立「100g 單方產品名集合」，實際規格則由產品名集合判斷。
+// 麻黃是唯一的單方 200g 例外；其他不在 100g 集合的科中產品一律 200g。
+const SINGLE_HERB_100G_NAMES = new Set();
+
+const parseCSV = (csvText, source = 'kezhong') => {
+    const data = {};
+    const skipWords = ['劃', '品名', '單方', '目前', '每日', '實際', '以上', '其他', '預訂', '下單', '交期', '庫存量表', '庫存均', '有庫存', '會缺貨'];
+    const groupSpec = {};
+
+    // 每次重新載入時重建單方100g名稱集合，避免舊資料殘留。
+    if (source === 'kezhong') {
+        SINGLE_HERB_100G_NAMES.clear();
+    }
+
+    String(csvText || '')
+        .replace(/\r\n?/g, '\n')
+        .split('\n')
+        .slice(1)
+        .forEach(line => {
+            if (!line.trim()) return;
+
+            const row = parseCSVLine(line);
+
+            for (let j = 0; j < row.length; j += 4) {
+                const rawName = row[j];
+                const status = row[j + 1];
+                const price = row[j + 2];
+                if (!rawName) continue;
+
+                const name = String(rawName).trim();
+
+                // 規格標記列：只負責記錄該欄位接下來是否進入100g單方區。
+                const specMarker = name.match(/^單方\s*(100|200)\s*[Gg]/);
+                if (specMarker) {
+                    groupSpec[j] = specMarker[1] + 'g';
+                    continue;
+                }
+
+                // 分類用文字本身不存為品項。
+                if (skipWords.some(w => name.includes(w))) continue;
+
+                let stockStatus;
+                if (status === '有') {
+                    stockStatus = '有货';
+                } else if (status === '合約') {
+                    stockStatus = '合约';
+                } else if (status === '低') {
+                    stockStatus = '有货';
+                } else if (status === '無') {
+                    stockStatus = '缺货';
+                } else if (status && (status.includes('預') || status.includes('订') || status.includes('定'))) {
+                    stockStatus = '預訂';
+                } else if (status && status.trim()) {
+                    stockStatus = '?';
+                } else {
+                    stockStatus = '?';
+                }
+
+                let spec = '錠劑';
+
+                if (source === 'kezhong') {
+                    // 100g 區塊中的實際產品名稱記入單方100g集合。
+                    if (groupSpec[j] === '100g') {
+                        SINGLE_HERB_100G_NAMES.add(name);
+                    }
+
+                    // 規格最終由「產品名是否在100g單方集合」判斷。
+                    // 麻黃為唯一單方200g特例。
+                    if (name === '麻黃') {
+                        spec = '200g';
+                    } else if (SINGLE_HERB_100G_NAMES.has(name)) {
+                        spec = '100g';
+                    } else {
+                        spec = '200g';
+                    }
+                }
+
+                data[name] = [
+                    stockStatus,
+                    price?.replace(/,/g, '') || '時價',
+                    spec
+                ];
+            }
+        });
+
+    return data;
+};
+
 // ============================================================
 // V2 搜尋核心
 // 目的：
@@ -911,7 +1001,10 @@ function getSearchIndex(source) {
 }
 
 function looksLikeTabletQuery(q) {
-    return q.endsWith('錠') || q.endsWith('腚');
+    const normalized = normalizeSearchText(q);
+    // 保留原本錠劑容錯：錠／锭、碇、碙，以及語音常見的「腚」。
+    return TABLET_SUFFIX.some(s => normalized.endsWith(normalizeSearchText(s)))
+        || normalized.endsWith('腚');
 }
 
 
@@ -1963,8 +2056,12 @@ function search() {
  
         // 用戶主動點選候選 = 確認，不標記有疑問
  
-        // 解析产品名和数量（提早計算，供麻黃特殊處理使用）
-        // 只取「行尾」數量：品名後特殊符號／空格一律忽略；未寫數量則預設 1（所有規格相同）
+        // 解析產品名和數量前，先移除 ?／？，避免問號參與品名比對
+        const hasQuestionMark = /[?？]/.test(line);
+        const lineForParse = line.replace(/[?？]/g, '').trim();
+
+        // 解析產品名和數量（未寫數量則預設 1）
+        // 實際使用習慣：品名3、品名3瓶、品名3罐
         const trailingMatch = lineForParse.match(/(?:[\s\*\-\+\/xX×∗：:．.、，,　\t]+)(\d+)\s*(?:[瓶罐包盒顆粒])?\s*$/i)
             || lineForParse.match(/(\d+)\s*(?:[瓶罐包盒顆粒])?\s*$/);
         const qty = trailingMatch ? parseInt(trailingMatch[1], 10) : 1;
@@ -1985,8 +2082,6 @@ function search() {
         if (!query) continue;
  
         // 检查是否有「?」，有則標記為有疑問
-        const hasQuestionMark = /[?？]/.test(line);
-        const lineForParse = line.replace(/[?？]/g, '').trim();
  
         // V2 統一搜尋（科中 + 錠劑同一引擎）
         let result = null;
