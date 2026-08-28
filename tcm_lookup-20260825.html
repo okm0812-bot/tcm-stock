@@ -189,6 +189,14 @@
            強制改回固定 15px（其他瀏覽器實際呈現的效果），僅在 .line-inapp 生效，
            不影響其他任何樣式或程式邏輯。 */
         .line-inapp body { padding: 15px !important; }
+
+        /* LINE 內建瀏覽器：清除鍵以上的按鈕（更新資料／語音輸入／隱藏價格／異動／清除）
+           縮小尺寸與間距，僅在 .line-inapp 生效，不影響其他瀏覽器與其他任何樣式 */
+        .line-inapp .search-box { padding: 10px; }
+        .line-inapp .btn-group { gap: 4px; margin-bottom: 4px; }
+        .line-inapp .btn-small { height: 20px; padding: 1px 4px; font-size: 9px; min-width: 0; border-radius: 10px; }
+        .line-inapp textarea { font-size: 17px; }
+        .line-inapp .autoresize { min-height: 340px; }
     </style>
 </head>
 <body>
