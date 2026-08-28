@@ -194,9 +194,13 @@
            縮小尺寸與間距，僅在 .line-inapp 生效，不影響其他瀏覽器與其他任何樣式 */
         .line-inapp .search-box { padding: 10px; }
         .line-inapp .btn-group { gap: 4px; margin-bottom: 4px; }
-        .line-inapp .btn-small { height: 20px; padding: 1px 4px; font-size: 9px; min-width: 0; border-radius: 10px; }
+        .line-inapp .btn-small { height: 32px; padding: 6px 10px; font-size: 13px; min-width: 0; border-radius: 16px; }
         .line-inapp textarea { font-size: 17px; }
         .line-inapp .autoresize { min-height: 340px; }
+        /* 科中／錠劑 有貨／缺貨…統計徽章是 JS 動態產生的 inline style，
+           CSS 需要 !important 才能覆寫，僅在 .line-inapp 生效 */
+        .line-inapp #stockStats { font-size: 10px !important; line-height: 1.7 !important; }
+        .line-inapp #stockStats span { padding: 1px 5px !important; margin-right: 3px !important; }
     </style>
 </head>
 <body>
