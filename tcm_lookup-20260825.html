@@ -1990,8 +1990,9 @@ function search() {
         return;
     }
  
-    // 📦 「各N」預處理：遇到「各6」「各12」等，往前回溯分配數量到未帶數量的品項行
-    const GE_REG = /^各(\d{1,3})$/;
+    // 📦 「各N」預處理：遇到「各6」「各12」「各10瓶」「各10罐」等，往前回溯分配數量到未帶數量的品項行
+    // 允許數字後面接常見單位字（瓶罐包盒顆粒錠），單位不影響實際分配的數量
+    const GE_REG = /^各(\d{1,3})\s*(?:[瓶罐包盒顆粒錠])?$/;
     const SPEC_KW_PRE = /^(100G|200G|單方|複方|錠劑|科中)/i;
         // 偵測客戶名行：不含數量、不在庫存中、不以@開頭、不是規格、不是各N → 視為客戶名/備註
     const isLikelyCustomerOrRemark = (s) => {
@@ -2204,10 +2205,13 @@ function search() {
  
     // 依排序結果重新組裝 copyText（一行一項，無多餘前導空白）
     // 規則：客戶名 → 200g → 100g → 錠劑 → 其他；只輸出有貨／合約／預訂（缺貨、無生產另處理）
+    // 規格改為「群組標題」統一顯示一次（例如「（200g）」），同群組內的品項不再逐行重複規格
     copyText = '';
+    let currentSpecGroup = null; // 追蹤目前輸出到哪個規格群組，換組時才印一次規格標題
     for (const item of results) {
         if (item.status === 'customer-name') {
             copyText += `[${item.displayName}]\n`;
+            currentSpecGroup = null; // 換客戶重新開始，遇到規格會再印一次標題
             continue;
         }
         if (item.status === 'specification') {
@@ -2222,20 +2226,25 @@ function search() {
             copyText += item.outputName + '\t無生產\n';
             continue;
         }
-        // 一般品項
+        // 一般品項：規格改用群組標題呈現，換規格時先插入「（規格）」標題行
+        if (item.spec && item.spec !== currentSpecGroup) {
+            copyText += `（${item.spec}）\n`;
+            currentSpecGroup = item.spec;
+        }
+        const lineName = item.displayName + ' ' + item.qty; // 品名+數量，不含規格後綴（規格已移到群組標題）
         if (item.ambiguous && item.ambiguousAlt) {
             const mainStatusHint = item.isBooking ? '預訂' : item.isContract ? '合約' : item.isInStock ? '有貨' : '缺貨';
-            copyText += item.outputName + '（' + mainStatusHint + '）';
+            copyText += lineName + '（' + mainStatusHint + '）';
             const alt = item.ambiguousAlt;
             const altStatusHint = alt.status === '單方' ? '單方' : (alt.isInStock ? '有貨' : alt.isBooking ? '預訂' : alt.isContract ? '合約' : '缺貨');
             const altOutputName = alt.displayName + ' ' + item.qty;
             copyText += ' 或 ' + altOutputName + '（' + altStatusHint + '）\n';
         } else if (item.isInStock) {
-            copyText += item.outputName + '\n';
+            copyText += lineName + '\n';
         } else if (item.isContract) {
-            copyText += item.outputName + '（合約）\n';
+            copyText += lineName + '（合約）\n';
         } else if (item.isBooking) {
-            copyText += item.outputName + '（預）\n';
+            copyText += lineName + '（預）\n';
         }
         // 缺貨：不放入可複製文字（與原邏輯一致）
     }
