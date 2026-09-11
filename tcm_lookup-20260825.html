@@ -51,6 +51,7 @@
         .price { font-size: 15px; font-weight: bold; }
         .summary { background: white; border-radius: 15px; padding: 15px; margin-top: 12px; text-align: center; }
         .summary .total { font-size: 26px; font-weight: bold; color: #28a745; }
+        .summary .total-discount { font-size: 15px; color: #666; margin-top: 2px; }
         .summary .count { color: #666; font-size: 13px; margin-top: 4px; }
         .copy-box { background: white; border-radius: 15px; padding: 15px; margin-top: 12px; }
         .copy-box h4 { margin: 0 0 10px 0; font-size: 14px; color: #333; }
@@ -2039,7 +2040,7 @@ function search() {
     const skipKeywords = ['100g', '200g', '單方', '複方', '科中', '錠劑'];
     let results = [];  // 保存结果，保持顺序
     let copyText = '';
-    let stats = { inStock: 0, contract: 0, outStock: 0, booking: 0, unknown: 0, total: 0, inStockItems: 0, contractItems: 0, outStockItems: 0, bookingItems: 0, unknownItems: 0 };
+    let stats = { inStock: 0, contract: 0, outStock: 0, booking: 0, unknown: 0, total: 0, kzTotal: 0, tabletTotal: 0, inStockItems: 0, contractItems: 0, outStockItems: 0, bookingItems: 0, unknownItems: 0 };
     let lineIndex = 0;
     for (const line of lines) {
         lineIndex++;
@@ -2157,10 +2158,12 @@ function search() {
                 stats.contract += qty;
                 stats.contractItems++;
                 stats.total += totalPrice;
+                if (source === 'tablet') stats.tabletTotal += totalPrice; else stats.kzTotal += totalPrice;
             } else if (isInStock) {
                 stats.inStock += qty;
                 stats.inStockItems++;
                 stats.total += totalPrice;
+                if (source === 'tablet') stats.tabletTotal += totalPrice; else stats.kzTotal += totalPrice;
             } else if (isUnknown) {
                 stats.unknown = (stats.unknown || 0) + qty;
                 stats.unknownItems++;
@@ -2226,13 +2229,17 @@ function search() {
             copyText += item.outputName + '\t無生產\n';
             continue;
         }
-        // 一般品項：規格改用群組標題呈現，換規格時先插入「（規格）」標題行
-        if (item.spec && item.spec !== currentSpecGroup) {
-            copyText += `（${item.spec}）\n`;
-            currentSpecGroup = item.spec;
-        }
+        // 一般品項：規格改用群組標題呈現。只有「真的會印出這一行」時才印規格標題，
+        // 避免整個規格群組都缺貨（沒有任何一行被印出）時，留下孤立的空白規格標題
         const lineName = item.displayName + ' ' + item.qty; // 品名+數量，不含規格後綴（規格已移到群組標題）
+        const emitSpecHeader = () => {
+            if (item.spec && item.spec !== currentSpecGroup) {
+                copyText += `（${item.spec}）\n`;
+                currentSpecGroup = item.spec;
+            }
+        };
         if (item.ambiguous && item.ambiguousAlt) {
+            emitSpecHeader();
             const mainStatusHint = item.isBooking ? '預訂' : item.isContract ? '合約' : item.isInStock ? '有貨' : '缺貨';
             copyText += lineName + '（' + mainStatusHint + '）';
             const alt = item.ambiguousAlt;
@@ -2240,13 +2247,16 @@ function search() {
             const altOutputName = alt.displayName + ' ' + item.qty;
             copyText += ' 或 ' + altOutputName + '（' + altStatusHint + '）\n';
         } else if (item.isInStock) {
+            emitSpecHeader();
             copyText += lineName + '\n';
         } else if (item.isContract) {
+            emitSpecHeader();
             copyText += lineName + '（合約）\n';
         } else if (item.isBooking) {
+            emitSpecHeader();
             copyText += lineName + '（預）\n';
         }
-        // 缺貨：不放入可複製文字（與原邏輯一致）
+        // 缺貨：不放入可複製文字，也不觸發規格標題（與原邏輯一致）
     }
 
     // ===== 直通品項：「其它」分隔後的品項，不做庫存比對，直接追加到複製文字末尾 =====
@@ -2346,9 +2356,14 @@ function search() {
         }
     }
 
+    // 折扣總額：0.58折／0.6折僅套用在科中（100g/200g）小計，錠劑不打折，折後金額需與錠劑小計相加
+    const discount58Total = Math.round(stats.kzTotal * 0.58) + stats.tabletTotal;
+    const discount60Total = Math.round(stats.kzTotal * 0.6) + stats.tabletTotal;
+
     // 汇总统计
     html += `<div class="summary">
         <div class="total">${showPrice && stats.total > 0 ? stats.total + ' 元' : '查詢完成'}</div>
+        ${showPrice && stats.total > 0 ? `<div class="total-discount">58折：${discount58Total} 元　60折：${discount60Total} 元</div>` : ''}
         <div class="count">✅ 有貨 ${stats.inStockItems} 項（${stats.inStock} 瓶） | 📋 合約 ${stats.contractItems} 項（${stats.contract} 瓶） | ⚠️ 缺貨 ${stats.outStockItems} 項 | ⏳ 預訂 ${stats.bookingItems} 項${stats.unknownItems ? ` | ❓ 未知 ${stats.unknownItems} 項` : ''}</div>
     </div>`;
     
