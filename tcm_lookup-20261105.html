@@ -894,6 +894,41 @@ function normalizeSearchText(text) {
 
 
 // ------------------------------------------------------------
+// 查詢前處理：自動清掉括號與多餘符號，只留下要參與比對的品名
+// 只在比對前加這一層，不動 normalizeSearchText 與比對演算法
+// 例：「防風通聖散（錠）3」→「防風通聖散錠」（錠劑品名本身就是「防風通聖散錠」）
+//     「防風通聖散(200g)2」→「防風通聖散」（括號內是包裝規格，不屬於品名）
+//     「炙甘草湯錠、3」→「炙甘草湯錠」
+// ------------------------------------------------------------
+const BRACKET_PAIRS_REG = /[（(［\[【〔｛{《〈「『][^）)］\]】〕｝}》〉」』]*[）)］\]】〕｝}》〉」』]/g;
+function stripQueryNoise(text) {
+    if (!text) return '';
+
+    let s = String(text);
+
+    // 1) 括號內容：含數字（200g／30粒／3）視為規格或數量，整段去掉；
+    //    「錠劑／片劑」轉成錠劑品名的後綴「錠」；「科中」是資料庫類型也去掉；其餘字元保留並黏回品名
+    s = s.replace(BRACKET_PAIRS_REG, function (m) {
+        const inner = m.slice(1, m.length - 1).trim();
+        if (!inner) return '';
+        if (/\d/.test(inner)) return '';
+        if (inner === '錠劑' || inner === '片劑' || inner === '錠') return '錠';
+        if (inner === '科中') return '';
+        return inner;
+    });
+
+    // 2) 沒有配對到的單邊括號直接移除
+    s = s.replace(/[（）()［\[\]］【】〔〕｛｝{}《》〈〉「」『』]/g, '');
+
+    // 3) 其他殘留符號換成空白，避免與品名黏在一起
+    s = s.replace(/[、，,。．.·•；;：:／/|｜\\~～\-–—＋+*＊=＝"'"`]/g, ' ');
+
+    // 4) 壓縮空白
+    return s.replace(/\s+/g, ' ').trim();
+}
+
+
+// ------------------------------------------------------------
 // Levenshtein 距離
 // ------------------------------------------------------------
 function levenshteinDistance(a, b) {
@@ -2174,7 +2209,7 @@ function search() {
         const t = s.trim();
         if (t.startsWith('@') || GE_REG.test(t) || SPEC_KW_PRE.test(t)) return false;
         if (/[\d瓶罐包盒顆粒]/.test(t)) return false; // 含數量或單位 → 不是客戶名
-        const trad = toTraditional(t);
+        const trad = toTraditional(stripQueryNoise(t)); // 先清括號與多餘符號再查庫存（例：「防風通聖散（錠）」）
         if (DB_KZ[trad] || DB_TABLET[trad]) return false; // 庫存有此品項 → 不是客戶名
         // TYPO_MAP 也查：只要在 TYPO_MAP 中找到（不管 DB 有無），就不是客戶名
         for (const [correct, typos] of Object.entries(TYPO_MAP)) {
@@ -2281,7 +2316,8 @@ function search() {
         const originalProductName = cleanLine.replace(/\d+$/, '').replace(/[\s\*\-\+\/xX×∗：:．.、，,　\t]+$/g, '').trim();
  
         // 正式解析產品名和數量；200g/100g 是包裝規格，不等於購買數量
-        const query = normalizeSearchText(originalProductName);  // 正規化（簡繁／全半形／空白）再匹配
+        // 比對前先清掉括號與多餘符號（例：「防風通聖散（錠）」→「防風通聖散錠」）
+        const query = normalizeSearchText(stripQueryNoise(originalProductName));  // 正規化（簡繁／全半形／空白）再匹配
  
         if (!query) continue;
  
