@@ -1084,8 +1084,12 @@ function getSearchIndex(source) {
 function looksLikeTabletQuery(q) {
     const normalized = normalizeSearchText(q);
     // 保留原本錠劑容錯：錠／锭、碇、碙，以及語音常見的「腚」。
-    return TABLET_SUFFIX.some(s => normalized.endsWith(normalizeSearchText(s)))
-        || normalized.endsWith('腚');
+    if (TABLET_SUFFIX.some(s => normalized.endsWith(normalizeSearchText(s)))) return true;
+    if (normalized.endsWith('腚')) return true;
+    // 「錠」在名稱中間也算錠劑查詢（如「川七錠1000T」「杜仲錠500T」結尾是顆數 T 不是錠）。
+    // 已確認科中庫 264 筆裡沒有任何品名含「錠」，所以不會把科中品項誤導到錠劑庫。
+    if (normalized.indexOf('錠') !== -1) return true;
+    return false;
 }
 
 
@@ -1680,10 +1684,12 @@ async function loadData(isBackground = false) {
         const tempKZ = parseCSV(await res1.text(), 'kezhong');
         const tempTablet = parseCSV(await res2.text(), 'tablet');
  
-        // 容錯：錠劑庫 key 若漏「錠」後綴，自動補上 alias（如「麻杏薏甘湯」→ 也建「麻杏薏甘湯錠」）
+        // 容錯：錠劑庫 key 若完全沒有「錠」字，自動補上 alias（如「麻杏薏甘湯」→ 也建「麻杏薏甘湯錠」）
+        // 只在「整串都沒有錠字」時才補；名稱中間已有錠的（如「川七錠1000T」，結尾是顆數 T）
+        // 不再重複建「川七錠1000T錠」，避免同名兩筆同分造成「有疑問、請確認」。
         const tabletSuffixChars = TABLET_SUFFIX.join('');
         for (const [name, data] of Object.entries(tempTablet)) {
-            if (!new RegExp(`[${tabletSuffixChars}]$`).test(name)) {
+            if (!new RegExp(`[${tabletSuffixChars}]`).test(name)) {
                 const alias = name + TABLET_SUFFIX[0];
                 if (!tempTablet[alias]) tempTablet[alias] = data;
             }
