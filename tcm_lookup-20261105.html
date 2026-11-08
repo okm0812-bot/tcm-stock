@@ -927,7 +927,8 @@ function stripQueryNoise(text) {
     s = s.replace(/\d+(?:\.\d+)?\s*(?:[gG]|克|毫升|[mM][lL])/g, '');
 
     // 4) 其他殘留符號換成空白，避免與品名黏在一起
-    s = s.replace(/[、，,。．.·•；;：:／/|｜\\~～\-–—＋+*＊=＝"'"`※＃#§☆★○●◎■□◆◇▲△▼▽]/g, ' ');
+    //    含 ?／？：單獨一行打「防風通聖散?」也要能查得到（? 的「有疑問」標記由主流程另行處理）
+    s = s.replace(/[、，,。．.·•；;：:／/|｜\\~～\-–—＋+*＊=＝"'"`※＃#§☆★○●◎■□◆◇▲△▼▽?？!！]/g, ' ');
 
     // 5) 壓縮空白
     return s.replace(/\s+/g, ' ').trim();
@@ -1606,16 +1607,113 @@ function hideAutocomplete() {
 }
  
 // ===== 核心功能 =====
+// ------------------------------------------------------------
+// 庫存資料本機快取
+// 開頁先用上次抓到的資料秒開，再背景向 Google Sheet 取最新；Sheet 慢或掛掉時仍可查詢
+// 注意：localStorage 只屬於「這台裝置的這個瀏覽器」，手機與電腦各存各的、不會同步；
+//       無痕模式不保留，清除瀏覽器資料也會消失。跨裝置要一致只能靠後端 Sheet。
+// ------------------------------------------------------------
+const STOCK_CACHE_KEY = 'tcm_stock_cache_v1';
+const STOCK_CACHE_TTL = 15 * 60 * 1000;   // 15 分鐘：超過仍會顯示，但標示為較舊
+
+// 讀回快取；資料不完整（任一庫為空）就當作沒有
+function readStockCache() {
+    const c = storeGet(STOCK_CACHE_KEY, null);
+    if (!c || !c.kz || !c.tablet) return null;
+    if (!Object.keys(c.kz).length || !Object.keys(c.tablet).length) return null;
+    return c;
+}
+
+// 寫入快取（失敗就算了，不影響查詢）
+function saveStockCache() {
+    storeSet(STOCK_CACHE_KEY, { ts: Date.now(), kz: DB_KZ, tablet: DB_TABLET });
+}
+
+// 把一份庫存資料套用到畫面上（線上取得與本機快取共用同一條路徑）
+function applyStockData(tempKZ, tempTablet) {
+    // 容錯：錠劑庫 key 若完全沒有「錠」字，自動補上 alias（如「麻杏薏甘湯」→ 也建「麻杏薏甘湯錠」）
+    // 只在「整串都沒有錠字」時才補；名稱中間已有錠的（如「川七錠1000T」，結尾是顆數 T）
+    // 不再重複建「川七錠1000T錠」，避免同名兩筆同分造成「有疑問、請確認」。
+    const tabletSuffixChars = TABLET_SUFFIX.join('');
+    for (const [name, data] of Object.entries(tempTablet)) {
+        if (!new RegExp(`[${tabletSuffixChars}]`).test(name)) {
+            const alias = name + TABLET_SUFFIX[0];
+            if (!tempTablet[alias]) tempTablet[alias] = data;
+        }
+    }
+
+    const kzCount = Object.keys(tempKZ).length;
+    const tabletCount = Object.keys(tempTablet).length;
+    if (!kzCount && !tabletCount) return null;
+
+    DB_KZ = tempKZ;
+    DB_TABLET = tempTablet;
+    rebuildSearchIndexes();
+    lastLoadTime = Date.now();  // 记录加载时间
+
+    // 統計各庫存狀態數量
+    const countStatus = (db) => {
+        const c = { '有货': 0, '缺货': 0, '合约': 0, '預訂': 0, '?': 0 };
+        for (const v of Object.values(db)) c[v[0]] = (c[v[0]] || 0) + 1;
+        return c;
+    };
+    const kzStat = countStatus(DB_KZ);
+    const tbStat = countStatus(DB_TABLET);
+
+    // 在 status 下方插入統計行（若不存在則建立）
+    let statLine = document.getElementById('stockStats');
+    if (!statLine) {
+        const status = document.getElementById('status');
+        statLine = document.createElement('div');
+        statLine.id = 'stockStats';
+        statLine.style.cssText = 'font-size:13px;margin-top:6px;line-height:2;';
+        status.parentNode.insertBefore(statLine, status.nextSibling);
+    }
+    const pill = (label, value, bg, fg) =>
+        `<span style="display:inline-block;background:${bg};color:${fg};font-weight:700;padding:2px 8px;border-radius:10px;margin-right:4px;">${label} ${value}</span>`;
+    statLine.innerHTML =
+        `<span style="color:#555;margin-right:4px;">科中：</span>`
+        + pill('有貨', kzStat['有货'], '#00e676', '#00390f')
+        + pill('缺貨', kzStat['缺货'], '#ff5252', '#4a0000')
+        + pill('合約', kzStat['合约'], '#ffc400', '#4a3700')
+        + pill('預訂', kzStat['預訂'], '#7c4dff', '#1a0057')
+        + `<br><span style="color:#555;margin-right:4px;">錠劑：</span>`
+        + pill('有貨', tbStat['有货'], '#00e676', '#00390f')
+        + pill('缺貨', tbStat['缺货'], '#ff5252', '#4a0000')
+        + pill('合約', tbStat['合约'], '#ffc400', '#4a3700')
+        + pill('預訂', tbStat['預訂'], '#7c4dff', '#1a0057');
+
+    return { kzCount, tabletCount };
+}
+
 async function loadData(isBackground = false) {
     const btn = document.getElementById('refreshBtn');
     const status = document.getElementById('status');
     const searchBtn = document.getElementById('searchBtn');
- 
+
+    // 1) 先用本機快取秒開（只在 DB 還空著時套用，避免蓋掉剛抓到的資料）
+    let appliedCache = false;
+    const cached = readStockCache();
+    if (cached && !Object.keys(DB_KZ).length) {
+        const info = applyStockData(cached.kz, cached.tablet);
+        if (info) {
+            appliedCache = true;
+            const ageMs = Date.now() - (cached.ts || 0);
+            const timeStr = new Date(cached.ts || Date.now()).toLocaleTimeString();
+            const stale = ageMs > STOCK_CACHE_TTL;
+            const ageStr = stale ? '已超過 15 分鐘' : Math.max(1, Math.round(ageMs / 60000)) + ' 分鐘前';
+            status.textContent = `⚡ 本機快取（${timeStr}，${ageStr}）· 背景更新中…（科中${info.kzCount}項/錠劑${info.tabletCount}項）`;
+            status.style.color = '#8a5a00';
+        }
+    }
+
     btn.disabled = true;
     btn.textContent = '載入中...';
     if (!isBackground) searchBtn.disabled = true;
-    status.style.color = '';
-    if (!isBackground) status.textContent = '載入中（讀取 Google Sheet）...';
+    if (!isBackground && !appliedCache) {
+        status.style.color = '';
+        status.textContent = '載入中（讀取 Google Sheet）...';
+    }
 
     const fetchWithTimeout = (url, ms = 20000) => {
         const ctrl = new AbortController();
@@ -1623,75 +1721,29 @@ async function loadData(isBackground = false) {
         return fetch(url, { signal: ctrl.signal, cache: 'no-store' })
             .finally(() => clearTimeout(timer));
     };
- 
+
     try {
         // 同时加载两个 Sheet（逾時 20 秒，避免一直卡在「載入中」）
         const [res1, res2] = await Promise.all([
             fetchWithTimeout(SHEET_URL_KEZHONG),
             fetchWithTimeout(SHEET_URL_TABLET)
         ]);
- 
+
         if (!res1.ok) throw new Error(`科中Sheet讀取失敗 (${res1.status})`);
         if (!res2.ok) throw new Error(`錠劑Sheet讀取失敗 (${res2.status})`);
- 
+
         // 解析两个 Sheet（先存 temp 再 assign，避免解析中途查詢讀到半成品）
         const tempKZ = parseCSV(await res1.text(), 'kezhong');
         const tempTablet = parseCSV(await res2.text(), 'tablet');
- 
-        // 容錯：錠劑庫 key 若完全沒有「錠」字，自動補上 alias（如「麻杏薏甘湯」→ 也建「麻杏薏甘湯錠」）
-        // 只在「整串都沒有錠字」時才補；名稱中間已有錠的（如「川七錠1000T」，結尾是顆數 T）
-        // 不再重複建「川七錠1000T錠」，避免同名兩筆同分造成「有疑問、請確認」。
-        const tabletSuffixChars = TABLET_SUFFIX.join('');
-        for (const [name, data] of Object.entries(tempTablet)) {
-            if (!new RegExp(`[${tabletSuffixChars}]`).test(name)) {
-                const alias = name + TABLET_SUFFIX[0];
-                if (!tempTablet[alias]) tempTablet[alias] = data;
-            }
-        }
- 
-        DB_KZ = tempKZ;
-        DB_TABLET = tempTablet;
-        rebuildSearchIndexes();
- 
-        const kzCount = Object.keys(DB_KZ).length;
-        const tabletCount = Object.keys(DB_TABLET).length;
-        lastLoadTime = Date.now();  // 记录加载时间
 
-        if (!kzCount && !tabletCount) {
-            throw new Error('Sheet 讀到 0 筆資料，請確認權限為「任何人可檢視」');
-        }
- 
-        // 統計各庫存狀態數量
-        const countStatus = (db) => {
-            const c = { '有货': 0, '缺货': 0, '合约': 0, '預訂': 0, '?': 0 };
-            for (const v of Object.values(db)) c[v[0]] = (c[v[0]] || 0) + 1;
-            return c;
-        };
-        const kzStat = countStatus(DB_KZ);
-        const tbStat = countStatus(DB_TABLET);
-        status.textContent = `✅ 資料已更新: ${new Date().toLocaleTimeString()} (科中${kzCount}項/錠劑${tabletCount}項)`;
-        // 在 status 下方插入統計行（若不存在則建立）
-        let statLine = document.getElementById('stockStats');
-        if (!statLine) {
-            statLine = document.createElement('div');
-            statLine.id = 'stockStats';
-            statLine.style.cssText = 'font-size:13px;margin-top:6px;line-height:2;';
-            status.parentNode.insertBefore(statLine, status.nextSibling);
-        }
-        const pill = (label, value, bg, fg) =>
-            `<span style="display:inline-block;background:${bg};color:${fg};font-weight:700;padding:2px 8px;border-radius:10px;margin-right:4px;">${label} ${value}</span>`;
-        statLine.innerHTML =
-            `<span style="color:#555;margin-right:4px;">科中：</span>`
-            + pill('有貨', kzStat['有货'], '#00e676', '#00390f')
-            + pill('缺貨', kzStat['缺货'], '#ff5252', '#4a0000')
-            + pill('合約', kzStat['合约'], '#ffc400', '#4a3700')
-            + pill('預訂', kzStat['預訂'], '#7c4dff', '#1a0057')
-            + `<br><span style="color:#555;margin-right:4px;">錠劑：</span>`
-            + pill('有貨', tbStat['有货'], '#00e676', '#00390f')
-            + pill('缺貨', tbStat['缺货'], '#ff5252', '#4a0000')
-            + pill('合約', tbStat['合约'], '#ffc400', '#4a3700')
-            + pill('預訂', tbStat['預訂'], '#7c4dff', '#1a0057');
- 
+        const info = applyStockData(tempKZ, tempTablet);
+        if (!info) throw new Error('Sheet 讀到 0 筆資料，請確認權限為「任何人可檢視」');
+
+        saveStockCache();   // 成功才更新快取
+
+        status.style.color = '';
+        status.textContent = `✅ 資料已更新: ${new Date().toLocaleTimeString()} (科中${info.kzCount}項/錠劑${info.tabletCount}項)`;
+
     } catch (e) {
         console.error('載入失敗:', e);
         let errMsg = e.message || '未知錯誤';
@@ -1699,10 +1751,15 @@ async function loadData(isBackground = false) {
         if (/Failed to fetch|NetworkError|Load failed/i.test(errMsg)) {
             errMsg = '無法連線 Google Sheet（網路或權限問題）。請用 https 網頁開啟，不要直接用本機檔案雙擊開啟';
         }
-        status.textContent = '❌ 載入失敗：' + errMsg;
-        status.style.color = '#ff4444';
-        // 只有初次載入（DB 是空的）才覆蓋 result div，避免背景刷新失敗時清掉用戶查詢結果
-        if (!Object.keys(DB_KZ).length) {
+
+        if (Object.keys(DB_KZ).length) {
+            // 已有資料（本次由本機快取載入或先前載入過）→ 不清畫面，只提示更新失敗，查詢照常可用
+            const timeStr = new Date(lastLoadTime || Date.now()).toLocaleTimeString();
+            status.textContent = `⚠️ 無法取得最新資料（${errMsg}）· 目前使用 ${timeStr} 的資料，查詢不受影響`;
+            status.style.color = '#8a5a00';
+        } else {
+            status.textContent = '❌ 載入失敗：' + errMsg;
+            status.style.color = '#ff4444';
             const sheetId = (SHEET_URL_KEZHONG.match(/\/d\/[\w-]+/) || [''])[0];
             document.getElementById('result').innerHTML = `<div class="error">❌ 載入失敗：${escapeHTML(errMsg)}<br>請確認 Google Sheet 仍是「任何人可檢視」<br><small>${escapeHTML(sheetId)}</small></div>`;
         }
