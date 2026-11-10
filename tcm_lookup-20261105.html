@@ -424,7 +424,7 @@ const TYPO_MAP = {
  
     // === 10劃 ===
     '桂枝茯苓丸': ['桂枝茯苓丸', '桂枝茯苓'],
-    '柴胡加龍骨牡蠣湯': ['柴胡加龍骨牡蠣湯', '柴龍牡', '柴胡加龍骨', '柴胡加龙骨牡蛎'],
+    '柴胡加龍骨牡蠣湯': ['柴胡加龍骨牡蠣湯', '柴龍牡', '柴胡加龍骨', '柴胡加龙骨牡蛎', '柴胡加龍牡', '柴胡加龍骨牡蠣'],
     '柴胡清肝湯': ['柴胡清肝湯', '柴胡清肝'],
     '桃紅四物湯': ['桃紅四物湯', '桃紅四物'],
     '消風散': ['消風散', '消風', '消风'],
@@ -949,15 +949,25 @@ function stripLineTail(s) {
     return String(s).replace(TAIL_PUNCT_REG, '').replace(/[\s　]+$/g, '');
 }
 
-// 單行多品項：使用者有時把多個品項打在同一行（「桂枝茯苓丸3、折衝飲3、大柴胡湯2」）。
-// 只有「每一段都以數字結尾」（或「括號內數字結尾」，如「折衝飲（2）」）才拆行，
+// 單行多品項：使用者有時把多個品項打在同一行
+// （「桂枝茯苓丸3、折衝飲3、大柴胡湯2」或「大黃，桑白皮」）。
+// 只有在「每段都以數量結尾」或「每段都是庫內品項」時才拆行，
 // 避免把「桂枝茯苓丸、3」這種「品名、數量」誤拆。
 function splitMultiItemLine(line) {
     const segs = String(line).split(/[、，,;；]/).map(s => s.trim()).filter(Boolean);
     if (segs.length < 2) return [line];
     const endsWithQty = s => /(\d+)\s*(?:[瓶罐包盒顆粒])?\s*$/.test(s)
         || /[（(]\s*\d{1,4}\s*(?:瓶|罐|包|盒|顆|粒)?\s*[）)]$/.test(s);
-    return segs.every(endsWithQty) ? segs : [line];
+    if (segs.every(endsWithQty)) return segs;
+    // 每段都認得出是庫內品項（例：「大黃，桑白皮」兩味藥寫在同一行）→ 也拆，
+    // 這樣後面的「各30」才能逐項分配數量
+    const isKnownProduct = s => {
+        const n = normalizeSearchText(stripQueryNoise(s));
+        if (!n) return false;
+        return !!(DB_KZ[n] || DB_TABLET[n]) || (typeof TYPO_LOOKUP !== 'undefined' && TYPO_LOOKUP.has(n));
+    };
+    if (segs.every(isKnownProduct)) return segs;
+    return [line];
 }
 
 // 括號內「純數字」視為數量：桂枝茯苓丸(3)、桂枝茯苓丸（3瓶）
@@ -2300,9 +2310,12 @@ function search() {
         while (j > prevGeIdx) {
             const lj = lines[j].trim();
             if (lj.startsWith('@')) break;      // 碰到 @客戶名，停止
-            if (SPEC_KW_PRE.test(lj)) break;    // 碰到規格行，停止
-            if (isLikelyCustomerOrRemark(lj)) break;  // 碰到非@客戶名/備註，停止
-            if (!parseNameQty(lj).hasQty) {
+            if (SPEC_KW_PRE.test(stripLineTail(lj))) break;    // 碰到規格行，停止
+            if (parseNameQty(lj).hasQty) { j--; continue; }    // 這行自己已寫數量，跳過
+            // 只有「認得出是品項」的行才吃這個數量；認不出的行（縮寫、亂碼、備註）直接略過，
+            // 不中斷回溯，避免中間夾一個查不到的名字就讓前面正確的品項全部拿不到數量
+            const m = findBestMatchV2(stripQueryNoise(parseNameQty(lj).name));
+            if (m) {
                 lines[j] = lj + ' ' + geQty;    // 追加數量（空格分隔）
             }
             j--;
