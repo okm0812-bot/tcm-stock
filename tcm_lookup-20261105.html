@@ -941,9 +941,25 @@ function stripQueryNoise(text) {
 // ------------------------------------------------------------
 const QTY_TRAIL_SEP_REG = /(?:[\s\*\-\+\/xX×∗：:．.、，,　\t]+)(\d+)\s*(?:[瓶罐包盒顆粒])?\s*$/i;
 const QTY_TRAIL_BARE_REG = /(\d+)\s*(?:[瓶罐包盒顆粒])?\s*$/;
+// 行尾標點與空白（使用者常打成「桂枝茯苓丸3、」這種結尾帶「、」的寫法）
+const TAIL_PUNCT_REG = /[\s　、，,。．.；;：:…·\*＋]+$/;
+
+// 去掉行尾的標點與空白，讓「品名＋數量」的數字回到字串尾端
+function stripLineTail(s) {
+    return String(s).replace(TAIL_PUNCT_REG, '').replace(/[\s　]+$/g, '');
+}
+
+// 單行多品項：使用者有時把多個品項打在同一行（「桂枝茯苓丸3、折衝飲3、大柴胡湯2」）。
+// 只有「每一段都以數字結尾」才拆行，避免把「桂枝茯苓丸、3」這種「品名、數量」誤拆。
+function splitMultiItemLine(line) {
+    const segs = String(line).split(/[、，,;；]/).map(s => s.trim()).filter(Boolean);
+    if (segs.length < 2) return [line];
+    const allEndWithQty = segs.every(s => /(\d+)\s*(?:[瓶罐包盒顆粒])?\s*$/.test(s));
+    return allEndWithQty ? segs : [line];
+}
 
 function parseNameQty(line) {
-    const lineForParse = String(line).replace(/[?？]/g, '').trim();
+    const lineForParse = stripLineTail(String(line).replace(/[?？]/g, ''));
     const trailingMatch = lineForParse.match(QTY_TRAIL_SEP_REG) || lineForParse.match(QTY_TRAIL_BARE_REG);
     const qtyParsed = trailingMatch ? parseInt(trailingMatch[1], 10) : 1;
     const cleanLine = lineForParse
@@ -1355,12 +1371,9 @@ function findBestMatchV2(query) {
     const amb = resolveAmbiguousTerms(q);
     if (amb) return amb;
 
-    const kzResult = findBestMatchInKZ(q);
-    if (kzResult) return kzResult;
-
-    // 科中查不到時，再查一次錠劑庫（如輸入「川七」省略錠字，實際品項是「川七錠1000T」）
-    // 只補救原本會顯示「無生產」的情況；科中有命中時完全不受影響。
-    return findBestMatchInTablet(q);
+    // 只查科中庫。沒打「錠」字就不往錠劑庫找（打「川七」「山楂」「五味消毒」一律以科中結果為準，
+    // 查不到就是無生產，不會改抓錠劑版；要查錠劑請在品名含「錠」）。
+    return findBestMatchInKZ(q);
 }
 
 // ===== 自動補全功能（科中資料庫）=====
@@ -2206,10 +2219,14 @@ function search() {
     const inputEl = document.getElementById('input');
     // 處理貼上時可能攜帶的 \r\n 換行符
     // 先保留所有行，用於偵測「其它」分隔關鍵字：「其它」行以後的品項不做庫存比對，直接輸出
-    const rawLines = inputEl.value.replace(/\r\n/g, '\n').trim().split('\n').map(l => toHalfWidthDigits(l.trim()));
+    const rawLines = inputEl.value.replace(/\r\n/g, '\n').trim().split('\n')
+        .map(l => toHalfWidthDigits(l.trim()))
+        .flatMap(l => splitMultiItemLine(l))   // 單行多品項自動拆行（見 splitMultiItemLine）
+        .map(l => l.trim())
+        .filter(Boolean);
     let passthroughLines = [];
-    // 偵測「其它」（也兼容「其他」）作為分隔標記
-    const separatorIdx = rawLines.findIndex(l => /^(其它|其他)\s*$/i.test(l));
+    // 偵測「其它」（也兼容「其他」）作為分隔標記（容忍行尾標點，例如「其它、」）
+    const separatorIdx = rawLines.findIndex(l => /^(其它|其他)$/i.test(stripLineTail(l)));
     let lines;
     if (separatorIdx !== -1) {
         lines = rawLines.slice(0, separatorIdx).filter(Boolean);
@@ -2218,7 +2235,7 @@ function search() {
         lines = rawLines.filter(Boolean);
     }
  
-    if (!lines.length) {
+    if (!lines.length && !passthroughLines.length) {
         inputEl.focus();
         return;
     }
@@ -2230,7 +2247,7 @@ function search() {
         // 偵測客戶名行：不含數量、不在庫存中、不以@開頭、不是規格、不是各N → 視為客戶名/備註
     const isLikelyCustomerOrRemark = (s) => {
         const t = s.trim();
-        if (t.startsWith('@') || GE_REG.test(t) || SPEC_KW_PRE.test(t)) return false;
+        if (t.startsWith('@') || GE_REG.test(stripLineTail(t)) || SPEC_KW_PRE.test(stripLineTail(t))) return false;
         if (/[\d瓶罐包盒顆粒]/.test(t)) return false; // 含數量或單位 → 不是客戶名
         const trad = toTraditional(stripQueryNoise(t)); // 先清括號與多餘符號再查庫存（例：「防風通聖散（錠）」）
         if (DB_KZ[trad] || DB_TABLET[trad]) return false; // 庫存有此品項 → 不是客戶名
@@ -2252,7 +2269,7 @@ function search() {
     // 先找出所有「各N」行的索引和數量
     const gePositions = [];
     for (let i = 0; i < lines.length; i++) {
-        const geMatch = lines[i].match(GE_REG);
+        const geMatch = stripLineTail(lines[i]).match(GE_REG);
         if (geMatch) gePositions.push({ index: i, qty: geMatch[1] });
     }
     // 從後往前處理（避免 splice 造成索引偏移）
@@ -2281,8 +2298,8 @@ function search() {
     for (const line of lines) {
         lineIndex++;
         // 跳过规格行（仍保留到 results，排序後再輸出）
-        if (skipKeywords.includes(line.toLowerCase())) {
-            results.push({ displayName: line.trim(), outputName: line.trim(), qty: 1, status: 'specification', source: 'spec' });
+        if (skipKeywords.includes(stripLineTail(line).toLowerCase())) {
+            results.push({ displayName: stripLineTail(line), outputName: stripLineTail(line), qty: 1, status: 'specification', source: 'spec' });
             continue;
         }
  
@@ -2290,7 +2307,7 @@ function search() {
         // 入口1：以 @ 開頭標示，例如 @王中醫 → 輸出 [王中醫]
         // 入口2：第一行不含數量、不在庫存中 → 視為客戶名
         if (line.trim().startsWith('@')) {
-            const customerName = line.trim().substring(1).trim();
+            const customerName = stripLineTail(line.trim().substring(1).trim());
             if (customerName) {
                 // copyText 改由排序後統一組裝
                 results.push({ displayName: customerName, outputName: customerName, qty: 1, status: 'customer-name', source: 'note' });
@@ -2300,7 +2317,7 @@ function search() {
         // 入口2：第一行無@前缀，但看起來是客戶名
         if (lineIndex === 1 && isLikelyCustomerOrRemark(line.trim())) {
             // copyText 改由排序後統一組裝
-            results.push({ displayName: line.trim(), outputName: line.trim(), qty: 1, status: 'customer-name', source: 'note' });
+            results.push({ displayName: stripLineTail(line.trim()), outputName: stripLineTail(line.trim()), qty: 1, status: 'customer-name', source: 'note' });
             continue;
         }
  
@@ -2309,12 +2326,12 @@ function search() {
         // 白名单：包含这些关键词的行不当作规格关键词，直接匹配库存
  
         const SPEC_KW_REG = /^(100G|200G|單方|複方|錠劑|科中)\s*(?:\+?\d+)?\s*$/i;
-        const isSpecification = SPEC_KW_REG.test(line.trim());
+        const isSpecification = SPEC_KW_REG.test(stripLineTail(line));
         
         if (isSpecification) {
             // 规格关键词直接输出，不进行产品匹配
             // copyText 改由排序後統一組裝
-            const specQtyMatch = line.match(/\+?(\d+)$/);
+            const specQtyMatch = stripLineTail(line).match(/\+?(\d+)$/);
             const specQty = specQtyMatch ? parseInt(specQtyMatch[1]) : 1;
             results.push({ displayName: line.trim(), outputName: line.trim(), qty: specQty, status: 'specification', source: 'spec' });
             continue;
