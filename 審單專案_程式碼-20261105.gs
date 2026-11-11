@@ -8,9 +8,10 @@ const LOOKBACK_ROWS = 300;         // 往回檢查幾筆（效能與準確度平
 const SNAPSHOT_SHEET = '庫存快照';
 const CHANGES_SHEET = '異動紀錄';
 const TZ = 'Asia/Taipei';
-// 異動紀錄只保留一週：以「每週五 20:00（台北時間）」為換週分界，換週後只留下最後一批當起點
+// 異動紀錄只保留一週：以「每週五 18:00（台北時間）」為換週分界。
+// 週五 18:00 之後的第一次更新就是新的一週的第一批（換週時先清掉更早的紀錄再寫入）。
 const WEEK_RESET_DOW = 5;    // 5 = 週五
-const WEEK_RESET_HOUR = 20;  // 20:00 之後算新的一週
+const WEEK_RESET_HOUR = 18;  // 18:00 之後算新的一週（與前端作業時段 18:00~23:00 對齊）
 
 // 前端庫存表
 const KEZHONG_CSV = 'https://docs.google.com/spreadsheets/d/1ekYUBtuQNjLB0RpWGCPJN7409sL74tqT36NfzUIM6o4/gviz/tq?tqx=out:csv';
@@ -620,7 +621,8 @@ function normalizeDate_(value) {
 }
 
 // 目前這一週的起始日（yyyy-MM-dd）。
-// 分界固定在每週五 20:00：週五 20:00 之前仍算上一週，之後才算新的一週。
+// 分界固定在每週五 18:00：週五 18:00 之前仍算上一週，之後才算新的一週；
+// 週五 18:00 之後的第一次更新，就是新一週的第一批異動。
 function getWeekStart_(now) {
   now = now || new Date();
   var y = Number(Utilities.formatDate(now, TZ, 'yyyy'));
@@ -629,7 +631,7 @@ function getWeekStart_(now) {
   var h = Number(Utilities.formatDate(now, TZ, 'HH'));
   var dow = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();   // 0=週日、5=週五
   var back = (dow - WEEK_RESET_DOW + 7) % 7;                // 距離上一個週五幾天
-  if (back === 0 && h < WEEK_RESET_HOUR) back = 7;           // 本週五還沒過 20:00 → 仍屬上一週
+  if (back === 0 && h < WEEK_RESET_HOUR) back = 7;           // 本週五還沒過 18:00 → 仍屬上一週
   return Utilities.formatDate(new Date(Date.UTC(y, mo - 1, d - back)), TZ, 'yyyy-MM-dd');
 }
 
@@ -695,7 +697,7 @@ function getSnapshot(e) {
 }
 
 // 本週所有異動（「異動紀錄」分頁中，換週分界日之後的全部列），依日期分組給前端常駐顯示用。
-// 記錄本身是往後追加、不覆蓋；每週五 20:00 之後換週，只保留分界前最後一批當起點。
+// 記錄本身是往後追加、不覆蓋；每週五 18:00 之後換週，只保留分界前最後一批當起點。
 function getLatestChanges() {
   var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   var changesSheet = getOrCreateSheet(ss, CHANGES_SHEET, ['日期', '資料庫類型', '品名', '舊狀態', '新狀態', '異動類型']);

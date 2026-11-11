@@ -2112,7 +2112,7 @@ async function computeLocalChanges() {
 // 把異動結果畫在頁面下方的「本週異動」區塊（不再彈窗）。
 // record 可能是單一筆（date + added/removed/statusChanged），也可能是含 groups 的
 // 「本週多天」紀錄（後端 getchanges 回傳）。異動紀錄是往後追加、不覆蓋，
-// 每週五 20:00 換週後才只保留分界前最後一批。
+// 每週五 18:00 換週後才只保留分界前最後一批；週五 18:00 之後的第一次更新是新的一週第一批。
 function renderChangeSection(record, options = {}) {
     const section = document.getElementById('changeSection');
     if (!section) return;
@@ -2155,7 +2155,7 @@ function renderChangeSection(record, options = {}) {
 
     // 快照只保留最新一份，基準日與異動日同一天就不重複顯示
     if (weekStart) {
-        html += `<div class="change-date">本期起始 ${escapeHTML(weekStart)}（每週五 20:00 換週）</div>`;
+        html += `<div class="change-date">本期起始 ${escapeHTML(weekStart)}（每週五 18:00 換週）</div>`;
     } else if (record.baseDate && record.baseDate !== record.date) {
         html += `<div class="change-date">基準日 ${escapeHTML(record.baseDate)} → 異動日 ${escapeHTML(record.date)}</div>`;
     }
