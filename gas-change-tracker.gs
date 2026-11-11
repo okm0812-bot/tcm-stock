@@ -188,20 +188,23 @@ function getLatestChanges() {
   const weekStart = getWeekStart_();
   const data = changesSheet.getDataRange().getValues();
   const emptyChanges = { added: [], removed: [], statusChanged: [] };
-  const empty = { date: '', baseDate: '', weekStart, groups: [], changes: emptyChanges };
+  const empty = { date: '', baseDate: '', weekStart, groups: [], anchor: null, changes: emptyChanges };
 
   if (data.length <= 1) {
     return ContentService.createTextOutput(JSON.stringify(empty))
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  const byDate = {};
+  const byDate = {};      // 本週（分界日之後）
+  const oldByDate = {};   // 分界日之前（換週時只保留最後一批，當作本期起點）
   let latestDate = '';
   for (let i = 1; i < data.length; i++) {
     const d = normalizeDate_(data[i][0]);
-    if (!d || d < weekStart) continue;   // 分界日之前的舊紀錄不顯示（換週時會實際清掉）
+    if (!d) continue;
 
-    if (!byDate[d]) byDate[d] = { added: [], removed: [], statusChanged: [] };
+    // 分界日之前的舊紀錄不算「本週」，但最後一批要留下來顯示成起點
+    const bucket = (d >= weekStart) ? byDate : oldByDate;
+    if (!bucket[d]) bucket[d] = { added: [], removed: [], statusChanged: [] };
 
     const db = data[i][1] === '錠劑' ? '錠劑' : '科中';
     const name = data[i][2] ? data[i][2].toString() : '';
@@ -210,16 +213,31 @@ function getLatestChanges() {
     const type = data[i][5] ? data[i][5].toString() : '';
 
     if (type === '新增') {
-      byDate[d].added.push({ name, status: newStatus, db });
+      bucket[d].added.push({ name, status: newStatus, db });
     } else if (type === '消失') {
-      byDate[d].removed.push({ name, status: oldStatus, db });
+      bucket[d].removed.push({ name, status: oldStatus, db });
     } else {
-      byDate[d].statusChanged.push({ name, oldStatus, newStatus, db });
+      bucket[d].statusChanged.push({ name, oldStatus, newStatus, db });
     }
-    if (d > latestDate) latestDate = d;
+    if (d >= weekStart && d > latestDate) latestDate = d;
+  }
+
+  // 分界日之前的最後一批：換週時保留在表裡當起點，順便回傳讓畫面顯示
+  let anchor = null;
+  const anchorDates = Object.keys(oldByDate).sort();
+  if (anchorDates.length) {
+    const anchorDate = anchorDates[anchorDates.length - 1];
+    anchor = {
+      date: anchorDate,
+      added: oldByDate[anchorDate].added,
+      removed: oldByDate[anchorDate].removed,
+      statusChanged: oldByDate[anchorDate].statusChanged
+    };
   }
 
   if (!latestDate) {
+    // 本週還沒有新異動：仍把換週保留的最後一批回傳，畫面才有起點可對照
+    empty.anchor = anchor;
     return ContentService.createTextOutput(JSON.stringify(empty))
       .setMimeType(ContentService.MimeType.JSON);
   }
@@ -245,6 +263,7 @@ function getLatestChanges() {
     baseDate,
     weekStart,
     groups,
+    anchor,                       // 換週後保留的最後一批（起點），前端另外顯示
     changes: byDate[latestDate] || emptyChanges   // 相容舊版前端：只給最新一天
   })).setMimeType(ContentService.MimeType.JSON);
 }

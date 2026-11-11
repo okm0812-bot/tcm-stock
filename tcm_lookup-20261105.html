@@ -2021,7 +2021,8 @@ async function fetchLatestRecord() {
         const res = await fetch(CHANGE_GAS_URL + '?action=getchanges', { cache: 'no-store' });
         if (!res.ok) return null;
         const data = await res.json();
-        if (!data || data.error || !data.date) return null;
+        if (!data || data.error) return null;
+        if (!data.date && !(data.anchor && data.anchor.date)) return null;
         const changes = data.changes || {};
         const groups = Array.isArray(data.groups)
             ? data.groups.map(g => ({
@@ -2031,16 +2032,26 @@ async function fetchLatestRecord() {
                 statusChanged: g.statusChanged || []
             })).filter(g => countChanges(g) > 0)
             : [];
+        // 換週後保留的最後一批（起點），有就一起顯示
+        const anchor = (data.anchor && data.anchor.date)
+            ? {
+                date: normDate(data.anchor.date),
+                added: data.anchor.added || [],
+                removed: data.anchor.removed || [],
+                statusChanged: data.anchor.statusChanged || []
+            }
+            : null;
         const record = {
             date: normDate(data.date),
             baseDate: normDate(data.baseDate),
             weekStart: normDate(data.weekStart),
             groups,
+            anchor,
             added: changes.added || [],
             removed: changes.removed || [],
             statusChanged: changes.statusChanged || []
         };
-        return (countChanges(record) > 0 || groups.length) ? record : null;
+        return (countChanges(record) > 0 || groups.length || (anchor && countChanges(anchor) > 0)) ? record : null;
     } catch (e) {
         return null;
     }
@@ -2109,10 +2120,44 @@ async function computeLocalChanges() {
     return { ...changes, snapshotDate: savedDate };
 }
 
+// 單一天的各類異動明細（新增／消失／狀態變化），本週各天與「上一批」共用
+function renderChangeGroupItems(g) {
+    let html = '';
+    if (g.added && g.added.length) {
+        html += `<div class="change-group-title" style="color:#155724">🆕 新增品項 (${g.added.length})</div>`;
+        for (const item of g.added) {
+            html += '<div class="change-item added">'
+                + `<span class="change-name">${escapeHTML(item.name)}</span>`
+                + `<span class="change-detail">${escapeHTML(item.db)} · ${escapeHTML(statusLabel(item.status))}</span>`
+                + '</div>';
+        }
+    }
+    if (g.removed && g.removed.length) {
+        html += `<div class="change-group-title" style="color:#721c24">🗑️ 消失品項 (${g.removed.length})</div>`;
+        for (const item of g.removed) {
+            html += '<div class="change-item removed">'
+                + `<span class="change-name">${escapeHTML(item.name)}</span>`
+                + `<span class="change-detail">${escapeHTML(item.db)} · ${escapeHTML(statusLabel(item.status))}</span>`
+                + '</div>';
+        }
+    }
+    if (g.statusChanged && g.statusChanged.length) {
+        html += `<div class="change-group-title" style="color:#856404">🔄 狀態變化 (${g.statusChanged.length})</div>`;
+        for (const item of g.statusChanged) {
+            html += '<div class="change-item status-change">'
+                + `<span class="change-name">${escapeHTML(item.name)}</span>`
+                + `<span class="change-detail">${escapeHTML(item.db)} · ${escapeHTML(statusLabel(item.oldStatus))} → ${escapeHTML(statusLabel(item.newStatus))}</span>`
+                + '</div>';
+        }
+    }
+    return html;
+}
+
 // 把異動結果畫在頁面下方的「本週異動」區塊（不再彈窗）。
 // record 可能是單一筆（date + added/removed/statusChanged），也可能是含 groups 的
 // 「本週多天」紀錄（後端 getchanges 回傳）。異動紀錄是往後追加、不覆蓋，
 // 每週五 18:00 換週後才只保留分界前最後一批；週五 18:00 之後的第一次更新是新的一週第一批。
+// 換週後保留的那一批（anchor）也會顯示在清單最後，標成「上一批（換週起點）」。
 function renderChangeSection(record, options = {}) {
     const section = document.getElementById('changeSection');
     if (!section) return;
@@ -2123,7 +2168,13 @@ function renderChangeSection(record, options = {}) {
         : (record ? [record] : []);
     const total = groups.reduce((n, g) => n + countChanges(g), 0);
 
-    if (!record || total === 0) {
+    // 換週後保留的最後一批（起點），不列入本週統計
+    const anchor = (record && record.anchor && countChanges(record.anchor) > 0) ? record.anchor : null;
+    const anchorCount = anchor ? countChanges(anchor) : 0;
+    const weekStart = normDate((record && record.weekStart) || '');
+    const hasWeekGroups = total > 0;
+
+    if (!record || (total === 0 && !anchor)) {
         section.innerHTML = '<div class="change-header">'
             + '<span class="change-title">📋 本週異動</span>'
             + '<span class="change-meta">尚無紀錄</span>'
@@ -2144,8 +2195,13 @@ function renderChangeSection(record, options = {}) {
     }
 
     const multiDay = groups.length > 1;
-    const metaText = (multiDay ? `${groups.length} 天 · ` : '') + `共 ${total} 項`;
-    const weekStart = normDate(record.weekStart || '');
+    let metaText;
+    if (hasWeekGroups) {
+        metaText = (multiDay ? `${groups.length} 天 · ` : '') + `共 ${total} 項`;
+        if (anchor) metaText += `（另保留上一批 ${anchorCount} 項）`;
+    } else {
+        metaText = `本週尚無異動（保留上一批 ${anchorCount} 項）`;
+    }
     let html = '<div class="change-header">'
         + '<span class="change-title">📋 本週異動</span>'
         + (options.isNew ? '<span class="change-new-tag">本次新異動</span>' : '')
@@ -2163,44 +2219,30 @@ function renderChangeSection(record, options = {}) {
 
     html += `<div class="change-body${changeCollapsed ? ' hidden' : ''}"><div class="change-list">`;
 
+    if (!hasWeekGroups) {
+        html += '<div class="change-empty" style="padding:8px 0">本週（換週後）還沒有新的異動紀錄，下面是換週時保留的最後一批。</div>';
+    }
+
     for (const g of groups) {
         if (multiDay) {
             html += `<div class="change-date" style="margin:12px 0 2px;font-weight:bold">📅 ${escapeHTML(g.date)}（${countChanges(g)} 項）</div>`;
         }
+        html += renderChangeGroupItems(g);
+    }
 
-        if (g.added && g.added.length) {
-            html += `<div class="change-group-title" style="color:#155724">🆕 新增品項 (${g.added.length})</div>`;
-            for (const item of g.added) {
-                html += '<div class="change-item added">'
-                    + `<span class="change-name">${escapeHTML(item.name)}</span>`
-                    + `<span class="change-detail">${escapeHTML(item.db)} · ${escapeHTML(statusLabel(item.status))}</span>`
-                    + '</div>';
-            }
-        }
-
-        if (g.removed && g.removed.length) {
-            html += `<div class="change-group-title" style="color:#721c24">🗑️ 消失品項 (${g.removed.length})</div>`;
-            for (const item of g.removed) {
-                html += '<div class="change-item removed">'
-                    + `<span class="change-name">${escapeHTML(item.name)}</span>`
-                    + `<span class="change-detail">${escapeHTML(item.db)} · ${escapeHTML(statusLabel(item.status))}</span>`
-                    + '</div>';
-            }
-        }
-
-        if (g.statusChanged && g.statusChanged.length) {
-            html += `<div class="change-group-title" style="color:#856404">🔄 狀態變化 (${g.statusChanged.length})</div>`;
-            for (const item of g.statusChanged) {
-                html += '<div class="change-item status-change">'
-                    + `<span class="change-name">${escapeHTML(item.name)}</span>`
-                    + `<span class="change-detail">${escapeHTML(item.db)} · ${escapeHTML(statusLabel(item.oldStatus))} → ${escapeHTML(statusLabel(item.newStatus))}</span>`
-                    + '</div>';
-            }
-        }
+    // 換週時保留的最後一批：只當對照起點，不算在本週統計裡
+    if (anchor) {
+        html += `<div class="change-date" style="margin:16px 0 2px;font-weight:bold;color:#6c757d">📌 上一批（換週起點） ${escapeHTML(anchor.date)}（${anchorCount} 項）</div>`;
+        html += '<div class="change-note" style="margin:0 0 6px">換週時保留的最後一批，僅供對照，不列入本週統計。</div>';
+        html += renderChangeGroupItems(anchor);
     }
 
     html += '</div></div>';
-    html += `<div class="change-footer">共 ${total} 項異動（新增 ${sum.added} · 消失 ${sum.removed} · 狀態變化 ${sum.statusChanged}）</div>`;
+    let footer = hasWeekGroups
+        ? `本週共 ${total} 項異動（新增 ${sum.added} · 消失 ${sum.removed} · 狀態變化 ${sum.statusChanged}）`
+        : '本週尚無新異動';
+    if (anchor) footer += ` · 另保留上一批 ${anchorCount} 項`;
+    html += `<div class="change-footer">${escapeHTML(footer)}</div>`;
 
     section.innerHTML = html;
 }
