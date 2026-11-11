@@ -7,6 +7,10 @@ const DUPLICATE_DAYS = 7;          // 幾天內算重複
 const LOOKBACK_ROWS = 300;         // 往回檢查幾筆（效能與準確度平衡）
 const SNAPSHOT_SHEET = '庫存快照';
 const CHANGES_SHEET = '異動紀錄';
+const TZ = 'Asia/Taipei';
+// 異動紀錄只保留一週：以「每週五 20:00（台北時間）」為換週分界，換週後只留下最後一批當起點
+const WEEK_RESET_DOW = 5;    // 5 = 週五
+const WEEK_RESET_HOUR = 20;  // 20:00 之後算新的一週
 
 // 前端庫存表
 const KEZHONG_CSV = 'https://docs.google.com/spreadsheets/d/1ekYUBtuQNjLB0RpWGCPJN7409sL74tqT36NfzUIM6o4/gviz/tq?tqx=out:csv';
@@ -615,6 +619,53 @@ function normalizeDate_(value) {
   return s.slice(0, 10);
 }
 
+// 目前這一週的起始日（yyyy-MM-dd）。
+// 分界固定在每週五 20:00：週五 20:00 之前仍算上一週，之後才算新的一週。
+function getWeekStart_(now) {
+  now = now || new Date();
+  var y = Number(Utilities.formatDate(now, TZ, 'yyyy'));
+  var mo = Number(Utilities.formatDate(now, TZ, 'MM'));
+  var d = Number(Utilities.formatDate(now, TZ, 'dd'));
+  var h = Number(Utilities.formatDate(now, TZ, 'HH'));
+  var dow = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();   // 0=週日、5=週五
+  var back = (dow - WEEK_RESET_DOW + 7) % 7;                // 距離上一個週五幾天
+  if (back === 0 && h < WEEK_RESET_HOUR) back = 7;           // 本週五還沒過 20:00 → 仍屬上一週
+  return Utilities.formatDate(new Date(Date.UTC(y, mo - 1, d - back)), TZ, 'yyyy-MM-dd');
+}
+
+// 換週清理：把分界日之前的異動紀錄刪掉，只保留「分界前最後一批（同一天）」當新週期的起點。
+// 本週（分界日之後）已經寫入的紀錄一定要留著，否則剛換週就把本週資料清掉了。
+// 回傳被刪掉的列數，方便寫 log。
+function pruneOldChanges_(changesSheet, weekStart) {
+  var data = changesSheet.getDataRange().getValues();
+  if (data.length <= 1) return 0;
+
+  var lastOldDate = '';
+  for (var i = 1; i < data.length; i++) {
+    var d = normalizeDate_(data[i][0]);
+    if (d && d < weekStart && d > lastOldDate) lastOldDate = d;
+  }
+  if (!lastOldDate) return 0;   // 沒有上一週的資料，不必清
+
+  var keep = [];
+  for (var i = 1; i < data.length; i++) {
+    var d = normalizeDate_(data[i][0]);
+    if (d >= weekStart || d === lastOldDate) keep.push(data[i].slice(0, 6));
+  }
+
+  var removed = (data.length - 1) - keep.length;
+  if (removed <= 0) return 0;   // 沒有可清的舊資料，不要白寫一次整表
+
+  changesSheet.clearContents();
+  changesSheet.getRange(1, 1, 1, 6)
+    .setValues([['日期', '資料庫類型', '品名', '舊狀態', '新狀態', '異動類型']])
+    .setFontWeight('bold');
+  if (keep.length) {
+    changesSheet.getRange(2, 1, keep.length, 6).setValues(keep);
+  }
+  return removed;
+}
+
 function getSnapshot(e) {
   var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   var snapshotSheet = getOrCreateSheet(ss, SNAPSHOT_SHEET, ['日期', '資料庫類型', '品名', '狀態']);
@@ -643,31 +694,28 @@ function getSnapshot(e) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// 最近一筆異動（「異動紀錄」分頁中最新日期的所有列），給前端常駐顯示用
+// 本週所有異動（「異動紀錄」分頁中，換週分界日之後的全部列），依日期分組給前端常駐顯示用。
+// 記錄本身是往後追加、不覆蓋；每週五 20:00 之後換週，只保留分界前最後一批當起點。
 function getLatestChanges() {
   var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   var changesSheet = getOrCreateSheet(ss, CHANGES_SHEET, ['日期', '資料庫類型', '品名', '舊狀態', '新狀態', '異動類型']);
+  var weekStart = getWeekStart_();
   var data = changesSheet.getDataRange().getValues();
-  var empty = { date: '', baseDate: '', changes: { added: [], removed: [], statusChanged: [] } };
+  var emptyChanges = { added: [], removed: [], statusChanged: [] };
+  var empty = { date: '', baseDate: '', weekStart: weekStart, groups: [], changes: emptyChanges };
 
   if (data.length <= 1) {
     return ContentService.createTextOutput(JSON.stringify(empty))
       .setMimeType(ContentService.MimeType.JSON);
   }
 
+  var byDate = {};
   var latestDate = '';
   for (var i = 1; i < data.length; i++) {
     var d = normalizeDate_(data[i][0]);
-    if (d && d > latestDate) latestDate = d;
-  }
-  if (!latestDate) {
-    return ContentService.createTextOutput(JSON.stringify(empty))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
+    if (!d || d < weekStart) continue;   // 分界日之前的舊紀錄不顯示（換週時會實際清掉）
 
-  var added = [], removed = [], statusChanged = [];
-  for (var i = 1; i < data.length; i++) {
-    if (normalizeDate_(data[i][0]) !== latestDate) continue;
+    if (!byDate[d]) byDate[d] = { added: [], removed: [], statusChanged: [] };
 
     var db = data[i][1] === '錠劑' ? '錠劑' : '科中';
     var name = data[i][2] ? data[i][2].toString() : '';
@@ -676,13 +724,30 @@ function getLatestChanges() {
     var type = data[i][5] ? data[i][5].toString() : '';
 
     if (type === '新增') {
-      added.push({ name: name, status: newStatus, db: db });
+      byDate[d].added.push({ name: name, status: newStatus, db: db });
     } else if (type === '消失') {
-      removed.push({ name: name, status: oldStatus, db: db });
+      byDate[d].removed.push({ name: name, status: oldStatus, db: db });
     } else {
-      statusChanged.push({ name: name, oldStatus: oldStatus, newStatus: newStatus, db: db });
+      byDate[d].statusChanged.push({ name: name, oldStatus: oldStatus, newStatus: newStatus, db: db });
     }
+    if (d > latestDate) latestDate = d;
   }
+
+  if (!latestDate) {
+    return ContentService.createTextOutput(JSON.stringify(empty))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // 依日期新 → 舊排列，讓前端可以按天分段顯示
+  var groups = [];
+  Object.keys(byDate).sort().reverse().forEach(function(dateKey) {
+    groups.push({
+      date: dateKey,
+      added: byDate[dateKey].added,
+      removed: byDate[dateKey].removed,
+      statusChanged: byDate[dateKey].statusChanged
+    });
+  });
 
   // 快照只保留最新一份，基準日改由指令碼屬性取得
   var props = PropertiesService.getScriptProperties();
@@ -695,7 +760,9 @@ function getLatestChanges() {
   return ContentService.createTextOutput(JSON.stringify({
     date: latestDate,
     baseDate: baseDate,
-    changes: { added: added, removed: removed, statusChanged: statusChanged }
+    weekStart: weekStart,
+    groups: groups,
+    changes: byDate[latestDate] || emptyChanges   // 相容舊版前端：只給最新一天
   })).setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -739,6 +806,12 @@ function writeChangesAndSnapshot(date, changes, snapshot) {
         changeRows.push([date, item.db, item.name, item.oldStatus, item.newStatus, '狀態變化']);
       });
     }
+
+    // 異動紀錄保留一週：跨過分界日才清掉更早的紀錄，只留分界前最後一批當新週期起點。
+    // 放在寫入前做，確保換週後第一批異動是接在保留的那批後面。
+    var weekStart = getWeekStart_(new Date());
+    var pruned = pruneOldChanges_(changesSheet, weekStart);
+    if (pruned > 0) Logger.log('換週清理異動紀錄：刪除 ' + pruned + ' 列（本週起始 ' + weekStart + '）');
 
     if (changeRows.length) {
       changesSheet.getRange(changesSheet.getLastRow() + 1, 1, changeRows.length, 6).setValues(changeRows);
