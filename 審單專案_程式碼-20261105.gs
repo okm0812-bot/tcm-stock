@@ -3,8 +3,13 @@
 // ==========================================
 const SPREADSHEET_ID = '1A4LtTGVqQuJ8MTfrRGn41QmcYwGZgCNjOc4lOfRjgd0';
 const SHEET_NAME = '工作表1';
-const DUPLICATE_DAYS = 7;          // 幾天內算重複
+const DUPLICATE_DAYS = 7;          // 幾天內算重複（備援上限；實務上由「每週五 17:00 換週」決定）
 const LOOKBACK_ROWS = 300;         // 往回檢查幾筆（效能與準確度平衡）
+const DUP_RESET_DOW = 5;           // 5 = 週五：重複下單審查每週重新起算
+const DUP_RESET_HOUR = 17;         // 17:00 之後算新的一輪（17:00 之前送出的訂單不再列入重複比對）
+const ORDER_CLEAR_DOW = 5;         // 5 = 週五：每週自動清空「工作表1」訂單資料
+const ORDER_CLEAR_HOUR = 17;       // 17:00 之後清空（只留標題列，不留備份）
+const ORDER_CLEAR_PROP = 'LAST_ORDER_CLEAR';   // 記錄上次清除的換週日，避免同一輪重複清
 const SNAPSHOT_SHEET = '庫存快照';
 const CHANGES_SHEET = '異動紀錄';
 const TZ = 'Asia/Taipei';
@@ -200,10 +205,104 @@ function makeDupKey(customer, spec, item) {
   return String(customer).trim() + '|' + String(spec).toLowerCase().trim() + '|' + String(item).trim();
 }
 
+// 重複下單審查的起算時間點：最近一次「週五 17:00」（台北時間）。
+// 週五 17:00 之後再下單，就不會再被上一輪的訂單判定為重複。
+// 搭配每週五 17:00 的定時清除（clearOrdersWeekly），表上只會有當週資料。
+function getDupWindowStart_(now) {
+  now = now || new Date();
+  var y = Number(Utilities.formatDate(now, TZ, 'yyyy'));
+  var mo = Number(Utilities.formatDate(now, TZ, 'MM'));
+  var d = Number(Utilities.formatDate(now, TZ, 'dd'));
+  var h = Number(Utilities.formatDate(now, TZ, 'HH'));
+  var dow = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();   // 0=週日、5=週五
+
+  var back = (dow - DUP_RESET_DOW + 7) % 7;                 // 距離上一個週五幾天
+  if (back === 0 && h < DUP_RESET_HOUR) back = 7;            // 本週五還沒過 17:00 → 仍屬上一輪
+
+  // 回傳台北時間「換週日 17:00」對應的 UTC 時間
+  return new Date(Date.UTC(y, mo - 1, d - back, DUP_RESET_HOUR - 8, 0));
+}
+
+// 換週日字串（yyyy-MM-dd）：最近一次「週五 17:00」所屬的日期，用來判斷這一輪清了沒
+function getOrderClearBoundary_(now) {
+  now = now || new Date();
+  var y = Number(Utilities.formatDate(now, TZ, 'yyyy'));
+  var mo = Number(Utilities.formatDate(now, TZ, 'MM'));
+  var d = Number(Utilities.formatDate(now, TZ, 'dd'));
+  var h = Number(Utilities.formatDate(now, TZ, 'HH'));
+  var dow = new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
+
+  var back = (dow - ORDER_CLEAR_DOW + 7) % 7;
+  if (back === 0 && h < ORDER_CLEAR_HOUR) back = 7;
+
+  return Utilities.formatDate(new Date(Date.UTC(y, mo - 1, d - back)), TZ, 'yyyy-MM-dd');
+}
+
+// 每週五 17:00 自動清空「工作表1」的訂單資料（保留第 1 列標題）。
+// 不清快照、不動其他分頁；同一輪只清一次（用指令碼屬性記住換週日），
+// 所以定時觸發重複執行、或當天剛好手動執行，都不會把新寫入的資料再清一次。
+function clearOrdersWeekly() {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+
+    var boundary = getOrderClearBoundary_(new Date());
+    var props = PropertiesService.getScriptProperties();
+    if (props.getProperty(ORDER_CLEAR_PROP) === boundary) {
+      Logger.log('每週清除訂單：' + boundary + ' 這一輪已清過，跳過');
+      return 0;
+    }
+
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName(SHEET_NAME);
+    if (!sheet) return 0;
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow <= 1) {
+      props.setProperty(ORDER_CLEAR_PROP, boundary);
+      return 0;
+    }
+
+    var cols = Math.max(sheet.getLastColumn(), 6);
+    var rows = lastRow - 1;
+    sheet.getRange(2, 1, rows, cols).clearContent();   // 只清資料，標題列保留
+    SpreadsheetApp.flush();
+
+    props.setProperty(ORDER_CLEAR_PROP, boundary);
+    Logger.log('每週清除訂單：' + boundary + ' 清除 ' + rows + ' 列');
+    return rows;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// 一次性安裝：建立「每週五 17:00 清除訂單」的時間觸發器（重複執行會先刪舊的再加新的）。
+// 同時把目前這一輪標記成已清，避免一安裝就立刻把現有資料清掉。
+function installOrderClearTrigger() {
+  var handlers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < handlers.length; i++) {
+    if (handlers[i].getHandlerFunction() === 'clearOrdersWeekly') {
+      ScriptApp.deleteTrigger(handlers[i]);
+    }
+  }
+
+  ScriptApp.newTrigger('clearOrdersWeekly')
+    .timeBased()
+    .onWeekDay(ScriptApp.WeekDay.FRIDAY)
+    .atHour(ORDER_CLEAR_HOUR)
+    .create();
+
+  PropertiesService.getScriptProperties()
+    .setProperty(ORDER_CLEAR_PROP, getOrderClearBoundary_(new Date()));
+
+  Logger.log('已建立每週五 ' + ORDER_CLEAR_HOUR + ':00 清除訂單的觸發器；本輪起算 ' +
+    getOrderClearBoundary_(new Date()) + ' 視為已清，下次換週才清空。');
+}
+
 /**
  * 優化後的重複檢查
  * - 只檢查最近 LOOKBACK_ROWS 筆
- * - 只檢查 DUPLICATE_DAYS 天內
+ * - 只比對「最近一次週五 17:00 之後」的訂單（每週五 17:00 換週，等於每週清除一次）
  * - 客戶 + 規格 + 品名 三欄比對
  * - 規格不區分大小寫
  */
@@ -219,6 +318,7 @@ function checkDuplicate(orders, sheet) {
   var data = sheet.getRange(startRow, 1, numRows, 4).getValues(); // A~D：時間、客戶、規格、品名
 
   var now = new Date();
+  var windowStart = getDupWindowStart_(now);
   var orderKeys = {};
 
   // 先把本次訂單的 key 建起來（同一則訊息內也避免自己重複）
@@ -234,8 +334,11 @@ function checkDuplicate(orders, sheet) {
     var rowTime = new Date(row[0]);
     if (isNaN(rowTime.getTime())) continue;
 
+    // 換週判斷：上一個週五 17:00 之前送出的訂單不算重複
+    if (rowTime < windowStart) continue;
+
     var diffDays = (now - rowTime) / (1000 * 60 * 60 * 24);
-    if (diffDays > DUPLICATE_DAYS) continue;
+    if (diffDays > DUPLICATE_DAYS) continue;   // 備援上限，正常不會觸發
 
     var dbCustomer = row[1];
     var dbSpec = row[2];
