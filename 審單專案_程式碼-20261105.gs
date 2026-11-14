@@ -771,6 +771,64 @@ function pruneOldChanges_(changesSheet, weekStart) {
   return removed;
 }
 
+// ==========================================================
+// 異動比對用的品名正規化
+// 同一品項若品名尾字不同（例如「川七錠1000T」與「川七錠1000T錠」），比對時視為同一項，
+// 避免同一品項同時被記成「新增」與「消失」而在畫面上重複顯示。
+// 只用於比對 key，顯示仍用原始品名。
+// ==========================================================
+function normChangeName_(name) {
+  var n = String(name === null || name === undefined ? '' : name)
+    .replace(/\s+/g, '')
+    .replace(/锭/g, '錠')
+    .replace(/碇/g, '錠')
+    .replace(/碙/g, '錠');
+  // 名稱中段已有「錠」（如 川七錠1000T）時，尾端多打的「錠」視為同一品項
+  if (n.length > 1 && n.charAt(n.length - 1) === '錠' && n.substring(0, n.length - 1).indexOf('錠') !== -1) {
+    n = n.substring(0, n.length - 1);
+  }
+  return n;
+}
+
+function changeKeyOf_(db, name) {
+  return (db === '錠劑' ? 'TB' : 'KZ') + ':' + normChangeName_(name);
+}
+
+// 同一品項同時出現在「新增」與「消失」→ 兩邊都剔除；同一批裡重複的同名品項也只留一筆
+function dedupeChanges_(changes) {
+  changes = changes || {};
+  var added = changes.added || [];
+  var removed = changes.removed || [];
+  var statusChanged = changes.statusChanged || [];
+
+  var addKeys = {}, remKeys = {}, skip = {};
+  added.forEach(function(it) { addKeys[changeKeyOf_(it.db, it.name)] = true; });
+  removed.forEach(function(it) { remKeys[changeKeyOf_(it.db, it.name)] = true; });
+  Object.keys(addKeys).forEach(function(k) { if (remKeys[k]) skip[k] = true; });
+
+  var seenA = {}, seenR = {}, seenS = {};
+  var outAdded = added.filter(function(it) {
+    var k = changeKeyOf_(it.db, it.name);
+    if (skip[k] || seenA[k]) return false;
+    seenA[k] = true;
+    return true;
+  });
+  var outRemoved = removed.filter(function(it) {
+    var k = changeKeyOf_(it.db, it.name);
+    if (skip[k] || seenR[k]) return false;
+    seenR[k] = true;
+    return true;
+  });
+  var outStatus = statusChanged.filter(function(it) {
+    var k = changeKeyOf_(it.db, it.name);
+    if (seenS[k]) return false;
+    seenS[k] = true;
+    return true;
+  });
+
+  return { added: outAdded, removed: outRemoved, statusChanged: outStatus };
+}
+
 function getSnapshot(e) {
   var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   var snapshotSheet = getOrCreateSheet(ss, SNAPSHOT_SHEET, ['日期', '資料庫類型', '品名', '狀態']);
@@ -841,6 +899,10 @@ function getLatestChanges() {
     if (d >= weekStart && d > latestDate) latestDate = d;
   }
 
+  // 同一天同一品項被同時記成「新增」與「消失」時只算一次（多半是品名尾字不同造成的假異動）
+  Object.keys(byDate).forEach(function(day) { byDate[day] = dedupeChanges_(byDate[day]); });
+  Object.keys(oldByDate).forEach(function(day) { oldByDate[day] = dedupeChanges_(oldByDate[day]); });
+
   // 分界日之前的最後一批：換週時保留在表裡當起點，順便回傳讓畫面顯示
   var anchor = null;
   var anchorDates = Object.keys(oldByDate).sort();
@@ -903,7 +965,7 @@ function getBaseDate_(ss, latestDate) {
 }
 
 function writeChangesAndSnapshot(date, changes, snapshot) {
-  changes = changes || {};
+  changes = dedupeChanges_(changes || {});
   snapshot = snapshot || {};
   date = date || Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
 

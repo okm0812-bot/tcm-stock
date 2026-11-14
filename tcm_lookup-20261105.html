@@ -2065,32 +2065,106 @@ function buildCurrentSnapshot() {
     return snap;
 }
 
+// ------------------------------------------------------------
+// 異動比對用的品名正規化
+// 同一品項若品名尾字不同（例如「川七錠1000T」與「川七錠1000T錠」），比對時視為同一項，
+// 避免同一品項同時被記成「新增」與「消失」而在畫面上重複顯示。
+// 只用於比對 key，顯示仍用原始品名。
+// ------------------------------------------------------------
+function normChangeName(name) {
+    let n = String(name === null || name === undefined ? '' : name)
+        .replace(/\s+/g, '')
+        .replace(/锭/g, '錠')
+        .replace(/碇/g, '錠')
+        .replace(/碙/g, '錠');
+    // 名稱中段已有「錠」（如 川七錠1000T）時，尾端多打的「錠」視為同一品項
+    if (n.length > 1 && n.endsWith('錠') && n.slice(0, -1).indexOf('錠') !== -1) {
+        n = n.slice(0, -1);
+    }
+    return n;
+}
+
+function changeKeyOf(db, name) {
+    return (db === '錠劑' ? 'TB' : 'KZ') + ':' + normChangeName(name);
+}
+
+// 保險層：同一品項同時出現在「新增」與「消失」時，兩邊都不顯示
+function dedupeChangeLists(changes) {
+    const added = (changes && changes.added) || [];
+    const removed = (changes && changes.removed) || [];
+    const statusChanged = (changes && changes.statusChanged) || [];
+
+    const addKeys = {};
+    const remKeys = {};
+    added.forEach(i => { addKeys[changeKeyOf(i.db, i.name)] = true; });
+    removed.forEach(i => { remKeys[changeKeyOf(i.db, i.name)] = true; });
+    const skip = {};
+    Object.keys(addKeys).forEach(k => { if (remKeys[k]) skip[k] = true; });
+
+    const seenAdd = {};
+    const seenRem = {};
+    const seenStatus = {};
+    const outAdded = added.filter(i => {
+        const k = changeKeyOf(i.db, i.name);
+        if (skip[k] || seenAdd[k]) return false;
+        seenAdd[k] = true;
+        return true;
+    });
+    const outRemoved = removed.filter(i => {
+        const k = changeKeyOf(i.db, i.name);
+        if (skip[k] || seenRem[k]) return false;
+        seenRem[k] = true;
+        return true;
+    });
+    const outStatus = statusChanged.filter(i => {
+        const k = changeKeyOf(i.db, i.name);
+        if (seenStatus[k]) return false;
+        seenStatus[k] = true;
+        return true;
+    });
+
+    return { added: outAdded, removed: outRemoved, statusChanged: outStatus };
+}
+
 function computeChanges(currentKZ, currentTB, snapshot) {
-    const current = {};
-    for (const [name, data] of Object.entries(currentKZ)) current['KZ:' + name] = data[0];
-    for (const [name, data] of Object.entries(currentTB)) current['TB:' + name] = data[0];
+    // 比對前先把兩邊的品名正規化成同一把 key，品名尾字不同不會再變成「消失＋新增」
+    const current = {};   // key -> { name, status }
+    for (const [name, data] of Object.entries(currentKZ || {})) {
+        current['KZ:' + normChangeName(name)] = { name, status: data[0] };
+    }
+    for (const [name, data] of Object.entries(currentTB || {})) {
+        current['TB:' + normChangeName(name)] = { name, status: data[0] };
+    }
+
+    const snap = {};      // key -> { name, status }
+    for (const [key, status] of Object.entries(snapshot || {})) {
+        const dbPrefix = key.startsWith('TB:') ? 'TB' : 'KZ';
+        const rawName = key.replace(/^(KZ:|TB:)/, '');
+        snap[dbPrefix + ':' + normChangeName(rawName)] = { name: rawName, status };
+    }
 
     const added = [];
     const removed = [];
     const statusChanged = [];
 
     // 當前有、快照無 → 新增
-    for (const [key, status] of Object.entries(current)) {
-        if (!(key in snapshot)) {
-            added.push({ name: key.replace(/^(KZ:|TB:)/, ''), status, db: key.startsWith('TB:') ? '錠劑' : '科中' });
-        } else if (snapshot[key] !== status) {
-            statusChanged.push({ name: key.replace(/^(KZ:|TB:)/, ''), oldStatus: snapshot[key], newStatus: status, db: key.startsWith('TB:') ? '錠劑' : '科中' });
+    for (const [key, cur] of Object.entries(current)) {
+        const db = key.startsWith('TB:') ? '錠劑' : '科中';
+        if (!(key in snap)) {
+            added.push({ name: cur.name, status: cur.status, db });
+        } else if (snap[key].status !== cur.status) {
+            statusChanged.push({ name: cur.name, oldStatus: snap[key].status, newStatus: cur.status, db });
         }
     }
 
     // 快照有、當前無 → 消失
-    for (const [key, status] of Object.entries(snapshot)) {
+    for (const [key, old] of Object.entries(snap)) {
         if (!(key in current)) {
-            removed.push({ name: key.replace(/^(KZ:|TB:)/, ''), status, db: key.startsWith('TB:') ? '錠劑' : '科中' });
+            removed.push({ name: old.name, status: old.status, db: key.startsWith('TB:') ? '錠劑' : '科中' });
         }
     }
 
-    return { added, removed, statusChanged };
+    return dedupeChangeLists({ added, removed, statusChanged });
 }
 
 async function computeLocalChanges() {
